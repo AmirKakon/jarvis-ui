@@ -16,6 +16,9 @@ class WebSocketClient {
       error: [],
       connect: [],
       disconnect: [],
+      stream_start: [],
+      stream_chunk: [],
+      stream_end: [],
     };
   }
 
@@ -108,6 +111,15 @@ class WebSocketClient {
       case 'error':
         this.emit('error', payload);
         break;
+      case 'stream_start':
+        this.emit('stream_start', payload);
+        break;
+      case 'stream_chunk':
+        this.emit('stream_chunk', payload);
+        break;
+      case 'stream_end':
+        this.emit('stream_end', payload);
+        break;
       default:
         console.log('Unknown message type:', type, data);
     }
@@ -197,4 +209,3 @@ class WebSocketClient {
 
 // Export a singleton instance
 export const wsClient = new WebSocketClient();
-

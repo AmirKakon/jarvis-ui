@@ -9,9 +9,11 @@ function Chat() {
   const [messages, setMessages] = useState([])
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
   const [sessionId, setSessionId] = useState(getSessionId())
   const [error, setError] = useState(null)
   const reconnectTimeoutRef = useRef(null)
+  const streamingMessageRef = useRef(null)
 
   // Connect to WebSocket
   const connect = useCallback(async () => {
@@ -30,6 +32,8 @@ function Chat() {
     const newSessionId = resetSession()
     setSessionId(newSessionId)
     setMessages([])
+    setIsStreaming(false)
+    streamingMessageRef.current = null
     wsClient.disconnect()
   }, [])
 
@@ -75,6 +79,64 @@ function Chat() {
     const handleError = (data) => {
       console.error('WebSocket error:', data)
       setError(data.content || data.error || 'An error occurred')
+      setIsStreaming(false)
+      setIsTyping(false)
+    }
+
+    const handleStreamStart = () => {
+      setIsTyping(false)
+      setIsStreaming(true)
+      
+      // Create a new streaming message with temporary ID
+      const tempId = `streaming-${Date.now()}`
+      streamingMessageRef.current = tempId
+      
+      setMessages(prev => [...prev, {
+        id: tempId,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        isStreaming: true,
+      }])
+    }
+
+    const handleStreamChunk = (data) => {
+      const { content } = data
+      
+      if (streamingMessageRef.current && content) {
+        setMessages(prev => prev.map(msg => {
+          if (msg.id === streamingMessageRef.current) {
+            return {
+              ...msg,
+              content: msg.content + content,
+            }
+          }
+          return msg
+        }))
+      }
+    }
+
+    const handleStreamEnd = (data) => {
+      const { id, timestamp, content } = data
+      
+      if (streamingMessageRef.current) {
+        setMessages(prev => prev.map(msg => {
+          if (msg.id === streamingMessageRef.current) {
+            return {
+              ...msg,
+              id: id || msg.id,
+              timestamp: timestamp || msg.timestamp,
+              // Use provided content if available, otherwise keep accumulated content
+              content: content || msg.content,
+              isStreaming: false,
+            }
+          }
+          return msg
+        }))
+      }
+      
+      streamingMessageRef.current = null
+      setIsStreaming(false)
     }
 
     wsClient.on('connect', handleConnect)
@@ -83,6 +145,9 @@ function Chat() {
     wsClient.on('history', handleHistory)
     wsClient.on('typing', handleTyping)
     wsClient.on('error', handleError)
+    wsClient.on('stream_start', handleStreamStart)
+    wsClient.on('stream_chunk', handleStreamChunk)
+    wsClient.on('stream_end', handleStreamEnd)
 
     // Connect on mount
     connect()
@@ -94,6 +159,9 @@ function Chat() {
       wsClient.off('history', handleHistory)
       wsClient.off('typing', handleTyping)
       wsClient.off('error', handleError)
+      wsClient.off('stream_start', handleStreamStart)
+      wsClient.off('stream_chunk', handleStreamChunk)
+      wsClient.off('stream_end', handleStreamEnd)
       
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
@@ -114,8 +182,12 @@ function Chat() {
       setError('Not connected to server')
       return
     }
+    if (isStreaming) {
+      setError('Please wait for the current response to complete')
+      return
+    }
     wsClient.sendMessage(content)
-  }, [isConnected])
+  }, [isConnected, isStreaming])
 
   return (
     <div className="chat">
@@ -194,11 +266,12 @@ function Chat() {
       <MessageList 
         messages={messages} 
         isTyping={isTyping}
+        isStreaming={isStreaming}
       />
 
       <MessageInput 
         onSend={handleSendMessage}
-        disabled={!isConnected}
+        disabled={!isConnected || isStreaming}
       />
     </div>
   )

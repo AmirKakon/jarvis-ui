@@ -292,6 +292,54 @@
   color: var(--accent-secondary);
 }
 
+/* Streaming Cursor */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: var(--accent-primary);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 0.8s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--accent-primary), 0 0 16px var(--accent-primary);
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Streaming message glow effect */
+.message.streaming .message-content {
+  border-color: rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.1);
+}
+
+.message.streaming .message-content::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.05), transparent);
+  animation: streamPulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes streamPulse {
+  0%, 100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Typing Indicator - Scanning Effect */
 .typing-indicator .message-content {
   background: linear-gradient(135deg, rgba(255, 0, 229, 0.05), rgba(100, 0, 150, 0.08));

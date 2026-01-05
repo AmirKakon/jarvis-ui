@@ -1,10 +1,9 @@
 """WebSocket endpoints for real-time chat."""
 import json
 import logging
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict
-from database.db import get_db, async_session_maker
+from database.db import async_session_maker
 from services.session_manager import session_manager
 from services.llm_provider import llm_provider
 
@@ -67,6 +66,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     - Server sends: {"type": "history", "messages": [...]}
     - Server sends: {"type": "error", "content": "..."}
     - Server sends: {"type": "typing", "status": true|false}
+    - Server sends: {"type": "stream_start"} - Streaming response started
+    - Server sends: {"type": "stream_chunk", "content": "..."} - Streaming text chunk
+    - Server sends: {"type": "stream_end", "id": ..., "timestamp": "..."} - Streaming ended
     """
     await manager.connect(websocket, session_id)
     
@@ -126,32 +128,77 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         "status": True,
                     })
                     
-                    # Get response from LLM
+                    # Stream response from LLM
+                    full_response = ""
+                    stream_started = False
+                    has_error = False
+                    
                     try:
-                        response = await llm_provider.send_message(content, session_id)
+                        async for event_type, chunk_content in llm_provider.stream_message(content, session_id):
+                            if event_type == "start":
+                                stream_started = True
+                                # Turn off typing indicator, start streaming
+                                await websocket.send_json({
+                                    "type": "typing",
+                                    "status": False,
+                                })
+                                await websocket.send_json({
+                                    "type": "stream_start",
+                                })
+                            
+                            elif event_type == "chunk":
+                                await websocket.send_json({
+                                    "type": "stream_chunk",
+                                    "content": chunk_content,
+                                })
+                            
+                            elif event_type == "end":
+                                full_response = chunk_content
+                            
+                            elif event_type == "error":
+                                has_error = True
+                                full_response = chunk_content
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "content": chunk_content,
+                                })
+                                break
+                    
                     except Exception as e:
-                        logger.error(f"LLM error: {e}")
-                        response = f"Error communicating with AI: {str(e)}"
+                        logger.error(f"Streaming error: {e}")
+                        has_error = True
+                        full_response = f"Error communicating with AI: {str(e)}"
+                        await websocket.send_json({
+                            "type": "error",
+                            "content": full_response,
+                        })
                     
-                    # Store assistant message
-                    assistant_msg = await session_manager.add_message(
-                        db, session_id, "assistant", response
-                    )
+                    # Turn off typing if we didn't stream
+                    if not stream_started:
+                        await websocket.send_json({
+                            "type": "typing",
+                            "status": False,
+                        })
                     
-                    # Send typing indicator off
-                    await websocket.send_json({
-                        "type": "typing",
-                        "status": False,
-                    })
-                    
-                    # Send assistant response
-                    await websocket.send_json({
-                        "type": "message",
-                        "role": "assistant",
-                        "content": response,
-                        "timestamp": assistant_msg.timestamp.isoformat(),
-                        "id": assistant_msg.id,
-                    })
+                    # Store assistant message in database
+                    if full_response:
+                        assistant_msg = await session_manager.add_message(
+                            db, session_id, "assistant", full_response
+                        )
+                        
+                        # Send stream end with message details
+                        await websocket.send_json({
+                            "type": "stream_end",
+                            "id": assistant_msg.id,
+                            "timestamp": assistant_msg.timestamp.isoformat(),
+                            "content": full_response,  # Include full content for verification
+                        })
+                    else:
+                        # No response received
+                        await websocket.send_json({
+                            "type": "stream_end",
+                            "content": "",
+                        })
                 
                 else:
                     await websocket.send_json({
@@ -164,4 +211,3 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket, session_id)
-

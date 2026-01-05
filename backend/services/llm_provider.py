@@ -1,6 +1,6 @@
 """LLM Provider abstraction layer (MCP - Model Context Protocol)."""
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, AsyncGenerator, Tuple
 from services.n8n_client import n8n_client
 
 
@@ -24,6 +24,30 @@ class LLMProvider(ABC):
             
         Returns:
             Response string from the LLM
+        """
+        raise NotImplementedError
+    
+    @abstractmethod
+    async def stream_message(
+        self,
+        message: str,
+        session_id: str,
+        context: Optional[dict] = None
+    ) -> AsyncGenerator[Tuple[str, str], None]:
+        """
+        Send a message and stream the response.
+        
+        Args:
+            message: The user message
+            session_id: Session identifier
+            context: Optional context dict
+            
+        Yields:
+            Tuples of (event_type, content):
+            - ("start", "") - Stream started
+            - ("chunk", "text") - Text chunk
+            - ("end", "full_response") - Stream ended
+            - ("error", "error_message") - Error occurred
         """
         raise NotImplementedError
 
@@ -54,6 +78,16 @@ class N8NProvider(LLMProvider):
             return "No response received"
         
         return response
+    
+    async def stream_message(
+        self,
+        message: str,
+        session_id: str,
+        context: Optional[dict] = None
+    ) -> AsyncGenerator[Tuple[str, str], None]:
+        """Stream message via n8n webhook."""
+        async for event_type, content in n8n_client.stream_message(message, session_id):
+            yield (event_type, content)
 
 
 class MockProvider(LLMProvider):
@@ -67,6 +101,26 @@ class MockProvider(LLMProvider):
     ) -> str:
         """Return a mock response."""
         return f"[Mock] Received: {message}"
+    
+    async def stream_message(
+        self,
+        message: str,
+        session_id: str,
+        context: Optional[dict] = None
+    ) -> AsyncGenerator[Tuple[str, str], None]:
+        """Stream a mock response."""
+        import asyncio
+        
+        yield ("start", "")
+        
+        response = f"[Mock] Received: {message}"
+        words = response.split(" ")
+        
+        for word in words:
+            yield ("chunk", word + " ")
+            await asyncio.sleep(0.1)
+        
+        yield ("end", response)
 
 
 # Factory function to get the appropriate provider
@@ -91,4 +145,3 @@ def get_llm_provider(provider_type: str = "n8n") -> LLMProvider:
 
 # Default provider
 llm_provider = get_llm_provider("n8n")
-

@@ -1,16 +1,16 @@
 import React, { useEffect, useRef } from 'react'
 import './MessageList.css'
 
-function MessageList({ messages, isTyping }) {
+function MessageList({ messages, isTyping, isStreaming }) {
   const containerRef = useRef(null)
   const bottomRef = useRef(null)
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive or content changes
   useEffect(() => {
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages, isTyping])
+  }, [messages, isTyping, isStreaming])
 
   // Format timestamp
   const formatTime = (timestamp) => {
@@ -20,8 +20,11 @@ function MessageList({ messages, isTyping }) {
   }
 
   // Parse and render message content with markdown-like formatting
-  const renderContent = (content) => {
-    if (!content) return null
+  const renderContent = (content, isMessageStreaming) => {
+    if (!content && !isMessageStreaming) return null
+    if (!content && isMessageStreaming) {
+      return <span className="streaming-cursor"></span>
+    }
     
     // Simple markdown-like parsing
     const lines = content.split('\n')
@@ -94,7 +97,7 @@ function MessageList({ messages, isTyping }) {
       )
     }
     
-    // Handle unclosed code block
+    // Handle unclosed code block (during streaming)
     if (inCodeBlock && codeContent.length > 0) {
       elements.push(
         <pre key="code-unclosed" className="code-block">
@@ -102,6 +105,11 @@ function MessageList({ messages, isTyping }) {
           <code>{codeContent.join('\n')}</code>
         </pre>
       )
+    }
+    
+    // Add streaming cursor at the end if message is streaming
+    if (isMessageStreaming) {
+      elements.push(<span key="cursor" className="streaming-cursor"></span>)
     }
     
     return elements
@@ -128,7 +136,7 @@ function MessageList({ messages, isTyping }) {
         {messages.map((message) => (
           <div 
             key={message.id} 
-            className={`message ${message.role}`}
+            className={`message ${message.role}${message.isStreaming ? ' streaming' : ''}`}
           >
             <div className="message-avatar">
               {message.role === 'user' ? (
@@ -155,11 +163,11 @@ function MessageList({ messages, isTyping }) {
                   {message.role === 'user' ? 'You' : 'Jarvis'}
                 </span>
                 <span className="message-time">
-                  {formatTime(message.timestamp)}
+                  {message.isStreaming ? 'typing...' : formatTime(message.timestamp)}
                 </span>
               </div>
               <div className="message-text">
-                {renderContent(message.content)}
+                {renderContent(message.content, message.isStreaming)}
               </div>
             </div>
           </div>
@@ -200,4 +208,3 @@ function MessageList({ messages, isTyping }) {
 }
 
 export default MessageList
-
