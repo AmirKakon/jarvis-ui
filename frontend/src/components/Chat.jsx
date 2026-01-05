@@ -126,34 +126,59 @@ function Chat() {
               <svg viewBox="0 0 100 100" className="logo-icon">
                 <defs>
                   <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#00d4ff" />
-                    <stop offset="100%" stopColor="#7c3aed" />
+                    <stop offset="0%" stopColor="#00f0ff" />
+                    <stop offset="50%" stopColor="#ff00e5" />
+                    <stop offset="100%" stopColor="#00ff88" />
                   </linearGradient>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
                 </defs>
-                <circle cx="50" cy="50" r="45" fill="none" stroke="url(#logoGrad)" strokeWidth="3"/>
-                <circle cx="50" cy="50" r="20" fill="url(#logoGrad)" opacity="0.8"/>
-                <circle cx="50" cy="50" r="8" fill="#0a0f1c"/>
+                {/* Outer hexagon */}
+                <polygon 
+                  points="50,5 90,27.5 90,72.5 50,95 10,72.5 10,27.5" 
+                  fill="none" 
+                  stroke="url(#logoGrad)" 
+                  strokeWidth="2"
+                  filter="url(#glow)"
+                />
+                {/* Inner hexagon */}
+                <polygon 
+                  points="50,20 75,35 75,65 50,80 25,65 25,35" 
+                  fill="none" 
+                  stroke="url(#logoGrad)" 
+                  strokeWidth="1.5"
+                  opacity="0.7"
+                />
+                {/* Core */}
+                <circle cx="50" cy="50" r="12" fill="url(#logoGrad)" opacity="0.9"/>
+                <circle cx="50" cy="50" r="6" fill="#030712"/>
+                <circle cx="50" cy="50" r="3" fill="#00f0ff" opacity="0.8"/>
               </svg>
             </div>
             <div className="title-text">
               <h1>Jarvis</h1>
-              <span className="subtitle">AI Assistant</span>
+              <span className="subtitle">[ Neural Interface v2.0 ]</span>
             </div>
           </div>
           <div className="header-actions">
             <div className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
               <span className="status-dot"></span>
-              <span className="status-text">{isConnected ? 'Connected' : 'Disconnected'}</span>
+              <span className="status-text">{isConnected ? 'Online' : 'Offline'}</span>
             </div>
             <button 
               className="new-session-btn"
               onClick={handleNewSession}
-              title="Start new session"
+              title="Initialize new session"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 5v14M5 12h14"/>
               </svg>
-              New Chat
+              <span>New Session</span>
             </button>
           </div>
         </div>
@@ -180,4 +205,3 @@ function Chat() {
 }
 
 export default Chat
-

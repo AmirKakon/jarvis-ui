@@ -4,11 +4,142 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
+  position: relative;
+  overflow: hidden;
   
-  /* Subtle geometric background pattern */
+  /* Animated grid background */
   background-image: 
-    radial-gradient(ellipse at 20% 80%, rgba(0, 212, 255, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
-    linear-gradient(180deg, var(--bg-primary) 0%, #0d1424 100%);
+    /* Radial glows */
+    radial-gradient(ellipse at 10% 90%, rgba(0, 240, 255, 0.08) 0%, transparent 40%),
+    radial-gradient(ellipse at 90% 10%, rgba(255, 0, 229, 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 255, 136, 0.03) 0%, transparent 50%),
+    /* Grid pattern */
+    linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 50px 50px, 50px 50px;
+  background-position: 0 0, 0 0, 0 0, -1px -1px, -1px -1px;
 }
 
+/* Scanline overlay effect */
+.app::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1) 0px,
+    rgba(0, 0, 0, 0.1) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0.3;
+}
+
+/* Moving scanline */
+.app::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 240, 255, 0.03) 50%,
+    transparent 100%
+  );
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* Corner decorations */
+.app .corner-decoration {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.app .corner-decoration::before,
+.app .corner-decoration::after {
+  content: '';
+  position: absolute;
+  background: var(--accent-primary);
+  opacity: 0.5;
+}
+
+.app .corner-decoration.top-left {
+  top: 0;
+  left: 0;
+}
+.app .corner-decoration.top-left::before {
+  width: 40px;
+  height: 2px;
+  top: 10px;
+  left: 10px;
+}
+.app .corner-decoration.top-left::after {
+  width: 2px;
+  height: 40px;
+  top: 10px;
+  left: 10px;
+}
+
+.app .corner-decoration.top-right {
+  top: 0;
+  right: 0;
+}
+.app .corner-decoration.top-right::before {
+  width: 40px;
+  height: 2px;
+  top: 10px;
+  right: 10px;
+}
+.app .corner-decoration.top-right::after {
+  width: 2px;
+  height: 40px;
+  top: 10px;
+  right: 10px;
+}
+
+.app .corner-decoration.bottom-left {
+  bottom: 0;
+  left: 0;
+}
+.app .corner-decoration.bottom-left::before {
+  width: 40px;
+  height: 2px;
+  bottom: 10px;
+  left: 10px;
+}
+.app .corner-decoration.bottom-left::after {
+  width: 2px;
+  height: 40px;
+  bottom: 10px;
+  left: 10px;
+}
+
+.app .corner-decoration.bottom-right {
+  bottom: 0;
+  right: 0;
+}
+.app .corner-decoration.bottom-right::before {
+  width: 40px;
+  height: 2px;
+  bottom: 10px;
+  right: 10px;
+}
+.app .corner-decoration.bottom-right::after {
+  width: 2px;
+  height: 40px;
+  bottom: 10px;
+  right: 10px;
+}

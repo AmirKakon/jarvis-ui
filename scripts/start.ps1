@@ -34,7 +34,7 @@ if (-not $FrontendOnly) {
     $backendCmd = @"
 Set-Location '$BackendPath'
 & '$activateScript'
-Write-Host 'Backend server starting on port 20003...' -ForegroundColor Green
+Write-Host 'Backend server starting on port 20004...' -ForegroundColor Green
 Write-Host 'Press Ctrl+C to stop' -ForegroundColor Gray
 Write-Host ''
 python main.py
@@ -54,7 +54,7 @@ if (-not $BackendOnly) {
         Push-Location $FrontendPath
         npm run build
         Pop-Location
-        Write-Host "  Frontend built. Serve from backend at http://localhost:20003" -ForegroundColor Green
+        Write-Host "  Frontend built. Serve from backend at http://localhost:20004" -ForegroundColor Green
     } else {
         Write-Host "Starting Frontend Dev Server..." -ForegroundColor Yellow
         
@@ -80,12 +80,12 @@ Write-Host ""
 
 if ($Production) {
     Write-Host "Access the application at:" -ForegroundColor White
-    Write-Host "  http://localhost:20003" -ForegroundColor Cyan
+    Write-Host "  http://localhost:20004" -ForegroundColor Cyan
 } else {
     Write-Host "Access the application at:" -ForegroundColor White
     Write-Host "  Frontend (dev): http://localhost:3000" -ForegroundColor Cyan
-    Write-Host "  Backend API:    http://localhost:20003" -ForegroundColor Cyan
-    Write-Host "  API Docs:       http://localhost:20003/docs" -ForegroundColor Cyan
+    Write-Host "  Backend API:    http://localhost:20004" -ForegroundColor Cyan
+    Write-Host "  API Docs:       http://localhost:20004/docs" -ForegroundColor Cyan
 }
 Write-Host ""
 
