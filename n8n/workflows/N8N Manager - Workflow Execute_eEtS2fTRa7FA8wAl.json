@@ -1,0 +1,363 @@
+{
+  "updatedAt": "2026-01-07T20:16:13.577Z",
+  "createdAt": "2026-01-07T20:13:48.777Z",
+  "id": "eEtS2fTRa7FA8wAl",
+  "name": "N8N Manager - Workflow Execute",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "workflowId",
+              "type": "string"
+            },
+            {
+              "name": "inputData",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "wfexecute-trigger-001",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare execution request\nconst input = items[0].json;\n\nif (!input.workflowId) {\n  throw new Error('workflowId is required');\n}\n\nlet requestBody = {};\nif (input.inputData) {\n  try {\n    const data = typeof input.inputData === 'string' \n      ? JSON.parse(input.inputData) \n      : input.inputData;\n    requestBody = { data };\n  } catch (e) {\n    // If not valid JSON, use as-is\n    requestBody = { data: input.inputData };\n  }\n}\n\nreturn [{\n  json: {\n    workflowId: input.workflowId,\n    requestBody: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "wfexecute-prepare-001",
+      "name": "Prepare Request"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "rJoy4infFhxMynsJ",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "requestPath": "=/workflows/{{ $json.workflowId }}/execute",
+            "requestBody": "={{ $json.requestBody }}",
+            "requestMethod": "POST"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "requestPath",
+              "displayName": "requestPath",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "id": "requestBody",
+              "displayName": "requestBody",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "id": "requestMethod",
+              "displayName": "requestMethod",
+              "required": true,
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "wfexecute-api-001",
+      "name": "Call N8N API"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format execution result\nconst response = items[0].json;\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Workflow executed',\n    execution: {\n      id: response.id,\n      workflowId: response.workflowId,\n      finished: response.finished,\n      mode: response.mode,\n      startedAt: response.startedAt,\n      stoppedAt: response.stoppedAt,\n      status: response.status\n    },\n    data: response.data\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "wfexecute-format-001",
+      "name": "Format Response"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Request": {
+      "main": [
+        [
+          {
+            "node": "Call N8N API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call N8N API": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "d3830d25-281b-4df5-bb11-7cbf40f06899",
+  "activeVersionId": "d3830d25-281b-4df5-bb11-7cbf40f06899",
+  "versionCounter": 4,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-07T20:13:48.778Z",
+      "createdAt": "2026-01-07T20:13:48.778Z",
+      "role": "workflow:owner",
+      "workflowId": "eEtS2fTRa7FA8wAl",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-07T20:13:48.780Z",
+    "createdAt": "2026-01-07T20:13:48.780Z",
+    "versionId": "d3830d25-281b-4df5-bb11-7cbf40f06899",
+    "workflowId": "eEtS2fTRa7FA8wAl",
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "workflowId",
+                "type": "string"
+              },
+              {
+                "name": "inputData",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "wfexecute-trigger-001",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Prepare execution request\nconst input = items[0].json;\n\nif (!input.workflowId) {\n  throw new Error('workflowId is required');\n}\n\nlet requestBody = {};\nif (input.inputData) {\n  try {\n    const data = typeof input.inputData === 'string' \n      ? JSON.parse(input.inputData) \n      : input.inputData;\n    requestBody = { data };\n  } catch (e) {\n    // If not valid JSON, use as-is\n    requestBody = { data: input.inputData };\n  }\n}\n\nreturn [{\n  json: {\n    workflowId: input.workflowId,\n    requestBody: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : ''\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ],
+        "id": "wfexecute-prepare-001",
+        "name": "Prepare Request"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "rJoy4infFhxMynsJ",
+            "mode": "id"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "requestPath": "=/workflows/{{ $json.workflowId }}/execute",
+              "requestBody": "={{ $json.requestBody }}",
+              "requestMethod": "POST"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "requestPath",
+                "displayName": "requestPath",
+                "required": true,
+                "type": "string"
+              },
+              {
+                "id": "requestBody",
+                "displayName": "requestBody",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "id": "requestMethod",
+                "displayName": "requestMethod",
+                "required": true,
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.2,
+        "position": [
+          440,
+          0
+        ],
+        "id": "wfexecute-api-001",
+        "name": "Call N8N API"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Format execution result\nconst response = items[0].json;\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Workflow executed',\n    execution: {\n      id: response.id,\n      workflowId: response.workflowId,\n      finished: response.finished,\n      mode: response.mode,\n      startedAt: response.startedAt,\n      stoppedAt: response.stoppedAt,\n      status: response.status\n    },\n    data: response.data\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          0
+        ],
+        "id": "wfexecute-format-001",
+        "name": "Format Response"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "Prepare Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Request": {
+        "main": [
+          [
+            {
+              "node": "Call N8N API",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Call N8N API": {
+        "main": [
+          [
+            {
+              "node": "Format Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-07T20:13:50.453Z",
+        "id": 134,
+        "workflowId": "eEtS2fTRa7FA8wAl",
+        "versionId": "d3830d25-281b-4df5-bb11-7cbf40f06899",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
+}

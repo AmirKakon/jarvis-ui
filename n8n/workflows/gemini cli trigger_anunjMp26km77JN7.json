@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-01-01T15:06:48.039Z",
+  "updatedAt": "2026-01-07T20:13:10.525Z",
   "createdAt": "2025-12-17T07:56:42.083Z",
   "id": "anunjMp26km77JN7",
   "name": "gemini cli trigger",
-  "description": "Executes Gemini CLI commands on the local machine via SSH. Command format: gemini -y -p \"<prompt>\"",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -65,7 +65,9 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
@@ -82,7 +84,7 @@
   },
   "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
   "activeVersionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
-  "versionCounter": 15,
+  "versionCounter": 30,
   "triggerCount": 0,
   "shared": [
     {
@@ -211,6 +213,54 @@
       {
         "createdAt": "2025-12-28T17:20:30.523Z",
         "id": 6,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:14.405Z",
+        "id": 80,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:16.308Z",
+        "id": 81,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:38.166Z",
+        "id": 100,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:39.559Z",
+        "id": 101,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:10.551Z",
+        "id": 120,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:11.806Z",
+        "id": 121,
         "workflowId": "anunjMp26km77JN7",
         "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
         "event": "activated",

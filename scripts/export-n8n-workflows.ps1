@@ -59,6 +59,13 @@ if (-not (Test-Path $envFile)) {
     Write-Host ""
 }
 
+# Clean workflows folder before export
+$workflowsPath = Join-Path $N8nPath "workflows"
+if (Test-Path $workflowsPath) {
+    Write-Host "Cleaning existing workflows folder..." -ForegroundColor Yellow
+    Remove-Item -Path $workflowsPath -Recurse -Force
+}
+
 # Run the export script
 Write-Host "Exporting workflows..." -ForegroundColor Cyan
 if ($IncludeArchived) {

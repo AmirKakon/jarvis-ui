@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-01-01T15:06:53.548Z",
+  "updatedAt": "2026-01-07T20:13:06.796Z",
   "createdAt": "2025-12-24T11:16:27.678Z",
   "id": "dJmq3O0s7lDAMANm",
   "name": "download video",
-  "description": "Downloads videos from URLs to media library (movies/TV shows) with optional Jellyfin sync and Telegram notifications.",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -536,16 +536,18 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "e65e958b-9672-4ba9-b7b6-1b5e408f3bc7",
-  "activeVersionId": "e65e958b-9672-4ba9-b7b6-1b5e408f3bc7",
-  "versionCounter": 55,
+  "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+  "activeVersionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+  "versionCounter": 75,
   "triggerCount": 1,
   "shared": [
     {
@@ -605,9 +607,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2025-12-29T15:57:17.000Z",
-    "createdAt": "2025-12-29T15:57:14.318Z",
-    "versionId": "e65e958b-9672-4ba9-b7b6-1b5e408f3bc7",
+    "updatedAt": "2026-01-07T19:47:02.364Z",
+    "createdAt": "2026-01-07T19:47:02.364Z",
+    "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
     "workflowId": "dJmq3O0s7lDAMANm",
     "nodes": [
       {
@@ -1139,14 +1141,70 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": "Version e65e958b",
-    "description": "",
+    "name": null,
+    "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2025-12-29T15:57:17.741Z",
-        "id": 19,
+        "createdAt": "2026-01-07T19:47:02.410Z",
+        "id": 68,
         "workflowId": "dJmq3O0s7lDAMANm",
-        "versionId": "e65e958b-9672-4ba9-b7b6-1b5e408f3bc7",
+        "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:47:04.842Z",
+        "id": 69,
+        "workflowId": "dJmq3O0s7lDAMANm",
+        "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:09.425Z",
+        "id": 78,
+        "workflowId": "dJmq3O0s7lDAMANm",
+        "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:11.394Z",
+        "id": 79,
+        "workflowId": "dJmq3O0s7lDAMANm",
+        "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:35.126Z",
+        "id": 98,
+        "workflowId": "dJmq3O0s7lDAMANm",
+        "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:36.318Z",
+        "id": 99,
+        "workflowId": "dJmq3O0s7lDAMANm",
+        "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:06.838Z",
+        "id": 118,
+        "workflowId": "dJmq3O0s7lDAMANm",
+        "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:08.194Z",
+        "id": 119,
+        "workflowId": "dJmq3O0s7lDAMANm",
+        "versionId": "5179fcc7-31aa-4848-a2f9-6932960f39ea",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

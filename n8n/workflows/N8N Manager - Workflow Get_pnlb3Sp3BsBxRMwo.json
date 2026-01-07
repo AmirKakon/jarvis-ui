@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-01-07T20:14:02.771Z",
-  "createdAt": "2025-12-28T17:28:14.114Z",
-  "id": "TTqKNvyugLWoVF08",
-  "name": "sudo ssh commands",
+  "updatedAt": "2026-01-07T20:16:21.402Z",
+  "createdAt": "2026-01-07T20:13:52.512Z",
+  "id": "pnlb3Sp3BsBxRMwo",
+  "name": "N8N Manager - Workflow Get",
   "description": null,
   "active": true,
   "isArchived": false,
@@ -12,7 +12,8 @@
         "workflowInputs": {
           "values": [
             {
-              "name": "command"
+              "name": "workflowId",
+              "type": "string"
             }
           ]
         }
@@ -23,27 +24,54 @@
         0,
         0
       ],
-      "id": "53db4f2c-0faf-4d76-8dfa-2254973b34c0",
+      "id": "wfget-trigger-001",
       "name": "When Executed by Another Workflow"
     },
     {
       "parameters": {
-        "command": "=sudo {{ $json.command }}"
+        "workflowId": {
+          "__rl": true,
+          "value": "rJoy4infFhxMynsJ",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "requestPath": "=/workflows/{{ $json.workflowId }}",
+            "requestBody": "",
+            "requestMethod": "GET"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "requestPath",
+              "displayName": "requestPath",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "id": "requestBody",
+              "displayName": "requestBody",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "id": "requestMethod",
+              "displayName": "requestMethod",
+              "required": true,
+              "type": "string"
+            }
+          ]
+        }
       },
-      "type": "n8n-nodes-base.ssh",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
       "position": [
-        208,
+        220,
         0
       ],
-      "id": "45b209d8-c917-4eca-bc04-b7e4225eb0bf",
-      "name": "ssh command",
-      "credentials": {
-        "sshPassword": {
-          "id": "JjGMaWTmkWf8n5Qj",
-          "name": "IOT_Kamuri"
-        }
-      }
+      "id": "wfget-api-001",
+      "name": "Call N8N API"
     }
   ],
   "connections": {
@@ -51,7 +79,7 @@
       "main": [
         [
           {
-            "node": "ssh command",
+            "node": "Call N8N API",
             "type": "main",
             "index": 0
           }
@@ -65,28 +93,18 @@
     "availableInMCP": false
   },
   "staticData": null,
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
-  "pinData": {
-    "When Executed by Another Workflow": [
-      {
-        "json": {
-          "command": "ls"
-        }
-      }
-    ]
-  },
-  "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-  "activeVersionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-  "versionCounter": 24,
+  "meta": null,
+  "pinData": null,
+  "versionId": "660fe6da-fa31-4a2f-af64-76e60f77fda1",
+  "activeVersionId": "660fe6da-fa31-4a2f-af64-76e60f77fda1",
+  "versionCounter": 4,
   "triggerCount": 0,
   "shared": [
     {
-      "updatedAt": "2025-12-28T17:28:14.118Z",
-      "createdAt": "2025-12-28T17:28:14.118Z",
+      "updatedAt": "2026-01-07T20:13:52.514Z",
+      "createdAt": "2026-01-07T20:13:52.514Z",
       "role": "workflow:owner",
-      "workflowId": "TTqKNvyugLWoVF08",
+      "workflowId": "pnlb3Sp3BsBxRMwo",
       "projectId": "cyBU0P25SZASl1ZF",
       "project": {
         "updatedAt": "2025-12-17T07:41:57.804Z",
@@ -139,17 +157,18 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-07T19:49:37.937Z",
-    "createdAt": "2026-01-07T19:49:37.937Z",
-    "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-    "workflowId": "TTqKNvyugLWoVF08",
+    "updatedAt": "2026-01-07T20:13:52.516Z",
+    "createdAt": "2026-01-07T20:13:52.516Z",
+    "versionId": "660fe6da-fa31-4a2f-af64-76e60f77fda1",
+    "workflowId": "pnlb3Sp3BsBxRMwo",
     "nodes": [
       {
         "parameters": {
           "workflowInputs": {
             "values": [
               {
-                "name": "command"
+                "name": "workflowId",
+                "type": "string"
               }
             ]
           }
@@ -160,27 +179,54 @@
           0,
           0
         ],
-        "id": "53db4f2c-0faf-4d76-8dfa-2254973b34c0",
+        "id": "wfget-trigger-001",
         "name": "When Executed by Another Workflow"
       },
       {
         "parameters": {
-          "command": "=sudo {{ $json.command }}"
+          "workflowId": {
+            "__rl": true,
+            "value": "rJoy4infFhxMynsJ",
+            "mode": "id"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "requestPath": "=/workflows/{{ $json.workflowId }}",
+              "requestBody": "",
+              "requestMethod": "GET"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "requestPath",
+                "displayName": "requestPath",
+                "required": true,
+                "type": "string"
+              },
+              {
+                "id": "requestBody",
+                "displayName": "requestBody",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "id": "requestMethod",
+                "displayName": "requestMethod",
+                "required": true,
+                "type": "string"
+              }
+            ]
+          }
         },
-        "type": "n8n-nodes-base.ssh",
-        "typeVersion": 1,
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.2,
         "position": [
-          208,
+          220,
           0
         ],
-        "id": "45b209d8-c917-4eca-bc04-b7e4225eb0bf",
-        "name": "ssh command",
-        "credentials": {
-          "sshPassword": {
-            "id": "JjGMaWTmkWf8n5Qj",
-            "name": "IOT_Kamuri"
-          }
-        }
+        "id": "wfget-api-001",
+        "name": "Call N8N API"
       }
     ],
     "connections": {
@@ -188,7 +234,7 @@
         "main": [
           [
             {
-              "node": "ssh command",
+              "node": "Call N8N API",
               "type": "main",
               "index": 0
             }
@@ -201,50 +247,10 @@
     "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-07T19:49:37.966Z",
-        "id": 90,
-        "workflowId": "TTqKNvyugLWoVF08",
-        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-07T19:49:39.790Z",
-        "id": 91,
-        "workflowId": "TTqKNvyugLWoVF08",
-        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-07T20:09:35.140Z",
-        "id": 110,
-        "workflowId": "TTqKNvyugLWoVF08",
-        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-07T20:09:36.494Z",
-        "id": 111,
-        "workflowId": "TTqKNvyugLWoVF08",
-        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-07T20:14:02.793Z",
-        "id": 138,
-        "workflowId": "TTqKNvyugLWoVF08",
-        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-07T20:14:03.803Z",
-        "id": 139,
-        "workflowId": "TTqKNvyugLWoVF08",
-        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "createdAt": "2026-01-07T20:13:54.578Z",
+        "id": 135,
+        "workflowId": "pnlb3Sp3BsBxRMwo",
+        "versionId": "660fe6da-fa31-4a2f-af64-76e60f77fda1",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

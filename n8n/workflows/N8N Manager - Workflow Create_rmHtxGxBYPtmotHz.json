@@ -1,0 +1,355 @@
+{
+  "updatedAt": "2026-01-07T20:15:40.223Z",
+  "createdAt": "2026-01-07T20:13:34.743Z",
+  "id": "rmHtxGxBYPtmotHz",
+  "name": "N8N Manager - Workflow Create",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "workflowJson",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "wfcreate-trigger-001",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and prepare workflow JSON\nconst input = items[0].json;\nlet workflowDef;\n\ntry {\n  // Parse if string, use directly if object\n  workflowDef = typeof input.workflowJson === 'string' \n    ? JSON.parse(input.workflowJson) \n    : input.workflowJson;\n} catch (e) {\n  throw new Error('Invalid workflow JSON: ' + e.message);\n}\n\n// Ensure required fields\nif (!workflowDef.name) {\n  throw new Error('Workflow must have a name');\n}\nif (!workflowDef.nodes || !Array.isArray(workflowDef.nodes)) {\n  workflowDef.nodes = [];\n}\nif (!workflowDef.connections) {\n  workflowDef.connections = {};\n}\nif (!workflowDef.settings) {\n  workflowDef.settings = {};\n}\n\nreturn [{\n  json: {\n    workflowBody: JSON.stringify(workflowDef)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "wfcreate-validate-001",
+      "name": "Validate Workflow"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "rJoy4infFhxMynsJ",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "requestPath": "/workflows",
+            "requestBody": "={{ $json.workflowBody }}",
+            "requestMethod": "POST"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "requestPath",
+              "displayName": "requestPath",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "id": "requestBody",
+              "displayName": "requestBody",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "id": "requestMethod",
+              "displayName": "requestMethod",
+              "required": true,
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "wfcreate-api-001",
+      "name": "Call N8N API"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return created workflow info\nconst response = items[0].json;\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Workflow created successfully',\n    workflow: {\n      id: response.id,\n      name: response.name,\n      active: response.active,\n      createdAt: response.createdAt\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "wfcreate-format-001",
+      "name": "Format Response"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validate Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call N8N API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call N8N API": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "206e39c4-ff3e-4944-be2d-73388e57a55a",
+  "activeVersionId": "206e39c4-ff3e-4944-be2d-73388e57a55a",
+  "versionCounter": 4,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-07T20:13:34.744Z",
+      "createdAt": "2026-01-07T20:13:34.744Z",
+      "role": "workflow:owner",
+      "workflowId": "rmHtxGxBYPtmotHz",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-07T20:13:34.747Z",
+    "createdAt": "2026-01-07T20:13:34.747Z",
+    "versionId": "206e39c4-ff3e-4944-be2d-73388e57a55a",
+    "workflowId": "rmHtxGxBYPtmotHz",
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "workflowJson",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "wfcreate-trigger-001",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Validate and prepare workflow JSON\nconst input = items[0].json;\nlet workflowDef;\n\ntry {\n  // Parse if string, use directly if object\n  workflowDef = typeof input.workflowJson === 'string' \n    ? JSON.parse(input.workflowJson) \n    : input.workflowJson;\n} catch (e) {\n  throw new Error('Invalid workflow JSON: ' + e.message);\n}\n\n// Ensure required fields\nif (!workflowDef.name) {\n  throw new Error('Workflow must have a name');\n}\nif (!workflowDef.nodes || !Array.isArray(workflowDef.nodes)) {\n  workflowDef.nodes = [];\n}\nif (!workflowDef.connections) {\n  workflowDef.connections = {};\n}\nif (!workflowDef.settings) {\n  workflowDef.settings = {};\n}\n\nreturn [{\n  json: {\n    workflowBody: JSON.stringify(workflowDef)\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ],
+        "id": "wfcreate-validate-001",
+        "name": "Validate Workflow"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "rJoy4infFhxMynsJ",
+            "mode": "id"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "requestPath": "/workflows",
+              "requestBody": "={{ $json.workflowBody }}",
+              "requestMethod": "POST"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "requestPath",
+                "displayName": "requestPath",
+                "required": true,
+                "type": "string"
+              },
+              {
+                "id": "requestBody",
+                "displayName": "requestBody",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "id": "requestMethod",
+                "displayName": "requestMethod",
+                "required": true,
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.2,
+        "position": [
+          440,
+          0
+        ],
+        "id": "wfcreate-api-001",
+        "name": "Call N8N API"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Return created workflow info\nconst response = items[0].json;\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Workflow created successfully',\n    workflow: {\n      id: response.id,\n      name: response.name,\n      active: response.active,\n      createdAt: response.createdAt\n    }\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          0
+        ],
+        "id": "wfcreate-format-001",
+        "name": "Format Response"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "Validate Workflow",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validate Workflow": {
+        "main": [
+          [
+            {
+              "node": "Call N8N API",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Call N8N API": {
+        "main": [
+          [
+            {
+              "node": "Format Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-07T20:13:36.339Z",
+        "id": 131,
+        "workflowId": "rmHtxGxBYPtmotHz",
+        "versionId": "206e39c4-ff3e-4944-be2d-73388e57a55a",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
+}

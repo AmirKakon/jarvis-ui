@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-01-01T14:59:33.735Z",
+  "updatedAt": "2026-01-07T20:12:58.040Z",
   "createdAt": "2026-01-01T14:00:53.870Z",
   "id": "sCcmYT1ufy8hrHMA",
   "name": "Add Memory",
-  "description": "Persists validated memories to PostgreSQL vector database with embeddings and metadata (type, confidence, source, timestamp).",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -187,7 +187,9 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
@@ -196,7 +198,7 @@
   "pinData": {},
   "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
   "activeVersionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
-  "versionCounter": 51,
+  "versionCounter": 71,
   "triggerCount": 0,
   "shared": [
     {
@@ -447,6 +449,70 @@
       {
         "createdAt": "2026-01-01T14:59:23.020Z",
         "id": 55,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:46:54.854Z",
+        "id": 66,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:46:56.742Z",
+        "id": 67,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:48:59.432Z",
+        "id": 74,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:00.503Z",
+        "id": 75,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:24.814Z",
+        "id": 94,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:26.912Z",
+        "id": 95,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:12:58.072Z",
+        "id": 114,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:12:59.357Z",
+        "id": 115,
         "workflowId": "sCcmYT1ufy8hrHMA",
         "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
         "event": "activated",

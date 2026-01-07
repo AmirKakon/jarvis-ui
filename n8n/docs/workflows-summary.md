@@ -1,6 +1,6 @@
 # n8n Workflows Summary
 
-> Last updated: January 7, 2026
+> Last updated: January 8, 2026
 
 This document provides an overview of all n8n workflows used in the JARVIS system.
 
@@ -361,7 +361,7 @@ http://localhost:20002/api/v1
 
 | Property | Value |
 |----------|-------|
-| **ID** | `WFList001` |
+| **ID** | `Qa93D3eLsEyc8lP8` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Description** | Lists all n8n workflows with their status, name, and ID. Returns array of workflow summaries. |
@@ -400,7 +400,7 @@ Retrieve a list of all workflows in the n8n instance.
 
 | Property | Value |
 |----------|-------|
-| **ID** | `WFGet001` |
+| **ID** | `pnlb3Sp3BsBxRMwo` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Description** | Gets detailed information about a specific workflow by ID. Returns full workflow definition including nodes and connections. |
@@ -424,7 +424,7 @@ Full workflow JSON including nodes, connections, settings, and metadata.
 
 | Property | Value |
 |----------|-------|
-| **ID** | `WFCreate001` |
+| **ID** | `rmHtxGxBYPtmotHz` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Description** | Creates a new n8n workflow from a JSON definition. Requires name, nodes, and connections. Returns the created workflow with its assigned ID. |
@@ -468,7 +468,7 @@ Create a new workflow in n8n from a JSON definition.
 
 | Property | Value |
 |----------|-------|
-| **ID** | `WFUpdate001` |
+| **ID** | `HGtPmkUCzYOy3lo1` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Description** | Updates an existing n8n workflow. Requires workflowId and the updated workflow JSON. Returns the updated workflow. |
@@ -507,7 +507,7 @@ Update an existing workflow with new definition.
 
 | Property | Value |
 |----------|-------|
-| **ID** | `WFDelete001` |
+| **ID** | `BMvwGw7h9cRylQUE` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Description** | Deletes an n8n workflow by ID. Returns confirmation of deletion. |
@@ -540,7 +540,7 @@ Permanently delete a workflow from n8n.
 
 | Property | Value |
 |----------|-------|
-| **ID** | `WFActivate001` |
+| **ID** | `GKM344aryPP29f2O` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Description** | Activates an n8n workflow by ID. The workflow will start listening for triggers after activation. |
@@ -572,7 +572,7 @@ Activate a workflow so it starts listening for triggers.
 
 | Property | Value |
 |----------|-------|
-| **ID** | `WFDeactivate001` |
+| **ID** | `OMqZ93GtwiWTuXne` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Description** | Deactivates an n8n workflow by ID. The workflow will stop listening for triggers after deactivation. |
@@ -604,7 +604,7 @@ Deactivate a workflow so it stops listening for triggers.
 
 | Property | Value |
 |----------|-------|
-| **ID** | `WFExecute001` |
+| **ID** | `eEtS2fTRa7FA8wAl` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Description** | Manually executes an n8n workflow by ID. Can optionally provide input data for the execution. |

@@ -1,7 +1,9 @@
 {
+  "updatedAt": "2026-01-07T20:13:28.205Z",
+  "createdAt": "2025-12-28T18:56:30.725Z",
   "id": "rJoy4infFhxMynsJ",
   "name": "N8N Manager - API Request",
-  "description": "Base workflow for N8N Manager. Makes HTTP requests to the n8n API for workflow management (create, read, update, delete workflows).",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -110,13 +112,232 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
     "templateCredsSetupCompleted": true
   },
-  "pinData": {},
-  "tags": []
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "requestPath": "workflows",
+          "requestBody": null,
+          "requestMethod": "GET"
+        }
+      }
+    ]
+  },
+  "versionId": "a7a5a2cc-4cf2-40cd-8494-98ff7553495c",
+  "activeVersionId": "a7a5a2cc-4cf2-40cd-8494-98ff7553495c",
+  "versionCounter": 33,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2025-12-28T18:56:30.726Z",
+      "createdAt": "2025-12-28T18:56:30.726Z",
+      "role": "workflow:owner",
+      "workflowId": "rJoy4infFhxMynsJ",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-07T20:08:58.181Z",
+    "createdAt": "2026-01-07T20:08:58.181Z",
+    "versionId": "a7a5a2cc-4cf2-40cd-8494-98ff7553495c",
+    "workflowId": "rJoy4infFhxMynsJ",
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "requestPath"
+              },
+              {
+                "name": "requestBody"
+              },
+              {
+                "name": "requestMethod"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "b75f281c-5fef-49e5-9c5e-0669e81821fc",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "method": "={{ $('When Executed by Another Workflow').item.json.requestMethod }}",
+          "url": "=http://localhost:20002/api/v1{{ $json.requestPath }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-N8N-API-KEY",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNDU1MjRmNC0xZDM3LTRjZGYtOWM5Yi1mNTY2YzQ4YjVmYmQiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzY2OTQ4MzU2fQ.ck8hsGLz2e-IcOizCIczX61Gcb1sxbspMOAD7KaCWJc"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $('When Executed by Another Workflow').item.json.requestBody }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          400,
+          0
+        ],
+        "id": "f23475b1-b746-4284-b687-03c148094bd7",
+        "name": "HTTP Request"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "2c131308-7552-48b9-9eef-c0a511b7be77",
+                "name": "requestPath",
+                "value": "={{ $json.requestPath.startsWith('/') ? $json.requestPath : '/' + $json.requestPath }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          208,
+          0
+        ],
+        "id": "a0ac2838-b686-4eef-8592-411c96e63820",
+        "name": "Normalize Path"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "Normalize Path",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalize Path": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-07T20:08:58.203Z",
+        "id": 108,
+        "workflowId": "rJoy4infFhxMynsJ",
+        "versionId": "a7a5a2cc-4cf2-40cd-8494-98ff7553495c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:59.758Z",
+        "id": 109,
+        "workflowId": "rJoy4infFhxMynsJ",
+        "versionId": "a7a5a2cc-4cf2-40cd-8494-98ff7553495c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:28.232Z",
+        "id": 128,
+        "workflowId": "rJoy4infFhxMynsJ",
+        "versionId": "a7a5a2cc-4cf2-40cd-8494-98ff7553495c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:29.684Z",
+        "id": 129,
+        "workflowId": "rJoy4infFhxMynsJ",
+        "versionId": "a7a5a2cc-4cf2-40cd-8494-98ff7553495c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
 }
-

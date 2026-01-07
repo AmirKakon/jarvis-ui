@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-01-04T06:40:14.552Z",
+  "updatedAt": "2026-01-07T20:14:05.359Z",
   "createdAt": "2025-12-31T08:53:59.705Z",
   "id": "Ne4nanoy1AypIGqE",
   "name": "Upload File",
-  "description": "Uploads files to network storage via SFTP with auto-numbering for multiple files and custom subpath support.",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -101,16 +101,18 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "a9317558-617f-44fc-9b31-e4be70fc93e4",
-  "activeVersionId": "a9317558-617f-44fc-9b31-e4be70fc93e4",
-  "versionCounter": 14,
+  "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+  "activeVersionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+  "versionCounter": 34,
   "triggerCount": 1,
   "shared": [
     {
@@ -170,9 +172,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-04T06:40:16.000Z",
-    "createdAt": "2026-01-04T06:40:14.553Z",
-    "versionId": "a9317558-617f-44fc-9b31-e4be70fc93e4",
+    "updatedAt": "2026-01-07T19:47:29.612Z",
+    "createdAt": "2026-01-07T19:47:29.612Z",
+    "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
     "workflowId": "Ne4nanoy1AypIGqE",
     "nodes": [
       {
@@ -269,14 +271,70 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": "Version a9317558",
-    "description": "",
+    "name": null,
+    "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-04T06:40:16.314Z",
-        "id": 58,
+        "createdAt": "2026-01-07T19:47:29.646Z",
+        "id": 72,
         "workflowId": "Ne4nanoy1AypIGqE",
-        "versionId": "a9317558-617f-44fc-9b31-e4be70fc93e4",
+        "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:47:31.230Z",
+        "id": 73,
+        "workflowId": "Ne4nanoy1AypIGqE",
+        "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:43.927Z",
+        "id": 92,
+        "workflowId": "Ne4nanoy1AypIGqE",
+        "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:44.893Z",
+        "id": 93,
+        "workflowId": "Ne4nanoy1AypIGqE",
+        "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:09:39.115Z",
+        "id": 112,
+        "workflowId": "Ne4nanoy1AypIGqE",
+        "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:09:40.195Z",
+        "id": 113,
+        "workflowId": "Ne4nanoy1AypIGqE",
+        "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:14:05.391Z",
+        "id": 140,
+        "workflowId": "Ne4nanoy1AypIGqE",
+        "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:14:06.711Z",
+        "id": 141,
+        "workflowId": "Ne4nanoy1AypIGqE",
+        "versionId": "7c1d72b7-3353-42ef-9c36-4970a8987c1c",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

@@ -89,12 +89,17 @@ def prepare_workflow_payload(workflow_data: dict) -> dict:
     return payload
 
 
-def create_workflow(headers: dict, workflow_data: dict, dry_run: bool = False) -> tuple[bool, str]:
-    """Create a new workflow."""
+def create_workflow(headers: dict, workflow_data: dict, dry_run: bool = False) -> tuple[bool, str, str | None]:
+    """
+    Create a new workflow.
+    
+    Returns:
+        (success, message, new_workflow_id or None)
+    """
     payload = prepare_workflow_payload(workflow_data)
     
     if dry_run:
-        return True, f"Would create: {workflow_data.get('name')}"
+        return True, f"Would create: {workflow_data.get('name')}", None
     
     try:
         response = httpx.post(
@@ -105,11 +110,12 @@ def create_workflow(headers: dict, workflow_data: dict, dry_run: bool = False) -
         )
         response.raise_for_status()
         result = response.json()
-        return True, result.get("id", "unknown")
+        new_id = result.get("id")
+        return True, "created", new_id
     except httpx.HTTPStatusError as e:
-        return False, f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+        return False, f"HTTP {e.response.status_code}: {e.response.text[:200]}", None
     except Exception as e:
-        return False, str(e)
+        return False, str(e), None
 
 
 def update_workflow(headers: dict, workflow_id: str, workflow_data: dict, dry_run: bool = False) -> tuple[bool, str]:
@@ -209,6 +215,9 @@ def import_all_workflows(activate: bool = True, dry_run: bool = False):
             # Check if workflow exists
             existing = get_existing_workflow(headers, wf_id)
             
+            # Track the ID to use for activation
+            activate_id = wf_id
+            
             if existing:
                 # Update existing workflow
                 success, msg = update_workflow(headers, wf_id, workflow_data, dry_run)
@@ -220,19 +229,22 @@ def import_all_workflows(activate: bool = True, dry_run: bool = False):
                     results["failed"].append((wf_name, msg))
                     continue
             else:
-                # Create new workflow
-                success, msg = create_workflow(headers, workflow_data, dry_run)
+                # Create new workflow - n8n assigns a new ID
+                success, msg, new_id = create_workflow(headers, workflow_data, dry_run)
                 if success:
-                    print(f"✓ Created: {wf_name}")
+                    print(f"✓ Created: {wf_name}" + (f" (ID: {new_id})" if new_id else ""))
                     results["created"].append(wf_name)
+                    # Use the new ID assigned by n8n for activation
+                    if new_id:
+                        activate_id = new_id
                 else:
                     print(f"✗ Failed to create '{wf_name}': {msg}")
                     results["failed"].append((wf_name, msg))
                     continue
             
             # Activate if requested
-            if activate:
-                success, msg = activate_workflow(headers, wf_id, dry_run)
+            if activate and activate_id:
+                success, msg = activate_workflow(headers, activate_id, dry_run)
                 if success:
                     results["activated"].append(wf_name)
                 else:

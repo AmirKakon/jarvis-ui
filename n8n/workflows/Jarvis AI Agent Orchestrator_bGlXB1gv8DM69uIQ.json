@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-01-06T11:15:34.928Z",
+  "updatedAt": "2026-01-07T20:13:15.082Z",
   "createdAt": "2025-12-28T16:45:20.366Z",
   "id": "bGlXB1gv8DM69uIQ",
   "name": "Jarvis AI Agent Orchestrator",
-  "description": "Main JARVIS orchestrator - receives user messages via webhook, coordinates responses using AI agent with tools for memory, SSH, Gemini CLI, and n8n API management.",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -412,16 +412,18 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "8782be0d-98c8-41c8-93f9-af06ffce8786",
-  "activeVersionId": "8782be0d-98c8-41c8-93f9-af06ffce8786",
-  "versionCounter": 78,
+  "versionId": "a2e77185-402c-4792-9c67-9eaeeec7fb35",
+  "activeVersionId": "a2e77185-402c-4792-9c67-9eaeeec7fb35",
+  "versionCounter": 98,
   "triggerCount": 1,
   "shared": [
     {
@@ -437,7 +439,7 @@
         "name": "Amir Kakon <pppchevy@gmail.com>",
         "type": "personal",
         "icon": null,
-        "description": "Main JARVIS orchestrator - receives user messages via webhook, coordinates responses using AI agent with tools for memory, SSH, Gemini CLI, and n8n API management.",
+        "description": null,
         "projectRelations": [
           {
             "updatedAt": "2025-12-17T07:35:20.908Z",
@@ -481,9 +483,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-06T11:15:36.000Z",
-    "createdAt": "2026-01-06T11:15:34.929Z",
-    "versionId": "8782be0d-98c8-41c8-93f9-af06ffce8786",
+    "updatedAt": "2026-01-07T20:08:42.886Z",
+    "createdAt": "2026-01-07T20:08:42.886Z",
+    "versionId": "a2e77185-402c-4792-9c67-9eaeeec7fb35",
     "workflowId": "bGlXB1gv8DM69uIQ",
     "nodes": [
       {
@@ -891,14 +893,38 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": "Version 8782be0d",
-    "description": "",
+    "name": null,
+    "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-06T11:15:36.658Z",
-        "id": 65,
+        "createdAt": "2026-01-07T20:08:42.921Z",
+        "id": 102,
         "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "8782be0d-98c8-41c8-93f9-af06ffce8786",
+        "versionId": "a2e77185-402c-4792-9c67-9eaeeec7fb35",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:44.324Z",
+        "id": 103,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "a2e77185-402c-4792-9c67-9eaeeec7fb35",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:15.112Z",
+        "id": 122,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "a2e77185-402c-4792-9c67-9eaeeec7fb35",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:16.766Z",
+        "id": 123,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "a2e77185-402c-4792-9c67-9eaeeec7fb35",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

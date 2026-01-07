@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-01-01T14:51:40.565Z",
+  "updatedAt": "2026-01-07T20:13:24.168Z",
   "createdAt": "2025-12-29T18:50:25.303Z",
   "id": "dUc4LsfxP25i11wD",
   "name": "Memory governance",
-  "description": "Classifies memory candidates and enforces governance rules. Returns classification (type, confidence) or rejection reason.",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -220,7 +220,9 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
@@ -232,14 +234,15 @@
         "json": {
           "document": {
             "content": "the user works at payoneer"
-          }
+          },
+          "governance": true
         }
       }
     ]
   },
-  "versionId": "c8c92cd3-a9e6-4731-a519-afa37b996b15",
-  "activeVersionId": "c8c92cd3-a9e6-4731-a519-afa37b996b15",
-  "versionCounter": 51,
+  "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+  "activeVersionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+  "versionCounter": 66,
   "triggerCount": 0,
   "shared": [
     {
@@ -299,9 +302,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-01T14:11:32.000Z",
-    "createdAt": "2026-01-01T14:11:30.466Z",
-    "versionId": "c8c92cd3-a9e6-4731-a519-afa37b996b15",
+    "updatedAt": "2026-01-07T19:49:27.937Z",
+    "createdAt": "2026-01-07T19:49:27.937Z",
+    "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
     "workflowId": "dUc4LsfxP25i11wD",
     "nodes": [
       {
@@ -517,14 +520,54 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": "Version c8c92cd3",
-    "description": "",
+    "name": null,
+    "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-01T14:11:32.205Z",
-        "id": 40,
+        "createdAt": "2026-01-07T19:49:27.964Z",
+        "id": 86,
         "workflowId": "dUc4LsfxP25i11wD",
-        "versionId": "c8c92cd3-a9e6-4731-a519-afa37b996b15",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:29.462Z",
+        "id": 87,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:50.149Z",
+        "id": 106,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:52.443Z",
+        "id": 107,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:24.191Z",
+        "id": 126,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:25.340Z",
+        "id": 127,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

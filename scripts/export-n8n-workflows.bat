@@ -60,6 +60,12 @@ if not exist "%N8N_PATH%\.env" (
     echo.
 )
 
+REM Clean workflows folder before export
+if exist "%N8N_PATH%\workflows" (
+    echo Cleaning existing workflows folder...
+    rmdir /s /q "%N8N_PATH%\workflows"
+)
+
 REM Run the export script
 echo Exporting workflows...
 echo.

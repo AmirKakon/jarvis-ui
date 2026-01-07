@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-01-04T14:37:49.018Z",
+  "updatedAt": "2026-01-07T20:13:20.196Z",
   "createdAt": "2025-12-30T07:18:58.332Z",
   "id": "07RhLX2UKvMjY1cr",
   "name": "Memory deduplication",
-  "description": "Checks if a memory already exists in the database by comparing SHA-256 hash of normalized content.",
+  "description": "",
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -132,7 +132,9 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
@@ -148,9 +150,9 @@
       }
     ]
   },
-  "versionId": "316bd26f-ec24-440f-96fe-bd1a8da98f5e",
-  "activeVersionId": "316bd26f-ec24-440f-96fe-bd1a8da98f5e",
-  "versionCounter": 25,
+  "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+  "activeVersionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+  "versionCounter": 40,
   "triggerCount": 0,
   "shared": [
     {
@@ -210,9 +212,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-01T14:54:09.000Z",
-    "createdAt": "2026-01-01T14:54:06.774Z",
-    "versionId": "316bd26f-ec24-440f-96fe-bd1a8da98f5e",
+    "updatedAt": "2026-01-07T19:49:23.351Z",
+    "createdAt": "2026-01-07T19:49:23.351Z",
+    "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
     "workflowId": "07RhLX2UKvMjY1cr",
     "nodes": [
       {
@@ -340,14 +342,54 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": "Version 316bd26f",
-    "description": "",
+    "name": null,
+    "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-01T14:54:09.149Z",
-        "id": 53,
+        "createdAt": "2026-01-07T19:49:23.376Z",
+        "id": 84,
         "workflowId": "07RhLX2UKvMjY1cr",
-        "versionId": "316bd26f-ec24-440f-96fe-bd1a8da98f5e",
+        "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T19:49:24.854Z",
+        "id": 85,
+        "workflowId": "07RhLX2UKvMjY1cr",
+        "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:46.310Z",
+        "id": 104,
+        "workflowId": "07RhLX2UKvMjY1cr",
+        "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:08:47.324Z",
+        "id": 105,
+        "workflowId": "07RhLX2UKvMjY1cr",
+        "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:20.219Z",
+        "id": 124,
+        "workflowId": "07RhLX2UKvMjY1cr",
+        "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-07T20:13:21.242Z",
+        "id": 125,
+        "workflowId": "07RhLX2UKvMjY1cr",
+        "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }
