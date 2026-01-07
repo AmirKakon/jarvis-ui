@@ -3,14 +3,14 @@
   "createdAt": "2025-12-29T18:50:25.303Z",
   "id": "dUc4LsfxP25i11wD",
   "name": "Memory governance",
-  "description": null,
+  "description": "Classifies memory candidates and enforces governance rules. Returns classification (type, confidence) or rejection reason.",
   "active": true,
   "isArchived": false,
   "nodes": [
     {
       "parameters": {
         "inputSource": "jsonExample",
-        "jsonExample": "{\n  \"document\":\n    {\n      \"content\": \"The user is a software engineer\"\n    },\n  \"governance\": true\n}\n"
+        "jsonExample": "{\n  \"document\":\n    {\n      \"content\": \"The user is a software engineer\"\n    }\n}\n"
       },
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -96,36 +96,16 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "4e63c298-2383-4efe-9eb3-06b6cd147e52",
-              "leftValue": "={{ $('When Executed by Another Workflow').item.json.governance }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "jsCode": "return {\n  rejected: true,\n  reason: 'Memory failed governance check',\n  details: {\n    type: $input.first().json.output[0].content[0].text.type,\n    confidence: $input.first().json.output[0].content[0].text.confidence,\n    is_opinion: $input.first().json.output[0].content[0].text.is_opinion,\n    is_guess: $input.first().json.output[0].content[0].text.is_guess\n  }\n};\n"
       },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        240,
-        -176
+        1040,
+        -304
       ],
       "id": "f02498e8-39c4-4964-911b-206b1e8fcdc3",
-      "name": "To governance"
+      "name": "Rejection Output"
     },
     {
       "parameters": {
@@ -138,7 +118,7 @@
         "responses": {
           "values": [
             {
-              "content": "=You are a memory classification system.\n\nClassify the following memory candidate.\n\nReturn JSON that strictly conforms to the provided JSON Schema. Do not include explanations.\n\nMemory:\n\"{{ $json.normalized_text }}\"\n\nSchema:\n{\n  \"type\": \"fact | preference | skill | event | ephemeral\",\n  \"confidence\": number between 0 and 1,\n  \"is_opinion\": boolean,\n  \"is_guess\": boolean\n}\n\nRules:\n- Opinions or guesses must NOT be facts\n- Ephemeral means short-lived or conversational\n- Facts are stable, long-term truths\n"
+              "content": "=Classify the following memory candidate. Return JSON only, no explanations.\n\nMemory: \"{{ $json.normalized_text }}\"\n\nRules:\n- fact: stable, long-term truths about the user\n- preference: user likes/dislikes\n- skill: abilities or expertise\n- event: notable past occurrences\n- ephemeral: short-lived or conversational (reject these)\n- Opinions or guesses → is_opinion=true or is_guess=true\n"
             }
           ]
         },
@@ -201,30 +181,19 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Rejection Output",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Document Mapper": {
       "main": [
         []
-      ]
-    },
-    "To governance": {
-      "main": [
-        [
-          {
-            "node": "Message Classifier",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Document Mapper",
-            "type": "main",
-            "index": 0
-          }
-        ]
       ]
     },
     "Message Classifier": {
@@ -242,7 +211,7 @@
       "main": [
         [
           {
-            "node": "To governance",
+            "node": "Message Classifier",
             "type": "main",
             "index": 0
           }
@@ -263,8 +232,7 @@
         "json": {
           "document": {
             "content": "the user works at payoneer"
-          },
-          "governance": true
+          }
         }
       }
     ]
@@ -339,7 +307,7 @@
       {
         "parameters": {
           "inputSource": "jsonExample",
-          "jsonExample": "{\n  \"document\":\n    {\n      \"content\": \"The user is a software engineer\"\n    },\n  \"governance\": true\n}\n"
+          "jsonExample": "{\n  \"document\":\n    {\n      \"content\": \"The user is a software engineer\"\n    }\n}\n"
         },
         "type": "n8n-nodes-base.executeWorkflowTrigger",
         "typeVersion": 1.1,
@@ -425,36 +393,16 @@
       },
       {
         "parameters": {
-          "conditions": {
-            "options": {
-              "caseSensitive": true,
-              "leftValue": "",
-              "typeValidation": "strict",
-              "version": 3
-            },
-            "conditions": [
-              {
-                "id": "4e63c298-2383-4efe-9eb3-06b6cd147e52",
-                "leftValue": "={{ $('When Executed by Another Workflow').item.json.governance }}",
-                "rightValue": true,
-                "operator": {
-                  "type": "boolean",
-                  "operation": "equals"
-                }
-              }
-            ],
-            "combinator": "and"
-          },
-          "options": {}
+          "jsCode": "return {\n  rejected: true,\n  reason: 'Memory failed governance check',\n  details: {\n    type: $input.first().json.output[0].content[0].text.type,\n    confidence: $input.first().json.output[0].content[0].text.confidence,\n    is_opinion: $input.first().json.output[0].content[0].text.is_opinion,\n    is_guess: $input.first().json.output[0].content[0].text.is_guess\n  }\n};\n"
         },
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.3,
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
         "position": [
-          240,
-          -176
+          1040,
+          -304
         ],
         "id": "f02498e8-39c4-4964-911b-206b1e8fcdc3",
-        "name": "To governance"
+        "name": "Rejection Output"
       },
       {
         "parameters": {
@@ -467,7 +415,7 @@
           "responses": {
             "values": [
               {
-                "content": "=You are a memory classification system.\n\nClassify the following memory candidate.\n\nReturn JSON that strictly conforms to the provided JSON Schema. Do not include explanations.\n\nMemory:\n\"{{ $json.normalized_text }}\"\n\nSchema:\n{\n  \"type\": \"fact | preference | skill | event | ephemeral\",\n  \"confidence\": number between 0 and 1,\n  \"is_opinion\": boolean,\n  \"is_guess\": boolean\n}\n\nRules:\n- Opinions or guesses must NOT be facts\n- Ephemeral means short-lived or conversational\n- Facts are stable, long-term truths\n"
+                "content": "=Classify the following memory candidate. Return JSON only, no explanations.\n\nMemory: \"{{ $json.normalized_text }}\"\n\nRules:\n- fact: stable, long-term truths about the user\n- preference: user likes/dislikes\n- skill: abilities or expertise\n- event: notable past occurrences\n- ephemeral: short-lived or conversational (reject these)\n- Opinions or guesses → is_opinion=true or is_guess=true\n"
               }
             ]
           },
@@ -530,30 +478,19 @@
               "type": "main",
               "index": 0
             }
+          ],
+          [
+            {
+              "node": "Rejection Output",
+              "type": "main",
+              "index": 0
+            }
           ]
         ]
       },
       "Document Mapper": {
         "main": [
           []
-        ]
-      },
-      "To governance": {
-        "main": [
-          [
-            {
-              "node": "Message Classifier",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Document Mapper",
-              "type": "main",
-              "index": 0
-            }
-          ]
         ]
       },
       "Message Classifier": {
@@ -571,7 +508,7 @@
         "main": [
           [
             {
-              "node": "To governance",
+              "node": "Message Classifier",
               "type": "main",
               "index": 0
             }
