@@ -12,6 +12,6 @@ Update the workflow summary markdown file with the latest workflows from the n8n
    - Connected tools and sub-workflows
    - Key nodes and their functions
    - Input/output schemas (where applicable)
-3. Update `./n8n/workflows-summary.md` with the extracted information
+3. Update `./n8n/docs/workflows-summary.md` with the extracted information
 4. Preserve the existing document structure (table of contents, architecture diagram, credentials section)
 5. Update the "Last updated" date at the top of the file
