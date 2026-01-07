@@ -3,7 +3,7 @@
   "createdAt": "2025-12-30T07:18:58.332Z",
   "id": "07RhLX2UKvMjY1cr",
   "name": "Memory deduplication",
-  "description": "",
+  "description": "Checks if a memory already exists in the database by comparing SHA-256 hash of normalized content.",
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -44,7 +44,7 @@
         0
       ],
       "id": "745ad99b-a441-40fb-bfbb-694d56a4157d",
-      "name": "Execute a SQL query",
+      "name": "Check hash exists",
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
@@ -108,7 +108,7 @@
         ]
       ]
     },
-    "Execute a SQL query": {
+    "Check hash exists": {
       "main": [
         [
           {
@@ -123,7 +123,7 @@
       "main": [
         [
           {
-            "node": "Execute a SQL query",
+            "node": "Check hash exists",
             "type": "main",
             "index": 0
           }
@@ -252,7 +252,7 @@
           0
         ],
         "id": "745ad99b-a441-40fb-bfbb-694d56a4157d",
-        "name": "Execute a SQL query",
+        "name": "Check hash exists",
         "alwaysOutputData": true,
         "credentials": {
           "postgres": {
@@ -316,7 +316,7 @@
           ]
         ]
       },
-      "Execute a SQL query": {
+      "Check hash exists": {
         "main": [
           [
             {
@@ -331,7 +331,7 @@
         "main": [
           [
             {
-              "node": "Execute a SQL query",
+              "node": "Check hash exists",
               "type": "main",
               "index": 0
             }
