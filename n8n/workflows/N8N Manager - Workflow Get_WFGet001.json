@@ -1,0 +1,96 @@
+{
+  "id": "WFGet001",
+  "name": "N8N Manager - Workflow Get",
+  "description": "Gets detailed information about a specific workflow by ID. Returns full workflow definition including nodes and connections.",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "workflowId",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "wfget-trigger-001",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "rJoy4infFhxMynsJ",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "requestPath": "=/workflows/{{ $json.workflowId }}",
+            "requestBody": "",
+            "requestMethod": "GET"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "requestPath",
+              "displayName": "requestPath",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "id": "requestBody",
+              "displayName": "requestBody",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "id": "requestMethod",
+              "displayName": "requestMethod",
+              "required": true,
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "wfget-api-001",
+      "name": "Call N8N API"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call N8N API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {},
+  "pinData": {},
+  "tags": []
+}
+

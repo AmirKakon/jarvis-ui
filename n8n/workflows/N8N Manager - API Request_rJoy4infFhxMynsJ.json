@@ -1,0 +1,122 @@
+{
+  "id": "rJoy4infFhxMynsJ",
+  "name": "N8N Manager - API Request",
+  "description": "Base workflow for N8N Manager. Makes HTTP requests to the n8n API for workflow management (create, read, update, delete workflows).",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "requestPath"
+            },
+            {
+              "name": "requestBody"
+            },
+            {
+              "name": "requestMethod"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b75f281c-5fef-49e5-9c5e-0669e81821fc",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "method": "={{ $('When Executed by Another Workflow').item.json.requestMethod }}",
+        "url": "=http://localhost:20002/api/v1{{ $json.requestPath }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNDU1MjRmNC0xZDM3LTRjZGYtOWM5Yi1mNTY2YzQ4YjVmYmQiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzY2OTQ4MzU2fQ.ck8hsGLz2e-IcOizCIczX61Gcb1sxbspMOAD7KaCWJc"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('When Executed by Another Workflow').item.json.requestBody }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        400,
+        0
+      ],
+      "id": "f23475b1-b746-4284-b687-03c148094bd7",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2c131308-7552-48b9-9eef-c0a511b7be77",
+              "name": "requestPath",
+              "value": "={{ $json.requestPath.startsWith('/') ? $json.requestPath : '/' + $json.requestPath }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "a0ac2838-b686-4eef-8592-411c96e63820",
+      "name": "Normalize Path"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Path": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
+

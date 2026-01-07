@@ -1,6 +1,6 @@
 # n8n Workflows Summary
 
-> Last updated: January 8, 2026
+> Last updated: January 7, 2026
 
 This document provides an overview of all n8n workflows used in the JARVIS system.
 
@@ -15,9 +15,17 @@ This document provides an overview of all n8n workflows used in the JARVIS syste
 5. [Add Memory](#5-add-memory) - Persist memories to database
 6. [gemini cli trigger](#6-gemini-cli-trigger) - Execute Gemini CLI commands
 7. [sudo ssh commands](#7-sudo-ssh-commands) - Execute SSH commands
-8. [n8n creator](#8-n8n-creator) - Create/manage n8n workflows via API
-9. [download video](#9-download-video) - Video download utility
-10. [Upload File](#10-upload-file) - File upload to network storage
+8. [N8N Manager - API Request](#8-n8n-manager---api-request) - Base n8n API handler
+9. [N8N Manager - Workflow List](#9-n8n-manager---workflow-list) - List all workflows
+10. [N8N Manager - Workflow Get](#10-n8n-manager---workflow-get) - Get workflow details
+11. [N8N Manager - Workflow Create](#11-n8n-manager---workflow-create) - Create new workflow
+12. [N8N Manager - Workflow Update](#12-n8n-manager---workflow-update) - Update existing workflow
+13. [N8N Manager - Workflow Delete](#13-n8n-manager---workflow-delete) - Delete workflow
+14. [N8N Manager - Workflow Activate](#14-n8n-manager---workflow-activate) - Activate workflow
+15. [N8N Manager - Workflow Deactivate](#15-n8n-manager---workflow-deactivate) - Deactivate workflow
+16. [N8N Manager - Workflow Execute](#16-n8n-manager---workflow-execute) - Execute workflow manually
+17. [download video](#17-download-video) - Video download utility
+18. [Upload File](#18-upload-file) - File upload to network storage
 
 ---
 
@@ -55,7 +63,7 @@ The system prompt is organized into sections:
 | **AI Long Term Memory Agent** | Store/retrieve long-term memories |
 | **gemini cli trigger** | Execute Gemini CLI commands on local machine |
 | **sudo ssh commands** | Run SSH commands with sudo |
-| **n8n creator** | Create/manage n8n workflows via API |
+| **N8N Manager - API Request** | Create/manage n8n workflows via API |
 | **Calculator** | Mathematical calculations |
 
 ### Nodes
@@ -320,22 +328,22 @@ sudo <command>
 
 ---
 
-## 8. n8n creator
+## 8. N8N Manager - API Request
 
 | Property | Value |
 |----------|-------|
 | **ID** | `rJoy4infFhxMynsJ` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Makes HTTP requests to the n8n API for workflow management (create, read, update, delete workflows). |
+| **Description** | Base workflow for N8N Manager. Makes HTTP requests to the n8n API for workflow management (create, read, update, delete workflows). |
 
 ### Purpose
-Make HTTP requests to the n8n API to create and manage workflows programmatically.
+Base API handler for all N8N Manager operations. Makes HTTP requests to the n8n REST API.
 
 ### Input
 - `requestPath`: API path (e.g., `/workflows`)
 - `requestBody`: JSON body for the request
-- `requestMethod`: HTTP method (GET, POST, DELETE, etc.)
+- `requestMethod`: HTTP method (GET, POST, PUT, DELETE)
 
 ### Base URL
 
@@ -344,12 +352,298 @@ http://localhost:20002/api/v1
 ```
 
 ### Nodes
-1. **Edit Fields** - Ensure path starts with `/`
+1. **Normalize Path** - Ensure path starts with `/`
 2. **HTTP Request** - Execute API call with auth header
 
 ---
 
-## 9. download video
+## 9. N8N Manager - Workflow List
+
+| Property | Value |
+|----------|-------|
+| **ID** | `WFList001` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Lists all n8n workflows with their status, name, and ID. Returns array of workflow summaries. |
+
+### Purpose
+Retrieve a list of all workflows in the n8n instance.
+
+### Input
+- `activeOnly` (optional): Boolean to filter only active workflows
+
+### Output
+
+```json
+{
+  "total": 10,
+  "workflows": [
+    {
+      "id": "abc123",
+      "name": "My Workflow",
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-07T00:00:00Z"
+    }
+  ]
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger
+2. **Call N8N API** - Execute base API workflow
+3. **Format Response** - Format workflow list for readability
+
+---
+
+## 10. N8N Manager - Workflow Get
+
+| Property | Value |
+|----------|-------|
+| **ID** | `WFGet001` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Gets detailed information about a specific workflow by ID. Returns full workflow definition including nodes and connections. |
+
+### Purpose
+Retrieve complete details of a specific workflow.
+
+### Input
+- `workflowId`: The ID of the workflow to retrieve
+
+### Output
+Full workflow JSON including nodes, connections, settings, and metadata.
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger
+2. **Call N8N API** - Execute base API workflow
+
+---
+
+## 11. N8N Manager - Workflow Create
+
+| Property | Value |
+|----------|-------|
+| **ID** | `WFCreate001` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Creates a new n8n workflow from a JSON definition. Requires name, nodes, and connections. Returns the created workflow with its assigned ID. |
+
+### Purpose
+Create a new workflow in n8n from a JSON definition.
+
+### Input
+- `workflowJson`: Complete workflow definition (string or object)
+
+### Required Fields in workflowJson
+- `name`: Workflow display name
+- `nodes`: Array of node definitions (can be empty)
+- `connections`: Node connections object (can be empty)
+- `settings`: Workflow settings (can be empty object)
+
+### Output
+
+```json
+{
+  "success": true,
+  "message": "Workflow created successfully",
+  "workflow": {
+    "id": "newWorkflowId",
+    "name": "My New Workflow",
+    "active": false,
+    "createdAt": "2026-01-07T00:00:00Z"
+  }
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger
+2. **Validate Workflow** - Parse and validate JSON
+3. **Call N8N API** - Execute base API workflow
+4. **Format Response** - Return creation confirmation
+
+---
+
+## 12. N8N Manager - Workflow Update
+
+| Property | Value |
+|----------|-------|
+| **ID** | `WFUpdate001` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Updates an existing n8n workflow. Requires workflowId and the updated workflow JSON. Returns the updated workflow. |
+
+### Purpose
+Update an existing workflow with new definition.
+
+### Input
+- `workflowId`: ID of workflow to update
+- `workflowJson`: Updated workflow definition
+
+### Output
+
+```json
+{
+  "success": true,
+  "message": "Workflow updated successfully",
+  "workflow": {
+    "id": "workflowId",
+    "name": "Updated Workflow",
+    "active": true,
+    "updatedAt": "2026-01-07T00:00:00Z"
+  }
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger
+2. **Validate Input** - Validate workflowId and JSON
+3. **Call N8N API** - Execute base API workflow
+4. **Format Response** - Return update confirmation
+
+---
+
+## 13. N8N Manager - Workflow Delete
+
+| Property | Value |
+|----------|-------|
+| **ID** | `WFDelete001` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Deletes an n8n workflow by ID. Returns confirmation of deletion. |
+
+### Purpose
+Permanently delete a workflow from n8n.
+
+### Input
+- `workflowId`: ID of workflow to delete
+
+### Output
+
+```json
+{
+  "success": true,
+  "message": "Workflow abc123 deleted successfully"
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger
+2. **Check ID Provided** - Validate workflowId exists
+3. **Call N8N API** - Execute base API workflow
+4. **Success Response** - Return deletion confirmation
+5. **Error Response** - Handle missing ID error
+
+---
+
+## 14. N8N Manager - Workflow Activate
+
+| Property | Value |
+|----------|-------|
+| **ID** | `WFActivate001` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Activates an n8n workflow by ID. The workflow will start listening for triggers after activation. |
+
+### Purpose
+Activate a workflow so it starts listening for triggers.
+
+### Input
+- `workflowId`: ID of workflow to activate
+
+### Output
+
+```json
+{
+  "success": true,
+  "message": "Workflow abc123 activated successfully",
+  "active": true
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger
+2. **Call N8N API** - Execute base API workflow
+3. **Success Response** - Return activation confirmation
+
+---
+
+## 15. N8N Manager - Workflow Deactivate
+
+| Property | Value |
+|----------|-------|
+| **ID** | `WFDeactivate001` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Deactivates an n8n workflow by ID. The workflow will stop listening for triggers after deactivation. |
+
+### Purpose
+Deactivate a workflow so it stops listening for triggers.
+
+### Input
+- `workflowId`: ID of workflow to deactivate
+
+### Output
+
+```json
+{
+  "success": true,
+  "message": "Workflow abc123 deactivated successfully",
+  "active": false
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger
+2. **Call N8N API** - Execute base API workflow
+3. **Success Response** - Return deactivation confirmation
+
+---
+
+## 16. N8N Manager - Workflow Execute
+
+| Property | Value |
+|----------|-------|
+| **ID** | `WFExecute001` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Manually executes an n8n workflow by ID. Can optionally provide input data for the execution. |
+
+### Purpose
+Manually trigger execution of a workflow.
+
+### Input
+- `workflowId`: ID of workflow to execute
+- `inputData` (optional): JSON data to pass to the workflow
+
+### Output
+
+```json
+{
+  "success": true,
+  "message": "Workflow executed",
+  "execution": {
+    "id": "executionId",
+    "workflowId": "abc123",
+    "finished": true,
+    "mode": "manual",
+    "startedAt": "2026-01-07T00:00:00Z",
+    "stoppedAt": "2026-01-07T00:00:01Z",
+    "status": "success"
+  },
+  "data": { ... }
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger
+2. **Prepare Request** - Validate and prepare input data
+3. **Call N8N API** - Execute base API workflow
+4. **Format Response** - Return execution result
+
+---
+
+## 17. download video
 
 | Property | Value |
 |----------|-------|
@@ -403,7 +697,7 @@ Download videos from URLs and organize them into the media library.
 
 ---
 
-## 10. Upload File
+## 18. Upload File
 
 | Property | Value |
 |----------|-------|
@@ -466,19 +760,40 @@ shared-storage/מסמכים
     ┌─────┴─────┬─────────────┐              ┌────────┘
     │           │             │              │
     ▼           ▼             ▼              ▼
-┌────────┐ ┌────────┐  ┌────────────┐  ┌─────────┐
-│Memory  │ │Memory  │  │Add Memory  │  │n8n      │
-│govern. │ │dedup.  │  │            │  │creator  │
-└────────┘ └────────┘  └────────────┘  └─────────┘
-    │           │             │
-    └───────────┴─────────────┘
-                │
-                ▼
-    ┌─────────────────────┐
-    │  PostgreSQL + PGVector │
-    │   (long_term_memory)   │
-    └─────────────────────┘
+┌────────┐ ┌────────┐  ┌────────────┐  ┌───────────────────────────┐
+│Memory  │ │Memory  │  │Add Memory  │  │     N8N Manager Suite     │
+│govern. │ │dedup.  │  │            │  │  ┌─────────────────────┐  │
+└────────┘ └────────┘  └────────────┘  │  │   API Request       │  │
+    │           │             │        │  │   (Base Handler)    │  │
+    └───────────┴─────────────┘        │  └──────────┬──────────┘  │
+                │                      │             │              │
+                ▼                      │  ┌──────────┴──────────┐  │
+    ┌─────────────────────┐            │  │ • Workflow List     │  │
+    │  PostgreSQL + PGVector │          │  │ • Workflow Get      │  │
+    │   (long_term_memory)   │          │  │ • Workflow Create   │  │
+    └─────────────────────┘            │  │ • Workflow Update   │  │
+                                       │  │ • Workflow Delete   │  │
+                                       │  │ • Workflow Activate │  │
+                                       │  │ • Workflow Deactivate│ │
+                                       │  │ • Workflow Execute  │  │
+                                       │  └─────────────────────┘  │
+                                       └───────────────────────────┘
 ```
+
+---
+
+## N8N Manager Tool Summary
+
+| Tool | Purpose | Input |
+|------|---------|-------|
+| **Workflow List** | List all workflows | `activeOnly` (optional) |
+| **Workflow Get** | Get workflow details | `workflowId` |
+| **Workflow Create** | Create new workflow | `workflowJson` |
+| **Workflow Update** | Update existing workflow | `workflowId`, `workflowJson` |
+| **Workflow Delete** | Delete workflow | `workflowId` |
+| **Workflow Activate** | Activate workflow | `workflowId` |
+| **Workflow Deactivate** | Deactivate workflow | `workflowId` |
+| **Workflow Execute** | Execute workflow manually | `workflowId`, `inputData` (optional) |
 
 ---
 
@@ -507,10 +822,7 @@ shared-storage/מסמכים
 
 4. **Location**: Default location is Jerusalem, Israel (Asia/Jerusalem timezone)
 
-5. **Recent Optimizations** (January 2026):
-   - Added descriptions to all workflows
-   - Fixed sessionId usage in AI Long Term Memory Agent
-   - Simplified Memory governance (removed unnecessary bypass)
-   - Added rejection output to Memory governance
-   - Improved node naming across workflows
-   - Fixed typos and double-space bugs
+5. **N8N Manager**: The N8N Manager suite enables programmatic workflow management:
+   - All specialized workflows call the base API Request workflow
+   - Workflows can be created, updated, deleted, activated/deactivated, and executed
+   - This enables the AI agent to create new tools for itself dynamically

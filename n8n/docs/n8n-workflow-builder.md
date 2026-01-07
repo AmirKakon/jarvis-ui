@@ -335,25 +335,56 @@ return response.json();
 
 ## 🎯 Integration with AI Agent
 
-Add these tools to your main AI Agent Machine Manager:
+The N8N Manager workflow suite is now available for the AI Agent:
 
 ```
 AI Agent Tools:
 ├── System Tools (existing)
 ├── Service Tools (existing)
 ├── Gemini Tools (existing)
-├── Jellyfin Tools (existing)
-└── Workflow Tools (NEW)
-    ├── workflow_list
-    ├── workflow_create
-    ├── workflow_generate  ← AI-powered
-    ├── workflow_update
-    ├── workflow_delete
-    ├── workflow_activate
-    └── workflow_execute
+├── Memory Tools (existing)
+└── N8N Manager Suite (IMPLEMENTED)
+    ├── N8N Manager - API Request      [rJoy4infFhxMynsJ] - Base API handler
+    ├── N8N Manager - Workflow List    [WFList001]        - List all workflows
+    ├── N8N Manager - Workflow Get     [WFGet001]         - Get workflow details
+    ├── N8N Manager - Workflow Create  [WFCreate001]      - Create new workflow
+    ├── N8N Manager - Workflow Update  [WFUpdate001]      - Update workflow
+    ├── N8N Manager - Workflow Delete  [WFDelete001]      - Delete workflow
+    ├── N8N Manager - Workflow Activate   [WFActivate001]   - Activate workflow
+    ├── N8N Manager - Workflow Deactivate [WFDeactivate001] - Deactivate workflow
+    └── N8N Manager - Workflow Execute [WFExecute001]     - Execute workflow manually
 ```
 
 This enables the agent to create new tools for itself dynamically!
+
+### Usage Examples
+
+**List all workflows:**
+```json
+{ "activeOnly": false }
+```
+
+**Get workflow details:**
+```json
+{ "workflowId": "bGlXB1gv8DM69uIQ" }
+```
+
+**Create a new workflow:**
+```json
+{
+  "workflowJson": {
+    "name": "My New Workflow",
+    "nodes": [...],
+    "connections": {...},
+    "settings": {}
+  }
+}
+```
+
+**Activate a workflow:**
+```json
+{ "workflowId": "newWorkflowId" }
+```
 
 ---
 
@@ -364,4 +395,5 @@ This enables the agent to create new tools for itself dynamically!
 - Workflow IDs are returned on creation
 - Test workflows before activating in production
 - Keep template library for common patterns
+- All N8N Manager workflows are in the `n8n/workflows/` folder with "N8N Manager - " prefix
 

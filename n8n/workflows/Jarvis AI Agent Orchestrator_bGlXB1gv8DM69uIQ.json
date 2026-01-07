@@ -138,13 +138,13 @@
     },
     {
       "parameters": {
-        "description": "call an n8n http request.\nbase url is set to http://<baseurl>/api/v1/\nauthorization header is set.\n\nsend the requestPath relative to the base url - including any query params necessary\nsend the requestbody as json format (must include the name, nodes, connections, and settings - which should be an empty body)\nsend the requestmethod as uppercase letters GET, POST, Delete and so forth.\n\nExample requestBody to create a workflow:\n{\"name\":\"test\",\"nodes\":[{\"parameters\":{},\"name\":\"Start\",\"type\":\"n8n-nodes-base.start\",\"typeVersion\":1,\"position\":[240,300]}],\"connections\":{},\"settings\":{}}",
+        "description": "N8N Workflow Manager - Make API calls to manage n8n workflows.\n\nBase URL: http://localhost:20002/api/v1 (Auth header pre-configured)\n\n## Operations:\n- List workflows: GET /workflows\n- Get workflow: GET /workflows/{id}\n- Create workflow: POST /workflows (body: {name, nodes, connections, settings})\n- Update workflow: PUT /workflows/{id}\n- Delete workflow: DELETE /workflows/{id}\n- Activate: POST /workflows/{id}/activate\n- Deactivate: POST /workflows/{id}/deactivate\n- Execute: POST /workflows/{id}/execute\n\n## Parameters:\n- requestPath: API path (e.g., /workflows)\n- requestMethod: GET, POST, PUT, DELETE\n- requestBody: JSON string for POST/PUT\n\n## Example Create:\nrequestPath: /workflows\nrequestMethod: POST\nrequestBody: {\"name\":\"My Workflow\",\"nodes\":[],\"connections\":{},\"settings\":{}}",
         "workflowId": {
           "__rl": true,
           "value": "rJoy4infFhxMynsJ",
           "mode": "list",
           "cachedResultUrl": "/workflow/rJoy4infFhxMynsJ",
-          "cachedResultName": "n8n creator"
+          "cachedResultName": "N8N Manager - API Request"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
@@ -197,7 +197,7 @@
         224
       ],
       "id": "e52230dd-d45f-4127-8444-bf8cdc3bc73d",
-      "name": "Call 'n8n creator'"
+      "name": "Call 'N8N Manager'"
     },
     {
       "parameters": {
@@ -617,13 +617,13 @@
       },
       {
         "parameters": {
-          "description": "call an n8n http request.\nbase url is set to http://<baseurl>/api/v1/\nauthorization header is set.\n\nsend the requestPath relative to the base url - including any query params necessary\nsend the requestbody as json format (must include the name, nodes, connections, and settings - which should be an empty body)\nsend the requestmethod as uppercase letters GET, POST, Delete and so forth.\n\nExample requestBody to create a workflow:\n{\"name\":\"test\",\"nodes\":[{\"parameters\":{},\"name\":\"Start\",\"type\":\"n8n-nodes-base.start\",\"typeVersion\":1,\"position\":[240,300]}],\"connections\":{},\"settings\":{}}",
+          "description": "N8N Workflow Manager - Make API calls to manage n8n workflows.\n\nBase URL: http://localhost:20002/api/v1 (Auth header pre-configured)\n\n## Operations:\n- List workflows: GET /workflows\n- Get workflow: GET /workflows/{id}\n- Create workflow: POST /workflows (body: {name, nodes, connections, settings})\n- Update workflow: PUT /workflows/{id}\n- Delete workflow: DELETE /workflows/{id}\n- Activate: POST /workflows/{id}/activate\n- Deactivate: POST /workflows/{id}/deactivate\n- Execute: POST /workflows/{id}/execute\n\n## Parameters:\n- requestPath: API path (e.g., /workflows)\n- requestMethod: GET, POST, PUT, DELETE\n- requestBody: JSON string for POST/PUT\n\n## Example Create:\nrequestPath: /workflows\nrequestMethod: POST\nrequestBody: {\"name\":\"My Workflow\",\"nodes\":[],\"connections\":{},\"settings\":{}}",
           "workflowId": {
             "__rl": true,
             "value": "rJoy4infFhxMynsJ",
             "mode": "list",
             "cachedResultUrl": "/workflow/rJoy4infFhxMynsJ",
-            "cachedResultName": "n8n creator"
+            "cachedResultName": "N8N Manager - API Request"
           },
           "workflowInputs": {
             "mappingMode": "defineBelow",
@@ -676,7 +676,7 @@
           224
         ],
         "id": "e52230dd-d45f-4127-8444-bf8cdc3bc73d",
-        "name": "Call 'n8n creator'"
+        "name": "Call 'N8N Manager'"
       },
       {
         "parameters": {

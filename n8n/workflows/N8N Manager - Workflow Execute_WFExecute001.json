@@ -1,0 +1,148 @@
+{
+  "id": "WFExecute001",
+  "name": "N8N Manager - Workflow Execute",
+  "description": "Manually executes an n8n workflow by ID. Can optionally provide input data for the execution.",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "workflowId",
+              "type": "string"
+            },
+            {
+              "name": "inputData",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "wfexecute-trigger-001",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare execution request\nconst input = items[0].json;\n\nif (!input.workflowId) {\n  throw new Error('workflowId is required');\n}\n\nlet requestBody = {};\nif (input.inputData) {\n  try {\n    const data = typeof input.inputData === 'string' \n      ? JSON.parse(input.inputData) \n      : input.inputData;\n    requestBody = { data };\n  } catch (e) {\n    // If not valid JSON, use as-is\n    requestBody = { data: input.inputData };\n  }\n}\n\nreturn [{\n  json: {\n    workflowId: input.workflowId,\n    requestBody: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "wfexecute-prepare-001",
+      "name": "Prepare Request"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "rJoy4infFhxMynsJ",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "requestPath": "=/workflows/{{ $json.workflowId }}/execute",
+            "requestBody": "={{ $json.requestBody }}",
+            "requestMethod": "POST"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "requestPath",
+              "displayName": "requestPath",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "id": "requestBody",
+              "displayName": "requestBody",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "id": "requestMethod",
+              "displayName": "requestMethod",
+              "required": true,
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "wfexecute-api-001",
+      "name": "Call N8N API"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format execution result\nconst response = items[0].json;\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Workflow executed',\n    execution: {\n      id: response.id,\n      workflowId: response.workflowId,\n      finished: response.finished,\n      mode: response.mode,\n      startedAt: response.startedAt,\n      stoppedAt: response.stoppedAt,\n      status: response.status\n    },\n    data: response.data\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "wfexecute-format-001",
+      "name": "Format Response"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Request": {
+      "main": [
+        [
+          {
+            "node": "Call N8N API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call N8N API": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {},
+  "pinData": {},
+  "tags": []
+}
+
