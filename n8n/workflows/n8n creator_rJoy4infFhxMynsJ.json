@@ -3,7 +3,7 @@
   "createdAt": "2025-12-28T18:56:30.725Z",
   "id": "rJoy4infFhxMynsJ",
   "name": "n8n creator",
-  "description": null,
+  "description": "Makes HTTP requests to the n8n API for workflow management (create, read, update, delete workflows).",
   "active": true,
   "isArchived": false,
   "nodes": [

@@ -3,7 +3,7 @@
   "createdAt": "2026-01-01T14:00:53.870Z",
   "id": "sCcmYT1ufy8hrHMA",
   "name": "Add Memory",
-  "description": null,
+  "description": "Persists validated memories to PostgreSQL vector database with embeddings and metadata (type, confidence, source, timestamp).",
   "active": true,
   "isArchived": false,
   "nodes": [

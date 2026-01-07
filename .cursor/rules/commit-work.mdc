@@ -1,4 +1,4 @@
 ---
-description: Commit the code after the user has accepted the changes and is satisfied with the result. Make sure to commit after big workloads and not wait until after the chat session has ended,
+description: Commit the code after the user has accepted the changes and is satisfied with the result. Make sure to commit after big workloads and not wait until after the chat session has ended. Commit message should be concise and to the point.
 alwaysApply: false
 ---

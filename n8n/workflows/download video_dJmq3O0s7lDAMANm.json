@@ -3,7 +3,7 @@
   "createdAt": "2025-12-24T11:16:27.678Z",
   "id": "dJmq3O0s7lDAMANm",
   "name": "download video",
-  "description": null,
+  "description": "Downloads videos from URLs to media library (movies/TV shows) with optional Jellyfin sync and Telegram notifications.",
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -244,7 +244,7 @@
         352
       ],
       "id": "d814f80c-b461-4e8f-9140-e25226f064f9",
-      "name": "Send a text message1",
+      "name": "Send Error Notification",
       "webhookId": "1311cd3d-4088-4c56-a9ba-75f37740f225",
       "credentials": {
         "telegramApi": {
@@ -453,7 +453,7 @@
       "main": [
         [
           {
-            "node": "Send a text message1",
+            "node": "Send Error Notification",
             "type": "main",
             "index": 0
           }
@@ -847,7 +847,7 @@
           352
         ],
         "id": "d814f80c-b461-4e8f-9140-e25226f064f9",
-        "name": "Send a text message1",
+        "name": "Send Error Notification",
         "webhookId": "1311cd3d-4088-4c56-a9ba-75f37740f225",
         "credentials": {
           "telegramApi": {
@@ -1056,7 +1056,7 @@
         "main": [
           [
             {
-              "node": "Send a text message1",
+              "node": "Send Error Notification",
               "type": "main",
               "index": 0
             }

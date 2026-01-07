@@ -3,7 +3,7 @@
   "createdAt": "2025-12-31T08:53:59.705Z",
   "id": "Ne4nanoy1AypIGqE",
   "name": "Upload File",
-  "description": null,
+  "description": "Uploads files to network storage via SFTP with auto-numbering for multiple files and custom subpath support.",
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -21,7 +21,7 @@
         -16
       ],
       "id": "51fa6788-f001-4166-b052-582314dff561",
-      "name": "FTP",
+      "name": "Upload via SFTP",
       "credentials": {
         "sftp": {
           "id": "WuwsNRk6F5TFMbY5",
@@ -31,7 +31,7 @@
     },
     {
       "parameters": {
-        "formTitle": "Upload FIle",
+        "formTitle": "Upload File",
         "formDescription": "Upload a file to the network storage",
         "formFields": {
           "values": [
@@ -73,7 +73,7 @@
         -16
       ],
       "id": "7aa839df-4874-484c-bcea-a1d6a7d1592c",
-      "name": "Code in JavaScript"
+      "name": "Build Upload Path"
     }
   ],
   "connections": {
@@ -81,7 +81,7 @@
       "main": [
         [
           {
-            "node": "Code in JavaScript",
+            "node": "Build Upload Path",
             "type": "main",
             "index": 0
           }
@@ -92,7 +92,7 @@
       "main": [
         [
           {
-            "node": "FTP",
+            "node": "Upload via SFTP",
             "type": "main",
             "index": 0
           }
@@ -189,7 +189,7 @@
           -16
         ],
         "id": "51fa6788-f001-4166-b052-582314dff561",
-        "name": "FTP",
+        "name": "Upload via SFTP",
         "credentials": {
           "sftp": {
             "id": "WuwsNRk6F5TFMbY5",
@@ -199,7 +199,7 @@
       },
       {
         "parameters": {
-          "formTitle": "Upload FIle",
+          "formTitle": "Upload File",
           "formDescription": "Upload a file to the network storage",
           "formFields": {
             "values": [
@@ -241,7 +241,7 @@
           -16
         ],
         "id": "7aa839df-4874-484c-bcea-a1d6a7d1592c",
-        "name": "Code in JavaScript"
+        "name": "Build Upload Path"
       }
     ],
     "connections": {
@@ -249,7 +249,7 @@
         "main": [
           [
             {
-              "node": "Code in JavaScript",
+              "node": "Build Upload Path",
               "type": "main",
               "index": 0
             }
@@ -260,7 +260,7 @@
         "main": [
           [
             {
-              "node": "FTP",
+              "node": "Upload via SFTP",
               "type": "main",
               "index": 0
             }
