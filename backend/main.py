@@ -12,8 +12,9 @@ from database.db import init_db, close_db
 from routers import api, websocket
 
 # Configure logging
+# Set to DEBUG to see streaming chunks in console
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
