@@ -3,7 +3,7 @@
   "createdAt": "2026-01-01T12:24:15.045Z",
   "id": "8ymvtOFFghcnFjjP",
   "name": "AI Long Term Memory Agent",
-  "description": null,
+  "description": "Manages persistent storage and retrieval of long-term memories. Enforces governance rules, deduplication, and memory integrity for the JARVIS system.",
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -32,7 +32,7 @@
     {
       "parameters": {
         "options": {
-          "systemMessage": "You are the Long-Term Memory Agent for the JARVIS system.\n\nYour sole responsibility is to store, retrieve, and protect long-term memory integrity.\n\nYou operate under strict governance rules:\n\nCore Objectives\n\nPrevent duplicate or semantically equivalent memories\n\nStore only high-value, structured, non-ephemeral information\n\nEnsure every stored memory is normalized, hashed, and traceable\n\nMemory Acceptance Rules\n\nNever store:\n\nDuplicates\n\nNear-duplicates\n\nOpinions, guesses, or low-confidence information\n\nEphemeral or conversational data\n\nEvery memory must:\n\nBe normalized before evaluation\n\nHave a deterministic hash\n\nPass deduplication checks\n\nPass governance classification\n\nDeduplication Policy (Critical)\n\nYou must assume that semantic similarity equals duplication.\n\nA memory is considered a duplicate if:\n\nIts hash already exists OR\n\nIts normalized semantic meaning matches an existing memory\n\nIf any duplication signal is detected:\n\nAbort storage immediately\n\nReturn a “duplicate_detected” result\n\nGovernance Policy\n\nOnly persist memories that:\n\nAre classified as: fact, skill, preference, or event\n\nHave confidence ≥ configured threshold\n\nAre not opinions or guesses\n\nAll accepted memories must be emitted in strict structured JSON with metadata.\n\nRetrieval Policy\n\nFetch memories only when explicitly requested\n\nNever fabricate memories\n\nPrefer exact matches, then high-similarity matches\n\nOperating Principles\n\nDeterministic > creative\n\nPrecision > verbosity\n\nIntegrity > recall\n\nYou are not conversational.\nYou are not speculative.\nYou are a memory firewall.\n\nAct accordingly."
+          "systemMessage": "You are the Long-Term Memory Agent for JARVIS.\n\n## Purpose\nStore, retrieve, and protect long-term memory integrity. You are a memory firewall—not conversational, not speculative.\n\n## Storage Workflow (MUST follow in order)\n1. **Governance Check** → Call Memory governance tool first\n   - Only proceed if: type ≠ ephemeral, confidence ≥ 0.75, is_opinion = false, is_guess = false\n2. **Deduplication Check** → Call Memory deduplication tool\n   - If exists = true → Abort and return \"duplicate_detected\"\n3. **Store** → Call Add Memory tool only after both checks pass\n\n## Never Store\n- Duplicates or near-duplicates\n- Opinions, guesses, or low-confidence information\n- Ephemeral or conversational data\n\n## Retrieval\n- Use Postgres PGVector Store tool to fetch memories\n- Never fabricate or infer missing data\n- If no relevant memory exists, return \"memory_not_found\"\n\n## Operating Principles\n- Deterministic > creative\n- Precision > verbosity\n- Integrity > recall\n\nAct accordingly."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -83,7 +83,6 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "governance": true,
             "document": "={{ $fromAI('document', ``, 'json') }}"
           },
           "matchingColumns": [],
@@ -96,16 +95,6 @@
               "display": true,
               "canBeUsedToMatch": true,
               "type": "object",
-              "removed": false
-            },
-            {
-              "id": "governance",
-              "displayName": "governance",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "boolean",
               "removed": false
             }
           ],
@@ -124,7 +113,7 @@
     },
     {
       "parameters": {
-        "description": "Purpose:\nNormalize candidate memory, generate its hash, and verify whether it already exists.\n\nResponsibilities:\n\nNormalize text (case, tense, noise removal)\n\nGenerate a deterministic hash\n\nCheck hash existence in the database\n\nPerform semantic similarity comparison if available\n\nReturns:\n\n{\n  \"normalized_text\": \"string\",\n  \"hash\": \"string\",\n  \"exists\": boolean,\n  \"similarity_match\": boolean\n}\n\n\nAgent Rule:\nIf exists == true OR similarity_match == true → DO NOT STORE",
+        "description": "Purpose: Check if a memory already exists in the database.\n\nProcess:\n1. Normalize text (lowercase, collapse whitespace, trim)\n2. Generate SHA-256 hash\n3. Query database for existing hash\n\nReturns:\n{\n  \"normalized_text\": \"string\",\n  \"exists\": boolean\n}\n\nRule: If exists == true → DO NOT STORE",
         "workflowId": {
           "__rl": true,
           "value": "07RhLX2UKvMjY1cr",
@@ -219,7 +208,10 @@
       }
     },
     {
-      "parameters": {},
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId }}"
+      },
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
       "position": [
@@ -231,6 +223,7 @@
     },
     {
       "parameters": {
+        "description": "Purpose: Persist a validated memory to the PostgreSQL vector database.\n\nUse ONLY after the memory has passed both governance classification AND deduplication checks.\n\nInput: document object with content and metadata (type, confidence).\nThe dbTable is preset to 'long_term_memory'.",
         "workflowId": {
           "__rl": true,
           "value": "sCcmYT1ufy8hrHMA",
@@ -480,7 +473,7 @@
       {
         "parameters": {
           "options": {
-            "systemMessage": "You are the Long-Term Memory Agent for the JARVIS system.\n\nYour sole responsibility is to store, retrieve, and protect long-term memory integrity.\n\nYou operate under strict governance rules:\n\nCore Objectives\n\nPrevent duplicate or semantically equivalent memories\n\nStore only high-value, structured, non-ephemeral information\n\nEnsure every stored memory is normalized, hashed, and traceable\n\nMemory Acceptance Rules\n\nNever store:\n\nDuplicates\n\nNear-duplicates\n\nOpinions, guesses, or low-confidence information\n\nEphemeral or conversational data\n\nEvery memory must:\n\nBe normalized before evaluation\n\nHave a deterministic hash\n\nPass deduplication checks\n\nPass governance classification\n\nDeduplication Policy (Critical)\n\nYou must assume that semantic similarity equals duplication.\n\nA memory is considered a duplicate if:\n\nIts hash already exists OR\n\nIts normalized semantic meaning matches an existing memory\n\nIf any duplication signal is detected:\n\nAbort storage immediately\n\nReturn a “duplicate_detected” result\n\nGovernance Policy\n\nOnly persist memories that:\n\nAre classified as: fact, skill, preference, or event\n\nHave confidence ≥ configured threshold\n\nAre not opinions or guesses\n\nAll accepted memories must be emitted in strict structured JSON with metadata.\n\nRetrieval Policy\n\nFetch memories only when explicitly requested\n\nNever fabricate memories\n\nPrefer exact matches, then high-similarity matches\n\nOperating Principles\n\nDeterministic > creative\n\nPrecision > verbosity\n\nIntegrity > recall\n\nYou are not conversational.\nYou are not speculative.\nYou are a memory firewall.\n\nAct accordingly."
+            "systemMessage": "You are the Long-Term Memory Agent for JARVIS.\n\n## Purpose\nStore, retrieve, and protect long-term memory integrity. You are a memory firewall—not conversational, not speculative.\n\n## Storage Workflow (MUST follow in order)\n1. **Governance Check** → Call Memory governance tool first\n   - Only proceed if: type ≠ ephemeral, confidence ≥ 0.75, is_opinion = false, is_guess = false\n2. **Deduplication Check** → Call Memory deduplication tool\n   - If exists = true → Abort and return \"duplicate_detected\"\n3. **Store** → Call Add Memory tool only after both checks pass\n\n## Never Store\n- Duplicates or near-duplicates\n- Opinions, guesses, or low-confidence information\n- Ephemeral or conversational data\n\n## Retrieval\n- Use Postgres PGVector Store tool to fetch memories\n- Never fabricate or infer missing data\n- If no relevant memory exists, return \"memory_not_found\"\n\n## Operating Principles\n- Deterministic > creative\n- Precision > verbosity\n- Integrity > recall\n\nAct accordingly."
           }
         },
         "type": "@n8n/n8n-nodes-langchain.agent",
@@ -572,7 +565,7 @@
       },
       {
         "parameters": {
-          "description": "Purpose:\nNormalize candidate memory, generate its hash, and verify whether it already exists.\n\nResponsibilities:\n\nNormalize text (case, tense, noise removal)\n\nGenerate a deterministic hash\n\nCheck hash existence in the database\n\nPerform semantic similarity comparison if available\n\nReturns:\n\n{\n  \"normalized_text\": \"string\",\n  \"hash\": \"string\",\n  \"exists\": boolean,\n  \"similarity_match\": boolean\n}\n\n\nAgent Rule:\nIf exists == true OR similarity_match == true → DO NOT STORE",
+          "description": "Purpose: Check if a memory already exists in the database.\n\nProcess:\n1. Normalize text (lowercase, collapse whitespace, trim)\n2. Generate SHA-256 hash\n3. Query database for existing hash\n\nReturns:\n{\n  \"normalized_text\": \"string\",\n  \"exists\": boolean\n}\n\nRule: If exists == true → DO NOT STORE",
           "workflowId": {
             "__rl": true,
             "value": "07RhLX2UKvMjY1cr",
