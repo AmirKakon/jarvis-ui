@@ -1,0 +1,221 @@
+{
+  "updatedAt": "2026-01-01T15:06:48.039Z",
+  "createdAt": "2025-12-17T07:56:42.083Z",
+  "id": "anunjMp26km77JN7",
+  "name": "gemini cli trigger",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "prompt"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3918eda1-1aca-4173-a73f-dbcc9653a237",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "command": "=gemini -y -p \"{{ $json.prompt }}\""
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        256,
+        0
+      ],
+      "id": "03add4b9-9d36-4702-ab2e-2dfce09f3a7a",
+      "name": "Execute gemini cli",
+      "credentials": {
+        "sshPassword": {
+          "id": "JjGMaWTmkWf8n5Qj",
+          "name": "IOT_Kamuri"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Execute gemini cli",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute gemini cli": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "prompt": "what color is the sky?"
+        }
+      }
+    ]
+  },
+  "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+  "activeVersionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+  "versionCounter": 15,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2025-12-17T07:56:42.089Z",
+      "createdAt": "2025-12-17T07:56:42.089Z",
+      "role": "workflow:owner",
+      "workflowId": "anunjMp26km77JN7",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2025-12-28T17:20:30.000Z",
+    "createdAt": "2025-12-28T17:18:51.362Z",
+    "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+    "workflowId": "anunjMp26km77JN7",
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "prompt"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "3918eda1-1aca-4173-a73f-dbcc9653a237",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "command": "=gemini -y -p \"{{ $json.prompt }}\""
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          256,
+          0
+        ],
+        "id": "03add4b9-9d36-4702-ab2e-2dfce09f3a7a",
+        "name": "Execute gemini cli",
+        "credentials": {
+          "sshPassword": {
+            "id": "JjGMaWTmkWf8n5Qj",
+            "name": "IOT_Kamuri"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "Execute gemini cli",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute gemini cli": {
+        "main": [
+          []
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": "Version f085c872",
+    "description": "",
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-12-28T17:20:30.523Z",
+        "id": 6,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
+}

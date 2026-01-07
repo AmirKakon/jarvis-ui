@@ -1,0 +1,907 @@
+{
+  "updatedAt": "2026-01-06T11:15:34.928Z",
+  "createdAt": "2025-12-28T16:45:20.366Z",
+  "id": "bGlXB1gv8DM69uIQ",
+  "name": "Jarvis AI Agent Orchestrator",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "=You are JARVIS, a polished, quick-witted British AI assistant. Address the user as “Sir” by default unless they explicitly request a different form of address. Use British English spelling and phrasing.\nTone: dry, courteous, slightly cheeky; fun but professional. Be efficient and unflappable. Sprinkle in understated humour without derailing the task.\nCore behaviour:\nBegin task acknowledgements with short phrases like “At once, Sir,” “Very good, Sir,” or “Consider it done, Sir,” when appropriate.\nProvide concise answers first. only if asked to elaborate, than answer with clear, actionable steps or options.\nProactively suggest useful next actions, safeguards, or optimisations relevant to the request.\nAsk brief clarifying questions if the request is ambiguous or missing key details.\nKeep responses lean: short paragraphs and bullet points; avoid long monologues.\nUse British spellings (organise, colour, analyse) and light British idioms when natural.\nAcknowledge limits plainly; propose practical ways to verify or proceed.\nStyle and content guidelines:\nFor technical answers: give a succinct summary, minimal necessary code or steps, and note assumptions. Offer to tailor to the user’s environment.\nFor planning: present a tight outline, timelines, and risks; offer quick alternatives.\nFor creative tasks: keep the voice refined, witty, and British;\nKeep emojis to a minimum; use them only if the user signals they want them.\nCommand handling:\nIf the user begins with “Jarvis,” treat it as a command and respond with a brief acknowledgment before executing: e.g., “At once, Sir,” then the solution.\nIf the user says “dismiss” or “stand down,” end promptly with a short sign-off (e.g., “As you wish, Sir.”).\nMemory:\nIf there is any important notes you want to keep in long term memory - make sure to add it to the long term memory database as part of your tasks via the tool provided.\nPersona touch:\nOccasionally use polite, wry asides such as “Might I suggest…,” “If I may,” or “With your permission, Sir.”\nMaintain calm confidence; never snarky or smug.\nOptional starter message you can send at the beginning of a chat:\n\n“Good afternoon, Sir. How may I assist you today?”\n\nLocation based questions should be based on Jerusalem, Israel unless defined otherwise.\nLocal time is {{ $now.setZone('Asia/Jerusalem')}}",
+          "enableStreaming": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        192,
+        0
+      ],
+      "id": "97885424-820c-483c-b182-3bbac7589057",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.sessionId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        224
+      ],
+      "id": "512d4843-ab85-40de-8850-eaf5e8760ce0",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "description": "Call this tool to run gemini cli commands on the local machine.\nAll commands start with \"gemini -y -p\" and are wrapped in double quotes. the prompt input should be the desired query without double quotes.",
+        "workflowId": {
+          "__rl": true,
+          "value": "anunjMp26km77JN7",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/anunjMp26km77JN7",
+          "cachedResultName": "gemini cli trigger"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "prompt": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('prompt', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "prompt"
+          ],
+          "schema": [
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        128,
+        224
+      ],
+      "id": "404ccc8f-1b1b-4ddb-8fec-b33e8d2ea3b7",
+      "name": "Call 'gemini cli trigger'"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        256,
+        224
+      ],
+      "id": "bd9ad5bf-6e8d-4db7-878a-240196d99849",
+      "name": "Calculator"
+    },
+    {
+      "parameters": {
+        "description": "Can run any ssh command on the local machine as the iot user. every command has the sudo prefix predefined. no need to add the sudo prefix.\nthe base path defaults to ~/.",
+        "workflowId": {
+          "__rl": true,
+          "value": "TTqKNvyugLWoVF08",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/TTqKNvyugLWoVF08",
+          "cachedResultName": "sudo ssh commands"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "command": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('command', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "command"
+          ],
+          "schema": [
+            {
+              "id": "command",
+              "displayName": "command",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        384,
+        224
+      ],
+      "id": "a88f2cdb-047d-45e1-a65a-c0f0baac7145",
+      "name": "Call 'sudo ssh commands'"
+    },
+    {
+      "parameters": {
+        "description": "call an n8n http request.\nbase url is set to http://<baseurl>/api/v1/\nauthorization header is set.\n\nsend the requestPath relative to the bas url - including any query params necessary\nsend the requestbody as json format (must include the name, nodes, connections, and settings - which should be an empty body)\nsend the requestmethod as uppercase letters GET, POST, Delete and so forth.\n\nhere is an example request to crete a workflow:\ncurl --location 'http://kakischer.tplinkdns.com:20002/api/v1/workflows' --header 'X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNDU1MjRmNC0xZDM3LTRjZGYtOWM5Yi1mNTY2YzQ4YjVmYmQiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzY2OTQ4MzU2fQ.ck8hsGLz2e-IcOizCIczX61Gcb1sxbspMOAD7KaCWJc' --header 'Content-Type: application/json' --data '{\"name\":\"test\",\"nodes\":[{\"parameters\":{},\"name\":\"Start\",\"type\":\"n8n-nodes-base.start\",\"typeVersion\":1,\"position\":[240,300]},{\"parameters\":{\"values\":[{\"name\":\"hello\",\"value\":\"world\",\"type\":\"string\"}]},\"name\":\"Set\",\"type\":\"n8n-nodes-base.set\",\"typeVersion\":1,\"position\":[460,300]}],\"connections\":{\"Start\":{\"main\":[[{\"node\":\"Set\",\"type\":\"main\"}]]}},\"settings\":{}}'",
+        "workflowId": {
+          "__rl": true,
+          "value": "rJoy4infFhxMynsJ",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/rJoy4infFhxMynsJ",
+          "cachedResultName": "n8n creator"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "requestPath": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('requestPath', ``, 'string') }}",
+            "requestBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('requestBody', ``, 'string') }}",
+            "requestMethod": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('requestMethod', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "requestPath",
+              "displayName": "requestPath",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "requestBody",
+              "displayName": "requestBody",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "requestMethod",
+              "displayName": "requestMethod",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        512,
+        224
+      ],
+      "id": "e52230dd-d45f-4127-8444-bf8cdc3bc73d",
+      "name": "Call 'n8n creator'"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-nano",
+          "mode": "list",
+          "cachedResultName": "gpt-5-nano"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -128,
+        224
+      ],
+      "id": "fa5e7bd8-0914-4c43-a6d4-c76a511b358a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "JAXAQJQgf0B0XCnc",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "he Long-Term Memory Agent is responsible for the persistent storage and retrieval of high-confidence, long-term knowledge for the JARVIS system.\n\nIt is the authoritative source of truth for known user facts, preferences, skills, and historical events.\n\nThe agent must be consulted whenever:\n\nThe user asks about themselves (e.g. work, preferences, skills, history)\n\nThe answer may exist in long-term memory\n\nA response requires recall of previously stored information\n\nThe agent enforces strict memory governance when writing, ensuring only non-ephemeral, non-duplicative, and high-confidence information is persisted.\n\nThis agent does not reason or speculate.\nIf no relevant memory exists, it returns “memory_not_found” rather than fabricating information.",
+        "workflowId": {
+          "__rl": true,
+          "value": "8ymvtOFFghcnFjjP",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/8ymvtOFFghcnFjjP",
+          "cachedResultName": "AI Long Term Memory Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sessionId": "={{ $json.body.sessionId }}",
+            "chatInput": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('chatInput', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "chatInput",
+              "displayName": "chatInput",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        224
+      ],
+      "id": "31c1e889-1b4f-44b2-b5ad-bf4146362cd5",
+      "name": "Call 'AI Long Term Memory Agent'"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "365ec30d-79a8-4c1e-839b-26df01b74dfe",
+        "responseMode": "streaming",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -64,
+        0
+      ],
+      "id": "1cd0cb24-2f1b-41e9-af43-7ffa39f2e49e",
+      "name": "Webhook",
+      "webhookId": "365ec30d-79a8-4c1e-839b-26df01b74dfe"
+    },
+    {
+      "parameters": {
+        "options": {
+          "enableStreaming": true
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        544,
+        0
+      ],
+      "id": "e891e270-d58b-4f39-9da7-bfd252a1bddc",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'gemini cli trigger'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'sudo ssh commands'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'n8n creator'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'AI Long Term Memory Agent'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "8782be0d-98c8-41c8-93f9-af06ffce8786",
+  "activeVersionId": "8782be0d-98c8-41c8-93f9-af06ffce8786",
+  "versionCounter": 78,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-12-28T16:45:20.370Z",
+      "createdAt": "2025-12-28T16:45:20.370Z",
+      "role": "workflow:owner",
+      "workflowId": "bGlXB1gv8DM69uIQ",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-06T11:15:36.000Z",
+    "createdAt": "2026-01-06T11:15:34.929Z",
+    "versionId": "8782be0d-98c8-41c8-93f9-af06ffce8786",
+    "workflowId": "bGlXB1gv8DM69uIQ",
+    "nodes": [
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.body.message }}",
+          "options": {
+            "systemMessage": "=You are JARVIS, a polished, quick-witted British AI assistant. Address the user as “Sir” by default unless they explicitly request a different form of address. Use British English spelling and phrasing.\nTone: dry, courteous, slightly cheeky; fun but professional. Be efficient and unflappable. Sprinkle in understated humour without derailing the task.\nCore behaviour:\nBegin task acknowledgements with short phrases like “At once, Sir,” “Very good, Sir,” or “Consider it done, Sir,” when appropriate.\nProvide concise answers first. only if asked to elaborate, than answer with clear, actionable steps or options.\nProactively suggest useful next actions, safeguards, or optimisations relevant to the request.\nAsk brief clarifying questions if the request is ambiguous or missing key details.\nKeep responses lean: short paragraphs and bullet points; avoid long monologues.\nUse British spellings (organise, colour, analyse) and light British idioms when natural.\nAcknowledge limits plainly; propose practical ways to verify or proceed.\nStyle and content guidelines:\nFor technical answers: give a succinct summary, minimal necessary code or steps, and note assumptions. Offer to tailor to the user’s environment.\nFor planning: present a tight outline, timelines, and risks; offer quick alternatives.\nFor creative tasks: keep the voice refined, witty, and British;\nKeep emojis to a minimum; use them only if the user signals they want them.\nCommand handling:\nIf the user begins with “Jarvis,” treat it as a command and respond with a brief acknowledgment before executing: e.g., “At once, Sir,” then the solution.\nIf the user says “dismiss” or “stand down,” end promptly with a short sign-off (e.g., “As you wish, Sir.”).\nMemory:\nIf there is any important notes you want to keep in long term memory - make sure to add it to the long term memory database as part of your tasks via the tool provided.\nPersona touch:\nOccasionally use polite, wry asides such as “Might I suggest…,” “If I may,” or “With your permission, Sir.”\nMaintain calm confidence; never snarky or smug.\nOptional starter message you can send at the beginning of a chat:\n\n“Good afternoon, Sir. How may I assist you today?”\n\nLocation based questions should be based on Jerusalem, Israel unless defined otherwise.\nLocal time is {{ $now.setZone('Asia/Jerusalem')}}",
+            "enableStreaming": true
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3,
+        "position": [
+          192,
+          0
+        ],
+        "id": "97885424-820c-483c-b182-3bbac7589057",
+        "name": "AI Agent"
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $json.body.sessionId }}"
+        },
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.3,
+        "position": [
+          0,
+          224
+        ],
+        "id": "512d4843-ab85-40de-8850-eaf5e8760ce0",
+        "name": "Simple Memory"
+      },
+      {
+        "parameters": {
+          "description": "Call this tool to run gemini cli commands on the local machine.\nAll commands start with \"gemini -y -p\" and are wrapped in double quotes. the prompt input should be the desired query without double quotes.",
+          "workflowId": {
+            "__rl": true,
+            "value": "anunjMp26km77JN7",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/anunjMp26km77JN7",
+            "cachedResultName": "gemini cli trigger"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "prompt": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('prompt', ``, 'string') }}"
+            },
+            "matchingColumns": [
+              "prompt"
+            ],
+            "schema": [
+              {
+                "id": "prompt",
+                "displayName": "prompt",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          128,
+          224
+        ],
+        "id": "404ccc8f-1b1b-4ddb-8fec-b33e8d2ea3b7",
+        "name": "Call 'gemini cli trigger'"
+      },
+      {
+        "parameters": {},
+        "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+        "typeVersion": 1,
+        "position": [
+          256,
+          224
+        ],
+        "id": "bd9ad5bf-6e8d-4db7-878a-240196d99849",
+        "name": "Calculator"
+      },
+      {
+        "parameters": {
+          "description": "Can run any ssh command on the local machine as the iot user. every command has the sudo prefix predefined. no need to add the sudo prefix.\nthe base path defaults to ~/.",
+          "workflowId": {
+            "__rl": true,
+            "value": "TTqKNvyugLWoVF08",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/TTqKNvyugLWoVF08",
+            "cachedResultName": "sudo ssh commands"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "command": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('command', ``, 'string') }}"
+            },
+            "matchingColumns": [
+              "command"
+            ],
+            "schema": [
+              {
+                "id": "command",
+                "displayName": "command",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          384,
+          224
+        ],
+        "id": "a88f2cdb-047d-45e1-a65a-c0f0baac7145",
+        "name": "Call 'sudo ssh commands'"
+      },
+      {
+        "parameters": {
+          "description": "call an n8n http request.\nbase url is set to http://<baseurl>/api/v1/\nauthorization header is set.\n\nsend the requestPath relative to the bas url - including any query params necessary\nsend the requestbody as json format (must include the name, nodes, connections, and settings - which should be an empty body)\nsend the requestmethod as uppercase letters GET, POST, Delete and so forth.\n\nhere is an example request to crete a workflow:\ncurl --location 'http://kakischer.tplinkdns.com:20002/api/v1/workflows' --header 'X-N8N-API-KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNDU1MjRmNC0xZDM3LTRjZGYtOWM5Yi1mNTY2YzQ4YjVmYmQiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzY2OTQ4MzU2fQ.ck8hsGLz2e-IcOizCIczX61Gcb1sxbspMOAD7KaCWJc' --header 'Content-Type: application/json' --data '{\"name\":\"test\",\"nodes\":[{\"parameters\":{},\"name\":\"Start\",\"type\":\"n8n-nodes-base.start\",\"typeVersion\":1,\"position\":[240,300]},{\"parameters\":{\"values\":[{\"name\":\"hello\",\"value\":\"world\",\"type\":\"string\"}]},\"name\":\"Set\",\"type\":\"n8n-nodes-base.set\",\"typeVersion\":1,\"position\":[460,300]}],\"connections\":{\"Start\":{\"main\":[[{\"node\":\"Set\",\"type\":\"main\"}]]}},\"settings\":{}}'",
+          "workflowId": {
+            "__rl": true,
+            "value": "rJoy4infFhxMynsJ",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/rJoy4infFhxMynsJ",
+            "cachedResultName": "n8n creator"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "requestPath": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('requestPath', ``, 'string') }}",
+              "requestBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('requestBody', ``, 'string') }}",
+              "requestMethod": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('requestMethod', ``, 'string') }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "requestPath",
+                "displayName": "requestPath",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "requestBody",
+                "displayName": "requestBody",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "requestMethod",
+                "displayName": "requestMethod",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          512,
+          224
+        ],
+        "id": "e52230dd-d45f-4127-8444-bf8cdc3bc73d",
+        "name": "Call 'n8n creator'"
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "value": "gpt-5-nano",
+            "mode": "list",
+            "cachedResultName": "gpt-5-nano"
+          },
+          "builtInTools": {},
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.3,
+        "position": [
+          -128,
+          224
+        ],
+        "id": "fa5e7bd8-0914-4c43-a6d4-c76a511b358a",
+        "name": "OpenAI Chat Model",
+        "credentials": {
+          "openAiApi": {
+            "id": "JAXAQJQgf0B0XCnc",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "description": "he Long-Term Memory Agent is responsible for the persistent storage and retrieval of high-confidence, long-term knowledge for the JARVIS system.\n\nIt is the authoritative source of truth for known user facts, preferences, skills, and historical events.\n\nThe agent must be consulted whenever:\n\nThe user asks about themselves (e.g. work, preferences, skills, history)\n\nThe answer may exist in long-term memory\n\nA response requires recall of previously stored information\n\nThe agent enforces strict memory governance when writing, ensuring only non-ephemeral, non-duplicative, and high-confidence information is persisted.\n\nThis agent does not reason or speculate.\nIf no relevant memory exists, it returns “memory_not_found” rather than fabricating information.",
+          "workflowId": {
+            "__rl": true,
+            "value": "8ymvtOFFghcnFjjP",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/8ymvtOFFghcnFjjP",
+            "cachedResultName": "AI Long Term Memory Agent"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "sessionId": "={{ $json.body.sessionId }}",
+              "chatInput": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('chatInput', ``, 'string') }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "sessionId",
+                "displayName": "sessionId",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "chatInput",
+                "displayName": "chatInput",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          640,
+          224
+        ],
+        "id": "31c1e889-1b4f-44b2-b5ad-bf4146362cd5",
+        "name": "Call 'AI Long Term Memory Agent'"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "365ec30d-79a8-4c1e-839b-26df01b74dfe",
+          "responseMode": "streaming",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          -64,
+          0
+        ],
+        "id": "1cd0cb24-2f1b-41e9-af43-7ffa39f2e49e",
+        "name": "Webhook",
+        "webhookId": "365ec30d-79a8-4c1e-839b-26df01b74dfe"
+      },
+      {
+        "parameters": {
+          "options": {
+            "enableStreaming": true
+          }
+        },
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          544,
+          0
+        ],
+        "id": "e891e270-d58b-4f39-9da7-bfd252a1bddc",
+        "name": "Respond to Webhook"
+      }
+    ],
+    "connections": {
+      "Simple Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Call 'gemini cli trigger'": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Calculator": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Call 'sudo ssh commands'": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Call 'n8n creator'": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Call 'AI Long Term Memory Agent'": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Agent": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": "Version 8782be0d",
+    "description": "",
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-06T11:15:36.658Z",
+        "id": 65,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "8782be0d-98c8-41c8-93f9-af06ffce8786",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
+}

@@ -1,0 +1,356 @@
+{
+  "updatedAt": "2026-01-04T14:37:49.018Z",
+  "createdAt": "2025-12-30T07:18:58.332Z",
+  "id": "07RhLX2UKvMjY1cr",
+  "name": "Memory deduplication",
+  "description": "",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "content"
+            },
+            {
+              "name": "dbTable"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "29d32e45-84c5-440b-857a-4ccb8ee475ac",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM {{ $('When Executed by Another Workflow').item.json.dbTable }}\nWHERE hash = encode(digest($1, 'sha256'), 'hex')\nLIMIT 1;\n",
+        "options": {
+          "queryReplacement": "={{ $json.normalized_text }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        448,
+        0
+      ],
+      "id": "745ad99b-a441-40fb-bfbb-694d56a4157d",
+      "name": "Execute a SQL query",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "HyeoAo9xGyWNI2oG",
+          "name": "N8N-Kamuri"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  normalized_text: $input.first().json.content\n    .toLowerCase()\n    .replace(/\\s+/g, ' ')\n    .trim()\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "e417348b-6eaf-45cf-8b93-315fd18af420",
+      "name": "normalize content"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "23128e6b-3d3b-48ff-8d94-a467323e36fa",
+              "name": "normalized_text",
+              "value": "={{ $('normalize content').item.json.normalized_text }}",
+              "type": "string"
+            },
+            {
+              "id": "b9924efa-364d-4509-b7c4-8845a75a7391",
+              "name": "exists",
+              "value": "={{ $json.id.isNotEmpty() }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        0
+      ],
+      "id": "a055a833-841a-4bd5-b257-ba43d1e5aa94",
+      "name": "output fields"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "normalize content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "output fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalize content": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "content": "The user lives in Jerusalem",
+          "dbTable": "long_term_memory"
+        }
+      }
+    ]
+  },
+  "versionId": "316bd26f-ec24-440f-96fe-bd1a8da98f5e",
+  "activeVersionId": "316bd26f-ec24-440f-96fe-bd1a8da98f5e",
+  "versionCounter": 25,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2025-12-30T07:18:58.336Z",
+      "createdAt": "2025-12-30T07:18:58.336Z",
+      "role": "workflow:owner",
+      "workflowId": "07RhLX2UKvMjY1cr",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-01T14:54:09.000Z",
+    "createdAt": "2026-01-01T14:54:06.774Z",
+    "versionId": "316bd26f-ec24-440f-96fe-bd1a8da98f5e",
+    "workflowId": "07RhLX2UKvMjY1cr",
+    "nodes": [
+      {
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "content"
+              },
+              {
+                "name": "dbTable"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "29d32e45-84c5-440b-857a-4ccb8ee475ac",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT *\nFROM {{ $('When Executed by Another Workflow').item.json.dbTable }}\nWHERE hash = encode(digest($1, 'sha256'), 'hex')\nLIMIT 1;\n",
+          "options": {
+            "queryReplacement": "={{ $json.normalized_text }}"
+          }
+        },
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.6,
+        "position": [
+          448,
+          0
+        ],
+        "id": "745ad99b-a441-40fb-bfbb-694d56a4157d",
+        "name": "Execute a SQL query",
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "HyeoAo9xGyWNI2oG",
+            "name": "N8N-Kamuri"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "return {\n  normalized_text: $input.first().json.content\n    .toLowerCase()\n    .replace(/\\s+/g, ' ')\n    .trim()\n};\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          0
+        ],
+        "id": "e417348b-6eaf-45cf-8b93-315fd18af420",
+        "name": "normalize content"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "23128e6b-3d3b-48ff-8d94-a467323e36fa",
+                "name": "normalized_text",
+                "value": "={{ $('normalize content').item.json.normalized_text }}",
+                "type": "string"
+              },
+              {
+                "id": "b9924efa-364d-4509-b7c4-8845a75a7391",
+                "name": "exists",
+                "value": "={{ $json.id.isNotEmpty() }}",
+                "type": "boolean"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          672,
+          0
+        ],
+        "id": "a055a833-841a-4bd5-b257-ba43d1e5aa94",
+        "name": "output fields"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "normalize content",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute a SQL query": {
+        "main": [
+          [
+            {
+              "node": "output fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "normalize content": {
+        "main": [
+          [
+            {
+              "node": "Execute a SQL query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": "Version 316bd26f",
+    "description": "",
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-01T14:54:09.149Z",
+        "id": 53,
+        "workflowId": "07RhLX2UKvMjY1cr",
+        "versionId": "316bd26f-ec24-440f-96fe-bd1a8da98f5e",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
+}

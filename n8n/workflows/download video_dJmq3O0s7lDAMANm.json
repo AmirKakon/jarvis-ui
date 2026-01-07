@@ -1,0 +1,1155 @@
+{
+  "updatedAt": "2026-01-01T15:06:53.548Z",
+  "createdAt": "2025-12-24T11:16:27.678Z",
+  "id": "dJmq3O0s7lDAMANm",
+  "name": "download video",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Download A Video",
+        "formDescription": "Enter the download url and select from the options below in order to download the video",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Download url",
+              "placeholder": "Download URL",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Video Type",
+              "fieldType": "dropdown",
+              "defaultValue": "movie",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "movies"
+                  },
+                  {
+                    "option": "tv show"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Custom Subfolder",
+              "placeholder": "add a custom subfolder"
+            },
+            {
+              "fieldLabel": "Sync to Jellyfin",
+              "fieldType": "checkbox",
+              "defaultValue": "No",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Yes"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        -112
+      ],
+      "id": "64cad6ea-8737-49ff-a0d5-6f6287d5e616",
+      "name": "On form submission",
+      "webhookId": "f12bd8af-9e95-43f3-9c31-0e5d1c736de2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f90877b7-addc-4911-8ff3-424870ac3133",
+              "name": "filename",
+              "value": "={{ $json['Download url'].split('/').pop() }}",
+              "type": "string"
+            },
+            {
+              "id": "b7788be0-1204-4ecd-911b-60d821fc48c3",
+              "name": "baseDir",
+              "value": "={{ $json['Video Type'] === 'tv show' ? '/home/iot/shared-storage-2/tv-shows' : '/home/iot/shared-storage-2/movies'  }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        160,
+        0
+      ],
+      "id": "a3e11e51-7c96-4caf-9cd8-4fe0e1598656",
+      "name": "Prepare Path"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4d180838-97ec-4e93-a9c6-cb308683f051",
+              "name": "targetDir",
+              "value": "={{$('On form submission').item.json['Custom Subfolder']   ? $json.baseDir + '/' + $('On form submission').item.json['Custom Subfolder']   : $json.baseDir}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        336,
+        0
+      ],
+      "id": "aeaa4527-1098-4f72-9c50-5aa7c582e25d",
+      "name": "Prepare Target Directory"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fa16971e-5e53-4793-a8ca-2ba594ce0d88",
+              "name": "fullPath",
+              "value": "={{$json.targetDir + '/' + $('Prepare Path').item.json.filename}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        0
+      ],
+      "id": "d5988437-4812-475c-b37c-0be03eed0801",
+      "name": "Prepare Full Path"
+    },
+    {
+      "parameters": {
+        "command": "=mkdir -p \"{{ $('Prepare Target Directory').item.json.targetDir }}\"\n"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        672,
+        0
+      ],
+      "id": "44f9beac-af99-48b0-bc67-9ae36e681b5a",
+      "name": "Create Directory",
+      "credentials": {
+        "sshPassword": {
+          "id": "JjGMaWTmkWf8n5Qj",
+          "name": "IOT_Kamuri"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=wget \\\n  --tries=3 \\\n  --waitretry=5 \\\n  --no-verbose \\\n  --output-document=\"{{ $('Prepare Full Path').item.json.fullPath }}\" \\\n  \"{{ $('On form submission').item.json['Download url'] }}\""
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        832,
+        176
+      ],
+      "id": "527125f6-0c85-4fb1-a23e-450108899ee9",
+      "name": "Download video",
+      "credentials": {
+        "sshPassword": {
+          "id": "JjGMaWTmkWf8n5Qj",
+          "name": "IOT_Kamuri"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=test -s \"{{ $('Prepare Full Path').item.json.fullPath }}\" \\\n|| { echo \"ERROR: File is empty or missing\"; exit 1; }"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        976,
+        320
+      ],
+      "id": "d2ef003a-e006-4a4a-ab94-ad675aa9d91c",
+      "name": "Verify File",
+      "credentials": {
+        "sshPassword": {
+          "id": "JjGMaWTmkWf8n5Qj",
+          "name": "IOT_Kamuri"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        352
+      ],
+      "id": "febffb2b-26e7-4634-bf7e-97b5103aecf9",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "chatId": "2125353679",
+        "text": "=✅ Download completed\n\n🎬 File: {{ $('Prepare Path').item.json.filename }}\n\n📁 Location: {{ $('Prepare Target Directory').item.json.targetDir }}\n\n🔄 Refresh Library: {{ $json.SyncToJellyfin ? \"✅\" : \"❌\" }}\n",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        704
+      ],
+      "id": "ef458168-e671-4990-ac32-cf9b7e2a42b0",
+      "name": "Send a text message",
+      "webhookId": "1311cd3d-4088-4c56-a9ba-75f37740f225",
+      "credentials": {
+        "telegramApi": {
+          "id": "L1VhmnHnv7EZOIUa",
+          "name": "kakischer_n8n_bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "2125353679",
+        "text": "=❌ Download failed\n\n🔗 URL:\n{{ $json.execution?.data?.downloadUrl }}\n\n📄 Error:\n{{ $json.execution.error.message }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        144,
+        352
+      ],
+      "id": "d814f80c-b461-4e8f-9140-e25226f064f9",
+      "name": "Send a text message1",
+      "webhookId": "1311cd3d-4088-4c56-a9ba-75f37740f225",
+      "credentials": {
+        "telegramApi": {
+          "id": "L1VhmnHnv7EZOIUa",
+          "name": "kakischer_n8n_bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://kakischer.tplinkdns.com:20001/Library/Refresh",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Emby-Token",
+              "value": "c8f4d7b2cd824661a5c2f8e91438db28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1888,
+        512
+      ],
+      "id": "f905300a-271e-4745-815e-30231d60639e",
+      "name": "Refresh Jellyfin Library"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1e1744fb-0238-4a6f-98e2-02cea6936972",
+              "name": "SyncToJellyfin",
+              "value": "={{ $('On form submission').item.json['Sync to Jellyfin'] === true || ($('On form submission').item.json['Sync to Jellyfin'] &&  $('On form submission').item.json['Sync to Jellyfin'][0] && $('On form submission').item.json['Sync to Jellyfin'][0] == \"Yes\") }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1408,
+        512
+      ],
+      "id": "e0681939-d7ef-4142-84ae-d60228d87082",
+      "name": "Sync Jellyfin"
+    },
+    {
+      "parameters": {
+        "errorMessage": "ERROR: File is empty or missing"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1392,
+        256
+      ],
+      "id": "f3a92512-5dad-453d-a5dc-dfe80afa86e0",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e8c66bb4-f056-4825-984b-be2fdb19164a",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "ERROR: File is empty or missing",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1168,
+        320
+      ],
+      "id": "9c4efaab-0b4c-4e79-8424-309a713fbf0a",
+      "name": "Verify fails"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9f10c61e-8c21-43fb-824b-d1a28276b6d2",
+              "leftValue": "={{ $json.SyncToJellyfin }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1648,
+        512
+      ],
+      "id": "8fcdf598-6c82-4b98-8f11-fc28cf24415d",
+      "name": "Sync"
+    }
+  ],
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Prepare Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Path": {
+      "main": [
+        [
+          {
+            "node": "Prepare Target Directory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Target Directory": {
+      "main": [
+        [
+          {
+            "node": "Prepare Full Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Full Path": {
+      "main": [
+        [
+          {
+            "node": "Create Directory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Directory": {
+      "main": [
+        [
+          {
+            "node": "Download video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download video": {
+      "main": [
+        [
+          {
+            "node": "Verify File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify File": {
+      "main": [
+        [
+          {
+            "node": "Verify fails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        []
+      ]
+    },
+    "Refresh Jellyfin Library": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Jellyfin": {
+      "main": [
+        [
+          {
+            "node": "Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify fails": {
+      "main": [
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync Jellyfin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync": {
+      "main": [
+        [
+          {
+            "node": "Refresh Jellyfin Library",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "e65e958b-9672-4ba9-b7b6-1b5e408f3bc7",
+  "activeVersionId": "e65e958b-9672-4ba9-b7b6-1b5e408f3bc7",
+  "versionCounter": 55,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-12-24T11:16:27.683Z",
+      "createdAt": "2025-12-24T11:16:27.683Z",
+      "role": "workflow:owner",
+      "workflowId": "dJmq3O0s7lDAMANm",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2025-12-29T15:57:17.000Z",
+    "createdAt": "2025-12-29T15:57:14.318Z",
+    "versionId": "e65e958b-9672-4ba9-b7b6-1b5e408f3bc7",
+    "workflowId": "dJmq3O0s7lDAMANm",
+    "nodes": [
+      {
+        "parameters": {
+          "formTitle": "Download A Video",
+          "formDescription": "Enter the download url and select from the options below in order to download the video",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "Download url",
+                "placeholder": "Download URL",
+                "requiredField": true
+              },
+              {
+                "fieldLabel": "Video Type",
+                "fieldType": "dropdown",
+                "defaultValue": "movie",
+                "fieldOptions": {
+                  "values": [
+                    {
+                      "option": "movies"
+                    },
+                    {
+                      "option": "tv show"
+                    }
+                  ]
+                },
+                "requiredField": true
+              },
+              {
+                "fieldLabel": "Custom Subfolder",
+                "placeholder": "add a custom subfolder"
+              },
+              {
+                "fieldLabel": "Sync to Jellyfin",
+                "fieldType": "checkbox",
+                "defaultValue": "No",
+                "fieldOptions": {
+                  "values": [
+                    {
+                      "option": "Yes"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.3,
+        "position": [
+          0,
+          -112
+        ],
+        "id": "64cad6ea-8737-49ff-a0d5-6f6287d5e616",
+        "name": "On form submission",
+        "webhookId": "f12bd8af-9e95-43f3-9c31-0e5d1c736de2"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "f90877b7-addc-4911-8ff3-424870ac3133",
+                "name": "filename",
+                "value": "={{ $json['Download url'].split('/').pop() }}",
+                "type": "string"
+              },
+              {
+                "id": "b7788be0-1204-4ecd-911b-60d821fc48c3",
+                "name": "baseDir",
+                "value": "={{ $json['Video Type'] === 'tv show' ? '/home/iot/shared-storage-2/tv-shows' : '/home/iot/shared-storage-2/movies'  }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {
+            "dotNotation": false
+          }
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          160,
+          0
+        ],
+        "id": "a3e11e51-7c96-4caf-9cd8-4fe0e1598656",
+        "name": "Prepare Path"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "4d180838-97ec-4e93-a9c6-cb308683f051",
+                "name": "targetDir",
+                "value": "={{$('On form submission').item.json['Custom Subfolder']   ? $json.baseDir + '/' + $('On form submission').item.json['Custom Subfolder']   : $json.baseDir}}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          336,
+          0
+        ],
+        "id": "aeaa4527-1098-4f72-9c50-5aa7c582e25d",
+        "name": "Prepare Target Directory"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "fa16971e-5e53-4793-a8ca-2ba594ce0d88",
+                "name": "fullPath",
+                "value": "={{$json.targetDir + '/' + $('Prepare Path').item.json.filename}}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          512,
+          0
+        ],
+        "id": "d5988437-4812-475c-b37c-0be03eed0801",
+        "name": "Prepare Full Path"
+      },
+      {
+        "parameters": {
+          "command": "=mkdir -p \"{{ $('Prepare Target Directory').item.json.targetDir }}\"\n"
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          672,
+          0
+        ],
+        "id": "44f9beac-af99-48b0-bc67-9ae36e681b5a",
+        "name": "Create Directory",
+        "credentials": {
+          "sshPassword": {
+            "id": "JjGMaWTmkWf8n5Qj",
+            "name": "IOT_Kamuri"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "command": "=wget \\\n  --tries=3 \\\n  --waitretry=5 \\\n  --no-verbose \\\n  --output-document=\"{{ $('Prepare Full Path').item.json.fullPath }}\" \\\n  \"{{ $('On form submission').item.json['Download url'] }}\""
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          832,
+          176
+        ],
+        "id": "527125f6-0c85-4fb1-a23e-450108899ee9",
+        "name": "Download video",
+        "credentials": {
+          "sshPassword": {
+            "id": "JjGMaWTmkWf8n5Qj",
+            "name": "IOT_Kamuri"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "command": "=test -s \"{{ $('Prepare Full Path').item.json.fullPath }}\" \\\n|| { echo \"ERROR: File is empty or missing\"; exit 1; }"
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          976,
+          320
+        ],
+        "id": "d2ef003a-e006-4a4a-ab94-ad675aa9d91c",
+        "name": "Verify File",
+        "credentials": {
+          "sshPassword": {
+            "id": "JjGMaWTmkWf8n5Qj",
+            "name": "IOT_Kamuri"
+          }
+        }
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.errorTrigger",
+        "typeVersion": 1,
+        "position": [
+          -32,
+          352
+        ],
+        "id": "febffb2b-26e7-4634-bf7e-97b5103aecf9",
+        "name": "Error Trigger"
+      },
+      {
+        "parameters": {
+          "chatId": "2125353679",
+          "text": "=✅ Download completed\n\n🎬 File: {{ $('Prepare Path').item.json.filename }}\n\n📁 Location: {{ $('Prepare Target Directory').item.json.targetDir }}\n\n🔄 Refresh Library: {{ $json.SyncToJellyfin ? \"✅\" : \"❌\" }}\n",
+          "additionalFields": {}
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          2096,
+          704
+        ],
+        "id": "ef458168-e671-4990-ac32-cf9b7e2a42b0",
+        "name": "Send a text message",
+        "webhookId": "1311cd3d-4088-4c56-a9ba-75f37740f225",
+        "credentials": {
+          "telegramApi": {
+            "id": "L1VhmnHnv7EZOIUa",
+            "name": "kakischer_n8n_bot"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "2125353679",
+          "text": "=❌ Download failed\n\n🔗 URL:\n{{ $json.execution?.data?.downloadUrl }}\n\n📄 Error:\n{{ $json.execution.error.message }}",
+          "additionalFields": {}
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          144,
+          352
+        ],
+        "id": "d814f80c-b461-4e8f-9140-e25226f064f9",
+        "name": "Send a text message1",
+        "webhookId": "1311cd3d-4088-4c56-a9ba-75f37740f225",
+        "credentials": {
+          "telegramApi": {
+            "id": "L1VhmnHnv7EZOIUa",
+            "name": "kakischer_n8n_bot"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://kakischer.tplinkdns.com:20001/Library/Refresh",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Emby-Token",
+                "value": "c8f4d7b2cd824661a5c2f8e91438db28"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          1888,
+          512
+        ],
+        "id": "f905300a-271e-4745-815e-30231d60639e",
+        "name": "Refresh Jellyfin Library"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "1e1744fb-0238-4a6f-98e2-02cea6936972",
+                "name": "SyncToJellyfin",
+                "value": "={{ $('On form submission').item.json['Sync to Jellyfin'] === true || ($('On form submission').item.json['Sync to Jellyfin'] &&  $('On form submission').item.json['Sync to Jellyfin'][0] && $('On form submission').item.json['Sync to Jellyfin'][0] == \"Yes\") }}",
+                "type": "boolean"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1408,
+          512
+        ],
+        "id": "e0681939-d7ef-4142-84ae-d60228d87082",
+        "name": "Sync Jellyfin"
+      },
+      {
+        "parameters": {
+          "errorMessage": "ERROR: File is empty or missing"
+        },
+        "type": "n8n-nodes-base.stopAndError",
+        "typeVersion": 1,
+        "position": [
+          1392,
+          256
+        ],
+        "id": "f3a92512-5dad-453d-a5dc-dfe80afa86e0",
+        "name": "Stop and Error"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "e8c66bb4-f056-4825-984b-be2fdb19164a",
+                "leftValue": "={{ $json.stdout }}",
+                "rightValue": "ERROR: File is empty or missing",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals",
+                  "name": "filter.operator.equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          1168,
+          320
+        ],
+        "id": "9c4efaab-0b4c-4e79-8424-309a713fbf0a",
+        "name": "Verify fails"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "9f10c61e-8c21-43fb-824b-d1a28276b6d2",
+                "leftValue": "={{ $json.SyncToJellyfin }}",
+                "rightValue": "Yes",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          1648,
+          512
+        ],
+        "id": "8fcdf598-6c82-4b98-8f11-fc28cf24415d",
+        "name": "Sync"
+      }
+    ],
+    "connections": {
+      "On form submission": {
+        "main": [
+          [
+            {
+              "node": "Prepare Path",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Path": {
+        "main": [
+          [
+            {
+              "node": "Prepare Target Directory",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Target Directory": {
+        "main": [
+          [
+            {
+              "node": "Prepare Full Path",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Full Path": {
+        "main": [
+          [
+            {
+              "node": "Create Directory",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Create Directory": {
+        "main": [
+          [
+            {
+              "node": "Download video",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Download video": {
+        "main": [
+          [
+            {
+              "node": "Verify File",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Error Trigger": {
+        "main": [
+          [
+            {
+              "node": "Send a text message1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Verify File": {
+        "main": [
+          [
+            {
+              "node": "Verify fails",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send a text message": {
+        "main": [
+          []
+        ]
+      },
+      "Refresh Jellyfin Library": {
+        "main": [
+          [
+            {
+              "node": "Send a text message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sync Jellyfin": {
+        "main": [
+          [
+            {
+              "node": "Sync",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Verify fails": {
+        "main": [
+          [
+            {
+              "node": "Stop and Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Sync Jellyfin",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sync": {
+        "main": [
+          [
+            {
+              "node": "Refresh Jellyfin Library",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Send a text message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": "Version e65e958b",
+    "description": "",
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-12-29T15:57:17.741Z",
+        "id": 19,
+        "workflowId": "dJmq3O0s7lDAMANm",
+        "versionId": "e65e958b-9672-4ba9-b7b6-1b5e408f3bc7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
+}

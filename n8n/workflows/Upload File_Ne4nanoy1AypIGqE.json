@@ -1,0 +1,285 @@
+{
+  "updatedAt": "2026-01-04T06:40:14.552Z",
+  "createdAt": "2025-12-31T08:53:59.705Z",
+  "id": "Ne4nanoy1AypIGqE",
+  "name": "Upload File",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "protocol": "sftp",
+        "operation": "upload",
+        "path": "={{ $json.uploadPath }}",
+        "binaryPropertyName": "={{ Object.keys($binary)[0] }}"
+      },
+      "type": "n8n-nodes-base.ftp",
+      "typeVersion": 1,
+      "position": [
+        368,
+        -16
+      ],
+      "id": "51fa6788-f001-4166-b052-582314dff561",
+      "name": "FTP",
+      "credentials": {
+        "sftp": {
+          "id": "WuwsNRk6F5TFMbY5",
+          "name": "FTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "formTitle": "Upload FIle",
+        "formDescription": "Upload a file to the network storage",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "FileName",
+              "placeholder": "File Name"
+            },
+            {
+              "fieldLabel": "SubPath",
+              "placeholder": "/path/to/file"
+            },
+            {
+              "fieldLabel": "File",
+              "fieldType": "file",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -80,
+        -16
+      ],
+      "id": "036334ce-be4f-46cb-83ee-68752e4f1589",
+      "name": "On form submission",
+      "webhookId": "8212c8f6-196f-4ce5-bd5e-9de0118ce491"
+    },
+    {
+      "parameters": {
+        "jsCode": "const binaryKeys = Object.keys($binary);\nconst basePath = 'shared-storage/מסמכים';\n\n// Normalize subPath (remove leading/trailing slashes)\nconst subPath = ($json.SubPath || '')\n  .trim()\n  .replace(/^\\/+|\\/+$/g, '');\n\nreturn binaryKeys.map((key, index) => {\n  const bin = $binary[key];\n\n  const originalName = bin.fileName || 'file';\n  const originalExt = originalName.includes('.')\n    ? originalName.slice(originalName.lastIndexOf('.'))\n    : '';\n\n  let baseName;\n\n  if ($json.FileName && $json.FileName.trim()) {\n    baseName = $json.FileName\n      .trim()\n      .replace(/\\s+/g, '_')\n      .replace(/[^a-zA-Z0-9._-]/g, '');\n  } else {\n    baseName = originalName.replace(originalExt, '');\n  }\n\n  // Auto-number when multiple files\n  const numberedName = binaryKeys.length > 1\n    ? `${baseName}_${index + 1}`\n    : baseName;\n\n  const finalName = numberedName + originalExt;\n\n  const fullPath = [\n    basePath,\n    subPath,\n    finalName\n  ].filter(Boolean).join('/');\n\n  return {\n    json: {\n      uploadPath: fullPath\n    },\n    binary: {\n      [key]: bin\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -16
+      ],
+      "id": "7aa839df-4874-484c-bcea-a1d6a7d1592c",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "FTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "a9317558-617f-44fc-9b31-e4be70fc93e4",
+  "activeVersionId": "a9317558-617f-44fc-9b31-e4be70fc93e4",
+  "versionCounter": 14,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-12-31T08:53:59.707Z",
+      "createdAt": "2025-12-31T08:53:59.707Z",
+      "role": "workflow:owner",
+      "workflowId": "Ne4nanoy1AypIGqE",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-04T06:40:16.000Z",
+    "createdAt": "2026-01-04T06:40:14.553Z",
+    "versionId": "a9317558-617f-44fc-9b31-e4be70fc93e4",
+    "workflowId": "Ne4nanoy1AypIGqE",
+    "nodes": [
+      {
+        "parameters": {
+          "protocol": "sftp",
+          "operation": "upload",
+          "path": "={{ $json.uploadPath }}",
+          "binaryPropertyName": "={{ Object.keys($binary)[0] }}"
+        },
+        "type": "n8n-nodes-base.ftp",
+        "typeVersion": 1,
+        "position": [
+          368,
+          -16
+        ],
+        "id": "51fa6788-f001-4166-b052-582314dff561",
+        "name": "FTP",
+        "credentials": {
+          "sftp": {
+            "id": "WuwsNRk6F5TFMbY5",
+            "name": "FTP account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "formTitle": "Upload FIle",
+          "formDescription": "Upload a file to the network storage",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "FileName",
+                "placeholder": "File Name"
+              },
+              {
+                "fieldLabel": "SubPath",
+                "placeholder": "/path/to/file"
+              },
+              {
+                "fieldLabel": "File",
+                "fieldType": "file",
+                "requiredField": true
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.3,
+        "position": [
+          -80,
+          -16
+        ],
+        "id": "036334ce-be4f-46cb-83ee-68752e4f1589",
+        "name": "On form submission",
+        "webhookId": "8212c8f6-196f-4ce5-bd5e-9de0118ce491"
+      },
+      {
+        "parameters": {
+          "jsCode": "const binaryKeys = Object.keys($binary);\nconst basePath = 'shared-storage/מסמכים';\n\n// Normalize subPath (remove leading/trailing slashes)\nconst subPath = ($json.SubPath || '')\n  .trim()\n  .replace(/^\\/+|\\/+$/g, '');\n\nreturn binaryKeys.map((key, index) => {\n  const bin = $binary[key];\n\n  const originalName = bin.fileName || 'file';\n  const originalExt = originalName.includes('.')\n    ? originalName.slice(originalName.lastIndexOf('.'))\n    : '';\n\n  let baseName;\n\n  if ($json.FileName && $json.FileName.trim()) {\n    baseName = $json.FileName\n      .trim()\n      .replace(/\\s+/g, '_')\n      .replace(/[^a-zA-Z0-9._-]/g, '');\n  } else {\n    baseName = originalName.replace(originalExt, '');\n  }\n\n  // Auto-number when multiple files\n  const numberedName = binaryKeys.length > 1\n    ? `${baseName}_${index + 1}`\n    : baseName;\n\n  const finalName = numberedName + originalExt;\n\n  const fullPath = [\n    basePath,\n    subPath,\n    finalName\n  ].filter(Boolean).join('/');\n\n  return {\n    json: {\n      uploadPath: fullPath\n    },\n    binary: {\n      [key]: bin\n    }\n  };\n});\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          144,
+          -16
+        ],
+        "id": "7aa839df-4874-484c-bcea-a1d6a7d1592c",
+        "name": "Code in JavaScript"
+      }
+    ],
+    "connections": {
+      "On form submission": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code in JavaScript": {
+        "main": [
+          [
+            {
+              "node": "FTP",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": "Version a9317558",
+    "description": "",
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-04T06:40:16.314Z",
+        "id": 58,
+        "workflowId": "Ne4nanoy1AypIGqE",
+        "versionId": "a9317558-617f-44fc-9b31-e4be70fc93e4",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
+}
