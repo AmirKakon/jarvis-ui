@@ -1,6 +1,6 @@
 # n8n Workflows Summary
 
-> Last updated: January 7, 2026
+> Last updated: January 8, 2026
 
 This document provides an overview of all n8n workflows used in the JARVIS system.
 
@@ -27,8 +27,9 @@ This document provides an overview of all n8n workflows used in the JARVIS syste
 |----------|-------|
 | **ID** | `bGlXB1gv8DM69uIQ` |
 | **Status** | Active |
-| **Trigger** | Webhook (POST) |
+| **Trigger** | Webhook (POST, streaming) |
 | **Model** | GPT-5-nano |
+| **Description** | Main JARVIS orchestrator - receives user messages via webhook, coordinates responses using AI agent with tools for memory, SSH, Gemini CLI, and n8n API management. |
 
 ### Purpose
 The main JARVIS AI assistant workflow. Acts as the central orchestrator that receives user messages via webhook and coordinates responses using various tools.
@@ -38,6 +39,15 @@ The main JARVIS AI assistant workflow. Acts as the central orchestrator that rec
 - Dry, courteous, slightly cheeky tone
 - Uses British English spelling and phrasing
 - Begins acknowledgements with phrases like "At once, Sir"
+
+### System Prompt Structure
+The system prompt is organized into sections:
+- **Identity** - British persona, address user as "Sir"
+- **Response Style** - Concise, lean responses with acknowledgements
+- **Task Guidelines** - Technical, planning, and creative task handling
+- **Commands** - "Jarvis, ..." and "Dismiss" handling
+- **Memory** - Store important facts via Long Term Memory tool
+- **Context** - Location (Jerusalem) and local time
 
 ### Connected Tools
 | Tool | Purpose |
@@ -51,8 +61,8 @@ The main JARVIS AI assistant workflow. Acts as the central orchestrator that rec
 ### Nodes
 - Webhook (streaming response)
 - AI Agent (LangChain)
-- OpenAI Chat Model
-- Simple Memory (buffer window)
+- OpenAI Chat Model (gpt-5-nano)
+- Simple Memory (buffer window with sessionId)
 - Respond to Webhook
 
 ---
@@ -65,16 +75,21 @@ The main JARVIS AI assistant workflow. Acts as the central orchestrator that rec
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Model** | GPT-5-nano |
+| **Description** | Manages persistent storage and retrieval of long-term memories. Enforces governance rules, deduplication, and memory integrity for the JARVIS system. |
 
 ### Purpose
 Responsible for persistent storage and retrieval of high-confidence, long-term knowledge. Acts as the authoritative source of truth for user facts, preferences, skills, and historical events.
 
-### Governance Rules
-- Never store duplicates, near-duplicates, opinions, guesses, or ephemeral data
-- Every memory must be normalized, hashed, and traceable
-- Semantic similarity = duplication (abort storage if detected)
-- Only persist memories classified as: fact, skill, preference, or event
-- Confidence must be ≥ threshold
+### Input
+- `chatInput`: The query or memory content
+- `sessionId`: Session identifier for memory isolation
+
+### Storage Workflow (Must Follow In Order)
+1. **Governance Check** → Call Memory governance tool first
+   - Only proceed if: type ≠ ephemeral, confidence ≥ 0.75, is_opinion = false, is_guess = false
+2. **Deduplication Check** → Call Memory deduplication tool
+   - If exists = true → Abort and return "duplicate_detected"
+3. **Store** → Call Add Memory tool only after both checks pass
 
 ### Connected Tools
 | Tool | Purpose |
@@ -83,6 +98,13 @@ Responsible for persistent storage and retrieval of high-confidence, long-term k
 | **Memory deduplication** | Check for duplicates |
 | **Postgres PGVector Store** | Retrieve memories by similarity |
 | **Add Memory** | Persist validated memories |
+
+### Nodes
+- Execute Workflow Trigger (chatInput, sessionId)
+- AI Agent (LangChain)
+- OpenAI Chat Model
+- Simple Memory (buffer window with sessionId)
+- Tool connections for memory operations
 
 ### Database
 - Table: `long_term_memory`
@@ -98,27 +120,47 @@ Responsible for persistent storage and retrieval of high-confidence, long-term k
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Model** | GPT-5-nano |
+| **Description** | Classifies memory candidates and enforces governance rules. Returns classification (type, confidence) or rejection reason. |
 
 ### Purpose
-Decides if a memory is allowed to be stored and how it should be structured.
+Decides if a memory is allowed to be stored and how it should be structured. Always runs governance check (no bypass).
 
 ### Input Schema
+
 ```json
 {
   "document": {
     "content": "The user is a software engineer"
-  },
-  "governance": true
+  }
 }
 ```
 
-### Output Schema
+### Output Schema (Success)
+
 ```json
 {
-  "type": "fact | preference | skill | event | ephemeral",
-  "confidence": 0.95,
-  "is_opinion": false,
-  "is_guess": false
+  "pageContent": "the user is a software engineer",
+  "metadata": {
+    "type": "fact",
+    "confidence": 0.95,
+    "is_opinion": false,
+    "is_guess": false
+  }
+}
+```
+
+### Output Schema (Rejection)
+
+```json
+{
+  "rejected": true,
+  "reason": "Memory failed governance check",
+  "details": {
+    "type": "ephemeral",
+    "confidence": 0.3,
+    "is_opinion": true,
+    "is_guess": false
+  }
 }
 ```
 
@@ -130,11 +172,11 @@ Memory proceeds only if:
 - `is_guess` = false
 
 ### Nodes
-1. **normalize data** - Lowercase, trim whitespace
-2. **To governance** - Route based on governance flag
-3. **Message Classifier** - AI classification with JSON schema
-4. **Memory Gate** - Conditional check against rules
-5. **Document Mapper** - Format output
+1. **normalize data** - Lowercase, trim whitespace, collapse spaces
+2. **Message Classifier** - AI classification with JSON schema (gpt-5-nano)
+3. **Memory Gate** - Conditional check against acceptance rules
+4. **Document Mapper** - Format successful output with metadata
+5. **Rejection Output** - Format rejection with reason and details
 
 ---
 
@@ -145,6 +187,7 @@ Memory proceeds only if:
 | **ID** | `07RhLX2UKvMjY1cr` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
+| **Description** | Checks if a memory already exists in the database by comparing SHA-256 hash of normalized content. |
 
 ### Purpose
 Normalize candidate memory, generate its hash, and verify whether it already exists in the database.
@@ -154,12 +197,18 @@ Normalize candidate memory, generate its hash, and verify whether it already exi
 - `dbTable`: Target table name (e.g., `long_term_memory`)
 
 ### Output
+
 ```json
 {
   "normalized_text": "string",
   "exists": true/false
 }
 ```
+
+### Nodes
+1. **normalize content** - Lowercase, collapse whitespace, trim
+2. **Check hash exists** - SQL query using SHA-256 hash
+3. **output fields** - Format result with normalized_text and exists flag
 
 ### Logic
 1. Normalize text (lowercase, collapse whitespace, trim)
@@ -178,11 +227,13 @@ If `exists` = true → **DO NOT STORE**
 | **ID** | `sCcmYT1ufy8hrHMA` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
+| **Description** | Persists validated memories to PostgreSQL vector database with embeddings and metadata (type, confidence, source, timestamp). |
 
 ### Purpose
 Persist validated memories to the PostgreSQL vector database.
 
 ### Input Schema
+
 ```json
 {
   "document": {
@@ -197,10 +248,11 @@ Persist validated memories to the PostgreSQL vector database.
 ```
 
 ### Nodes
-1. **Document Mapper** - Format document with metadata
-2. **Default Data Loader** - Prepare for vector store
-3. **Embeddings OpenAI** - Generate embeddings
-4. **Postgres PGVector Store** - Insert into database
+1. **normalize data** - Normalize content text
+2. **Document Mapper** - Format document with metadata
+3. **Default Data Loader** - Prepare for vector store
+4. **Embeddings OpenAI** - Generate embeddings
+5. **Postgres PGVector Store** - Insert into database
 
 ### Metadata Stored
 - `type`: fact/preference/skill/event
@@ -217,6 +269,7 @@ Persist validated memories to the PostgreSQL vector database.
 | **ID** | `anunjMp26km77JN7` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
+| **Description** | Executes Gemini CLI commands on the local machine via SSH. Command format: gemini -y -p "<prompt>" |
 
 ### Purpose
 Execute Gemini CLI commands on the local machine via SSH.
@@ -225,6 +278,7 @@ Execute Gemini CLI commands on the local machine via SSH.
 - `prompt`: The query to send to Gemini
 
 ### Command Format
+
 ```bash
 gemini -y -p "<prompt>"
 ```
@@ -244,6 +298,7 @@ gemini -y -p "<prompt>"
 | **ID** | `TTqKNvyugLWoVF08` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
+| **Description** | Executes SSH commands with sudo privileges on the local machine. Sudo prefix is added automatically. |
 
 ### Purpose
 Run any SSH command on the local machine with sudo privileges.
@@ -252,6 +307,7 @@ Run any SSH command on the local machine with sudo privileges.
 - `command`: The command to execute (without sudo prefix)
 
 ### Command Format
+
 ```bash
 sudo <command>
 ```
@@ -271,6 +327,7 @@ sudo <command>
 | **ID** | `rJoy4infFhxMynsJ` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
+| **Description** | Makes HTTP requests to the n8n API for workflow management (create, read, update, delete workflows). |
 
 ### Purpose
 Make HTTP requests to the n8n API to create and manage workflows programmatically.
@@ -281,6 +338,7 @@ Make HTTP requests to the n8n API to create and manage workflows programmaticall
 - `requestMethod`: HTTP method (GET, POST, DELETE, etc.)
 
 ### Base URL
+
 ```
 http://localhost:20002/api/v1
 ```
@@ -298,6 +356,7 @@ http://localhost:20002/api/v1
 | **ID** | `dJmq3O0s7lDAMANm` |
 | **Status** | Active |
 | **Trigger** | Form Trigger |
+| **Description** | Downloads videos from URLs to media library (movies/TV shows) with optional Jellyfin sync and Telegram notifications. |
 
 ### Purpose
 Download videos from URLs and organize them into the media library.
@@ -314,10 +373,33 @@ Download videos from URLs and organize them into the media library.
 - Movies: `/home/iot/shared-storage-2/movies`
 - TV Shows: `/home/iot/shared-storage-2/tv-shows`
 
+### Nodes
+1. **On form submission** - Form trigger
+2. **Prepare Path** - Extract filename, determine base directory
+3. **Prepare Target Directory** - Apply custom subfolder
+4. **Prepare Full Path** - Combine path components
+5. **Create Directory** - SSH mkdir -p
+6. **Download video** - SSH wget with retries
+7. **Verify File** - SSH test file exists and not empty
+8. **Verify fails** - Conditional check
+9. **Stop and Error** - Error handling
+10. **Sync Jellyfin** - Check sync preference
+11. **Sync** - Conditional for Jellyfin refresh
+12. **Refresh Jellyfin Library** - HTTP POST to Jellyfin API
+13. **Send a text message** - Telegram success notification
+14. **Error Trigger** - Error trigger
+15. **Send Error Notification** - Telegram error notification
+
 ### Features
 - Automatic filename extraction from URL
 - Custom subfolder support
 - Optional Jellyfin library sync
+- Telegram notifications (success/failure)
+- File verification after download
+
+### Credentials
+- SSH: `IOT_Kamuri`
+- Telegram: `kakischer_n8n_bot`
 
 ---
 
@@ -328,6 +410,7 @@ Download videos from URLs and organize them into the media library.
 | **ID** | `Ne4nanoy1AypIGqE` |
 | **Status** | Active |
 | **Trigger** | Form Trigger |
+| **Description** | Uploads files to network storage via SFTP with auto-numbering for multiple files and custom subpath support. |
 
 ### Purpose
 Upload files to network storage via SFTP.
@@ -340,9 +423,15 @@ Upload files to network storage via SFTP.
 | File | File | The file(s) to upload |
 
 ### Base Path
+
 ```
 shared-storage/מסמכים
 ```
+
+### Nodes
+1. **On form submission** - Form trigger
+2. **Build Upload Path** - JavaScript code for path construction
+3. **Upload via SFTP** - FTP node with SFTP protocol
 
 ### Features
 - Auto-numbering for multiple files
@@ -361,6 +450,7 @@ shared-storage/מסמכים
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Jarvis AI Agent Orchestrator                  │
 │                         (Main Entry Point)                       │
+│                      Webhook → AI Agent → Response               │
 └─────────────────────────────────────────────────────────────────┘
                                   │
           ┌───────────────────────┼───────────────────────┐
@@ -369,15 +459,17 @@ shared-storage/מסמכים
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │ AI Long Term    │    │ gemini cli      │    │ sudo ssh        │
 │ Memory Agent    │    │ trigger         │    │ commands        │
+│ (with sessionId)│    │                 │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-          │
-    ┌─────┴─────┬─────────────┐
-    │           │             │
-    ▼           ▼             ▼
-┌────────┐ ┌────────┐  ┌────────────┐
-│Memory  │ │Memory  │  │Add Memory  │
-│govern. │ │dedup.  │  │            │
-└────────┘ └────────┘  └────────────┘
+          │                                           │
+          │                                           │
+    ┌─────┴─────┬─────────────┐              ┌────────┘
+    │           │             │              │
+    ▼           ▼             ▼              ▼
+┌────────┐ ┌────────┐  ┌────────────┐  ┌─────────┐
+│Memory  │ │Memory  │  │Add Memory  │  │n8n      │
+│govern. │ │dedup.  │  │            │  │creator  │
+└────────┘ └────────┘  └────────────┘  └─────────┘
     │           │             │
     └───────────┴─────────────┘
                 │
@@ -396,8 +488,9 @@ shared-storage/מסמכים
 |-----------------|------|---------|
 | OpenAi account | OpenAI API | Multiple workflows |
 | N8N-Kamuri | PostgreSQL | Memory workflows |
-| IOT_Kamuri | SSH Password | gemini cli, sudo ssh |
+| IOT_Kamuri | SSH Password | gemini cli, sudo ssh, download video |
 | FTP account | SFTP | Upload File |
+| kakischer_n8n_bot | Telegram API | download video |
 
 ---
 
@@ -406,6 +499,7 @@ shared-storage/מסמכים
 1. **Memory System**: The JARVIS memory system uses a multi-layer governance approach:
    - Normalization → Classification → Deduplication → Storage
    - All memories are embedded using OpenAI and stored in PGVector
+   - Session isolation ensures memories don't cross between sessions
 
 2. **Streaming**: The main orchestrator uses streaming responses for real-time output
 
@@ -413,3 +507,10 @@ shared-storage/מסמכים
 
 4. **Location**: Default location is Jerusalem, Israel (Asia/Jerusalem timezone)
 
+5. **Recent Optimizations** (January 2026):
+   - Added descriptions to all workflows
+   - Fixed sessionId usage in AI Long Term Memory Agent
+   - Simplified Memory governance (removed unnecessary bypass)
+   - Added rejection output to Memory governance
+   - Improved node naming across workflows
+   - Fixed typos and double-space bugs
