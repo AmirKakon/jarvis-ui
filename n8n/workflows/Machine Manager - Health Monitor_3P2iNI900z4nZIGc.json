@@ -1,26 +1,12 @@
 {
+  "updatedAt": "2026-01-08T08:31:41.306Z",
+  "createdAt": "2026-01-08T07:30:14.601Z",
+  "id": "3P2iNI900z4nZIGc",
   "name": "Machine Manager - Health Monitor",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 15
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        0,
-        0
-      ],
-      "id": "health-schedule",
-      "name": "Every 15 Minutes"
-    },
     {
       "parameters": {
         "command": "echo '=== SYSTEM HEALTH CHECK ===' && echo '' && echo '--- UPTIME ---' && uptime && echo '' && echo '--- MEMORY ---' && free -h | head -2 && echo '' && echo '--- DISK ---' && df -h | grep -E '^/dev/' | awk '{print $1, $5, $6}' && echo '' && echo '--- CPU LOAD ---' && cat /proc/loadavg && echo '' && echo '--- CRITICAL SERVICES ---' && systemctl is-active n8n jellyfin smbd docker 2>/dev/null || echo 'Some services not found'"
@@ -28,8 +14,8 @@
       "type": "n8n-nodes-base.ssh",
       "typeVersion": 1,
       "position": [
-        220,
-        0
+        272,
+        -64
       ],
       "id": "health-system-check",
       "name": "Check System Health",
@@ -47,8 +33,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        440,
-        0
+        496,
+        -64
       ],
       "id": "health-analyze",
       "name": "Analyze Health"
@@ -59,7 +45,8 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict"
+            "typeValidation": "strict",
+            "version": 2
           },
           "conditions": [
             {
@@ -79,24 +66,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        660,
-        0
+        720,
+        -64
       ],
       "id": "health-check-alerts",
       "name": "Has Alerts?"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Log alerts (placeholder for notification integration)\nconst data = $input.first().json;\nconsole.log('HEALTH ALERTS:', data.alerts);\n\n// You can add Telegram/Email notification here\n// For now, just return the alert data\n\nreturn [{\n  json: {\n    ...data,\n    notificationSent: false,\n    note: 'Configure Telegram/Email node to receive alerts'\n  }\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        880,
-        -100
-      ],
-      "id": "health-alert",
-      "name": "Send Alert (Placeholder)"
     },
     {
       "parameters": {
@@ -105,25 +79,55 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
-        100
+        1152,
+        32
       ],
       "id": "health-log",
       "name": "Log Health Status"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        48,
+        -64
+      ],
+      "id": "health-schedule",
+      "name": "Every Hour"
+    },
+    {
+      "parameters": {
+        "chatId": "2125353679",
+        "text": "=🚨 System Health Alert\n\n  ⏱ Time: {{ $now.setZone('Asia/Jerusalem').format('dd/mm/yyyy hh:mm') }}\n\nThe following issues were detected:\n\n{{ $('Analyze Health').item.json.alerts.join('\\n• ') }}\n\nAction recommended.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        -160
+      ],
+      "id": "df81b800-90f0-4b90-92e4-de8cc9e0c3a0",
+      "name": "Send a text message",
+      "webhookId": "3504cf34-342b-40c8-a6de-def9f1c4ce4b",
+      "credentials": {
+        "telegramApi": {
+          "id": "L1VhmnHnv7EZOIUa",
+          "name": "kakischer_n8n_bot"
+        }
+      }
     }
   ],
   "connections": {
-    "Every 15 Minutes": {
-      "main": [
-        [
-          {
-            "node": "Check System Health",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Check System Health": {
       "main": [
         [
@@ -150,7 +154,7 @@
       "main": [
         [
           {
-            "node": "Send Alert (Placeholder)",
+            "node": "Send a text message",
             "type": "main",
             "index": 0
           }
@@ -163,12 +167,298 @@
           }
         ]
       ]
+    },
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Check System Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        []
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "active": true,
-  "id": "3P2iNI900z4nZIGc"
+  "staticData": {
+    "node:Every 15 Minutes": {
+      "recurrenceRules": []
+    },
+    "node:Every Hour": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "c68b9bc0-4316-4623-ba51-6d4147d54ec1",
+  "activeVersionId": "c68b9bc0-4316-4623-ba51-6d4147d54ec1",
+  "versionCounter": 41,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-01-08T07:30:14.603Z",
+      "createdAt": "2026-01-08T07:30:14.603Z",
+      "role": "workflow:owner",
+      "workflowId": "3P2iNI900z4nZIGc",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-08T07:27:52.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-08",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-08T08:31:42.000Z",
+    "createdAt": "2026-01-08T08:31:41.307Z",
+    "versionId": "c68b9bc0-4316-4623-ba51-6d4147d54ec1",
+    "workflowId": "3P2iNI900z4nZIGc",
+    "nodes": [
+      {
+        "parameters": {
+          "command": "echo '=== SYSTEM HEALTH CHECK ===' && echo '' && echo '--- UPTIME ---' && uptime && echo '' && echo '--- MEMORY ---' && free -h | head -2 && echo '' && echo '--- DISK ---' && df -h | grep -E '^/dev/' | awk '{print $1, $5, $6}' && echo '' && echo '--- CPU LOAD ---' && cat /proc/loadavg && echo '' && echo '--- CRITICAL SERVICES ---' && systemctl is-active n8n jellyfin smbd docker 2>/dev/null || echo 'Some services not found'"
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          272,
+          -64
+        ],
+        "id": "health-system-check",
+        "name": "Check System Health",
+        "credentials": {
+          "sshPassword": {
+            "id": "JjGMaWTmkWf8n5Qj",
+            "name": "IOT_Kamuri"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse health check output and determine if alerts are needed\nconst stdout = $input.first().json.stdout || '';\nconst lines = stdout.split('\\n');\n\nlet alerts = [];\nlet healthData = {\n  timestamp: new Date().toISOString(),\n  raw: stdout\n};\n\n// Check disk usage (alert if any partition > 90%)\nconst diskLines = lines.filter(l => l.includes('%'));\nfor (const line of diskLines) {\n  const match = line.match(/(\\d+)%/);\n  if (match) {\n    const usage = parseInt(match[1]);\n    if (usage > 90) {\n      alerts.push(`DISK CRITICAL: ${line.trim()} - ${usage}% used`);\n    } else if (usage > 80) {\n      alerts.push(`DISK WARNING: ${line.trim()} - ${usage}% used`);\n    }\n  }\n}\n\n// Check load average (alert if > number of CPUs)\nconst loadLine = lines.find(l => l.match(/^\\d+\\.\\d+/));\nif (loadLine) {\n  const loads = loadLine.split(' ').slice(0, 3).map(parseFloat);\n  if (loads[0] > 4) { // Assuming 4 cores\n    alerts.push(`CPU LOAD HIGH: 1min=${loads[0]}, 5min=${loads[1]}, 15min=${loads[2]}`);\n  }\n}\n\n// Check memory from free -h output\nconst memLine = lines.find(l => l.includes('Mem:'));\nif (memLine) {\n  const parts = memLine.split(/\\s+/);\n  healthData.memory = {\n    total: parts[1],\n    used: parts[2],\n    free: parts[3],\n    available: parts[6]\n  };\n}\n\nhealthData.alerts = alerts;\nhealthData.alertCount = alerts.length;\nhealthData.status = alerts.length === 0 ? 'healthy' : (alerts.some(a => a.includes('CRITICAL')) ? 'critical' : 'warning');\n\nreturn [{ json: healthData }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          496,
+          -64
+        ],
+        "id": "health-analyze",
+        "name": "Analyze Health"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "health-has-alerts",
+                "leftValue": "={{ $json.alertCount }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          720,
+          -64
+        ],
+        "id": "health-check-alerts",
+        "name": "Has Alerts?"
+      },
+      {
+        "parameters": {
+          "jsCode": "// System is healthy - just log\nconst data = $input.first().json;\nreturn [{ json: { ...data, logged: true } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1152,
+          32
+        ],
+        "id": "health-log",
+        "name": "Log Health Status"
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "hours"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          48,
+          -64
+        ],
+        "id": "health-schedule",
+        "name": "Every Hour"
+      },
+      {
+        "parameters": {
+          "chatId": "2125353679",
+          "text": "=🚨 System Health Alert\n\n  ⏱ Time: {{ $now.setZone('Asia/Jerusalem').format('dd/mm/yyyy hh:mm') }}\n\nThe following issues were detected:\n\n{{ $('Analyze Health').item.json.alerts.join('\\n• ') }}\n\nAction recommended.",
+          "additionalFields": {}
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1152,
+          -160
+        ],
+        "id": "df81b800-90f0-4b90-92e4-de8cc9e0c3a0",
+        "name": "Send a text message",
+        "webhookId": "3504cf34-342b-40c8-a6de-def9f1c4ce4b",
+        "credentials": {
+          "telegramApi": {
+            "id": "L1VhmnHnv7EZOIUa",
+            "name": "kakischer_n8n_bot"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Check System Health": {
+        "main": [
+          [
+            {
+              "node": "Analyze Health",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Analyze Health": {
+        "main": [
+          [
+            {
+              "node": "Has Alerts?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Alerts?": {
+        "main": [
+          [
+            {
+              "node": "Send a text message",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Log Health Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Every Hour": {
+        "main": [
+          [
+            {
+              "node": "Check System Health",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send a text message": {
+        "main": [
+          []
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": "Version c68b9bc0",
+    "description": "",
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-08T08:31:42.798Z",
+        "id": 366,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "c68b9bc0-4316-4623-ba51-6d4147d54ec1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      }
+    ]
+  }
 }

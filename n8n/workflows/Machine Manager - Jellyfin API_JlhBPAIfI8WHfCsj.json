@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-01-08T08:18:31.012Z",
+  "createdAt": "2026-01-08T07:30:15.083Z",
+  "id": "JlhBPAIfI8WHfCsj",
   "name": "Machine Manager - Jellyfin API",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -178,18 +184,314 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "active": true,
-  "pinData": {
-    "When Executed by Another Workflow": [
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+  "activeVersionId": "46808b13-9573-4123-b460-6472f39e0c32",
+  "versionCounter": 19,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-08T07:30:15.084Z",
+      "createdAt": "2026-01-08T07:30:15.084Z",
+      "role": "workflow:owner",
+      "workflowId": "JlhBPAIfI8WHfCsj",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-08T07:27:52.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-08",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-08T07:30:15.086Z",
+    "createdAt": "2026-01-08T07:30:15.086Z",
+    "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+    "workflowId": "JlhBPAIfI8WHfCsj",
+    "nodes": [
       {
-        "json": {
-          "action": "status",
-          "params": "{}"
-        }
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "action",
+                "type": "string"
+              },
+              {
+                "name": "params",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "jellyfin-trigger",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Build Jellyfin API request based on action\nconst action = $input.first().json.action?.toLowerCase() || 'status';\nconst paramsStr = $input.first().json.params || '{}';\nlet params = {};\n\ntry {\n  params = typeof paramsStr === 'string' ? JSON.parse(paramsStr) : paramsStr;\n} catch(e) {\n  params = {};\n}\n\nconst baseUrl = 'http://localhost:20001';\nlet endpoint = '';\nlet method = 'GET';\nlet body = null;\n\nswitch(action) {\n  case 'status':\n  case 'info':\n    endpoint = '/System/Info';\n    break;\n  case 'health':\n    endpoint = '/health';\n    break;\n  case 'users':\n    endpoint = '/Users';\n    break;\n  case 'sessions':\n    endpoint = '/Sessions';\n    break;\n  case 'libraries':\n  case 'items':\n    endpoint = '/Library/VirtualFolders';\n    break;\n  case 'scan':\n  case 'refresh':\n    endpoint = '/Library/Refresh';\n    method = 'POST';\n    break;\n  case 'activity':\n    endpoint = '/System/ActivityLog/Entries';\n    break;\n  case 'scheduled-tasks':\n    endpoint = '/ScheduledTasks';\n    break;\n  case 'search':\n    const searchTerm = params.query || params.searchTerm || '';\n    endpoint = `/Items?searchTerm=${encodeURIComponent(searchTerm)}&Recursive=true&Limit=20`;\n    break;\n  case 'playing':\n    endpoint = '/Sessions?ActiveWithinSeconds=960';\n    break;\n  case 'logs':\n    endpoint = '/System/Logs';\n    break;\n  default:\n    return [{ json: { error: `Unknown action: ${action}. Valid actions: status, info, health, users, sessions, libraries, items, scan, refresh, activity, scheduled-tasks, search, playing, logs` } }];\n}\n\nreturn [{ json: { url: baseUrl + endpoint, method, body, action } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ],
+        "id": "jellyfin-prepare",
+        "name": "Prepare Request"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "jellyfin-check-error",
+                "leftValue": "={{ $json.error }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          440,
+          0
+        ],
+        "id": "jellyfin-check",
+        "name": "Has Error?"
+      },
+      {
+        "parameters": {
+          "method": "={{ $json.method }}",
+          "url": "={{ $json.url }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          660,
+          100
+        ],
+        "id": "jellyfin-request",
+        "name": "Jellyfin API Request"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Format the Jellyfin API response\nconst result = $input.first().json;\nconst inputData = $('Prepare Request').first().json;\n\n// Truncate large responses\nlet output = result;\nif (typeof result === 'object' && Array.isArray(result) && result.length > 20) {\n  output = {\n    totalItems: result.length,\n    items: result.slice(0, 20),\n    note: `Showing first 20 of ${result.length} items`\n  };\n}\n\nreturn [{\n  json: {\n    action: inputData.action,\n    status: 'success',\n    data: output,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          100
+        ],
+        "id": "jellyfin-format",
+        "name": "Format Output"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Return the error\nreturn [{ json: $input.first().json }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          -100
+        ],
+        "id": "jellyfin-error",
+        "name": "Return Error"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "Prepare Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Request": {
+        "main": [
+          [
+            {
+              "node": "Has Error?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Error?": {
+        "main": [
+          [
+            {
+              "node": "Return Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Jellyfin API Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Jellyfin API Request": {
+        "main": [
+          [
+            {
+              "node": "Format Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-08T07:30:15.308Z",
+        "id": 191,
+        "workflowId": "JlhBPAIfI8WHfCsj",
+        "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:27.590Z",
+        "id": 234,
+        "workflowId": "JlhBPAIfI8WHfCsj",
+        "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:27.798Z",
+        "id": 235,
+        "workflowId": "JlhBPAIfI8WHfCsj",
+        "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:28.112Z",
+        "id": 280,
+        "workflowId": "JlhBPAIfI8WHfCsj",
+        "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:28.515Z",
+        "id": 281,
+        "workflowId": "JlhBPAIfI8WHfCsj",
+        "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:03:55.162Z",
+        "id": 327,
+        "workflowId": "JlhBPAIfI8WHfCsj",
+        "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:03:55.788Z",
+        "id": 328,
+        "workflowId": "JlhBPAIfI8WHfCsj",
+        "versionId": "46808b13-9573-4123-b460-6472f39e0c32",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }
     ]
-  },
-  "id": "JlhBPAIfI8WHfCsj"
+  }
 }

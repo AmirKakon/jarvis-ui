@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-01-08T08:18:44.296Z",
+  "createdAt": "2026-01-08T08:02:33.416Z",
+  "id": "3BKi0U0juxBNd3aO",
   "name": "Machine Manager Agent",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -368,18 +374,472 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "active": true,
-  "pinData": {
-    "When Executed by Another Workflow": [
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
+  "activeVersionId": "af2192b0-ebde-4189-bfd3-f58410965098",
+  "versionCounter": 9,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-08T08:02:33.417Z",
+      "createdAt": "2026-01-08T08:02:33.417Z",
+      "role": "workflow:owner",
+      "workflowId": "3BKi0U0juxBNd3aO",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-08T07:27:52.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-08",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-08T08:02:33.420Z",
+    "createdAt": "2026-01-08T08:02:33.420Z",
+    "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
+    "workflowId": "3BKi0U0juxBNd3aO",
+    "nodes": [
       {
-        "json": {
-          "chatInput": "Check system status",
-          "sessionId": "test-session-123"
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "chatInput"
+              },
+              {
+                "name": "sessionId"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          300
+        ],
+        "id": "machine-agent-trigger",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "options": {
+            "systemMessage": "You are the Machine Manager Agent for JARVIS.\n\n## Purpose\nManage, monitor, and control the local machine infrastructure. You are an infrastructure specialist—efficient, precise, and reliable.\n\n## Available Tools\n\n### System Status\nGet system information. Use infoType parameter:\n- 'cpu' - CPU usage and info\n- 'memory' or 'ram' - Memory usage\n- 'disk' - Disk space usage\n- 'network' - Network interfaces and ports\n- 'processes' - Top processes by memory\n- 'uptime' - System uptime\n- 'all' - Overview of everything (default)\n\n### Service Control\nManage systemd services. Use action parameter:\n- 'status' - Check service status\n- 'start' / 'stop' / 'restart' - Control services\n- 'enable' / 'disable' - Boot configuration\n- 'list' - List all services\n- 'failed' - List failed services\n- 'logs' - View service logs\nRequires serviceName for most actions.\n\n### Docker Control\nManage containers. Use action parameter:\n- 'ps' / 'list' - List containers\n- 'running' - Running containers only\n- 'stats' - Resource usage\n- 'logs' - Container logs\n- 'start' / 'stop' / 'restart' - Control containers\n- 'inspect' - Container details\n- 'images' / 'volumes' / 'networks' - List resources\nRequires containerName for some actions.\n\n### Jellyfin API\nMedia server on port 20001. Use action parameter:\n- 'status' / 'info' - Server info\n- 'health' - Health check\n- 'users' / 'sessions' - User management\n- 'libraries' - Media libraries\n- 'scan' / 'refresh' - Trigger library scan\n- 'search' - Search media (use params.query)\n- 'playing' - Currently playing\n\n## Port Mapping\n- 20000: Samba/SSH (file sharing)\n- 20001: Jellyfin (media server)\n- 20002: n8n (automation)\n\n## Operating Principles\n- Execute requested operations efficiently\n- Report results clearly and concisely\n- Warn about potentially destructive actions\n- If an operation fails, explain what went wrong\n- Suggest related actions when appropriate\n\nAct accordingly."
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3,
+        "position": [
+          400,
+          300
+        ],
+        "id": "machine-agent-ai",
+        "name": "AI Agent"
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "value": "gpt-5-nano",
+            "mode": "list",
+            "cachedResultName": "gpt-5-nano"
+          },
+          "builtInTools": {},
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.3,
+        "position": [
+          200,
+          520
+        ],
+        "id": "machine-agent-llm",
+        "name": "OpenAI Chat Model",
+        "credentials": {
+          "openAiApi": {
+            "id": "JAXAQJQgf0B0XCnc",
+            "name": "OpenAi account"
+          }
         }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $json.sessionId }}"
+        },
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.3,
+        "position": [
+          328,
+          520
+        ],
+        "id": "machine-agent-memory",
+        "name": "Simple Memory"
+      },
+      {
+        "parameters": {
+          "description": "Get system status: CPU, memory, disk, network, processes, or uptime.\n\nParameter: infoType (cpu, memory, disk, network, processes, uptime, or all)",
+          "workflowId": {
+            "__rl": true,
+            "value": "7LHGwHNVnfFNR7Dz",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/7LHGwHNVnfFNR7Dz",
+            "cachedResultName": "Machine Manager - System Status"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "infoType": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('infoType', `Type: cpu, memory, disk, network, processes, uptime, or all`, 'string') }}"
+            },
+            "matchingColumns": [
+              "infoType"
+            ],
+            "schema": [
+              {
+                "id": "infoType",
+                "displayName": "infoType",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          456,
+          520
+        ],
+        "id": "machine-agent-system",
+        "name": "System Status"
+      },
+      {
+        "parameters": {
+          "description": "Control systemd services.\n\nParameters:\n- action: status, start, stop, restart, enable, disable, list, failed, logs\n- serviceName: required for most actions",
+          "workflowId": {
+            "__rl": true,
+            "value": "EmRfZ7kbqyAIbz4m",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/EmRfZ7kbqyAIbz4m",
+            "cachedResultName": "Machine Manager - Service Control"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "action": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('action', `Action: status, start, stop, restart, enable, disable, list, failed, logs`, 'string') }}",
+              "serviceName": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('serviceName', `Service name`, 'string') }}"
+            },
+            "matchingColumns": [
+              "action",
+              "serviceName"
+            ],
+            "schema": [
+              {
+                "id": "action",
+                "displayName": "action",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "serviceName",
+                "displayName": "serviceName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          584,
+          520
+        ],
+        "id": "machine-agent-service",
+        "name": "Service Control"
+      },
+      {
+        "parameters": {
+          "description": "Manage Docker containers.\n\nParameters:\n- action: ps, running, stats, logs, start, stop, restart, inspect, images, volumes, networks\n- containerName: required for logs, start, stop, restart, inspect",
+          "workflowId": {
+            "__rl": true,
+            "value": "oj51dGKjapXRP91r",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/oj51dGKjapXRP91r",
+            "cachedResultName": "Machine Manager - Docker Control"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "action": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('action', `Action: ps, running, stats, logs, start, stop, restart, inspect, images, volumes, networks`, 'string') }}",
+              "containerName": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('containerName', `Container name`, 'string') }}"
+            },
+            "matchingColumns": [
+              "action",
+              "containerName"
+            ],
+            "schema": [
+              {
+                "id": "action",
+                "displayName": "action",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "containerName",
+                "displayName": "containerName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          712,
+          520
+        ],
+        "id": "machine-agent-docker",
+        "name": "Docker Control"
+      },
+      {
+        "parameters": {
+          "description": "Interact with Jellyfin media server (port 20001).\n\nParameters:\n- action: status, health, users, sessions, libraries, scan, search, playing, logs\n- params: JSON string for additional parameters (e.g., {\"query\": \"movie name\"} for search)",
+          "workflowId": {
+            "__rl": true,
+            "value": "JlhBPAIfI8WHfCsj",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/JlhBPAIfI8WHfCsj",
+            "cachedResultName": "Machine Manager - Jellyfin API"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "action": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('action', `Action: status, health, users, sessions, libraries, scan, search, playing, logs`, 'string') }}",
+              "params": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('params', `Optional JSON parameters`, 'string') }}"
+            },
+            "matchingColumns": [
+              "action",
+              "params"
+            ],
+            "schema": [
+              {
+                "id": "action",
+                "displayName": "action",
+                "required": true,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              },
+              {
+                "id": "params",
+                "displayName": "params",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          840,
+          520
+        ],
+        "id": "machine-agent-jellyfin",
+        "name": "Jellyfin API"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Simple Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "System Status": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Service Control": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Docker Control": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Jellyfin API": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-08T08:02:34.348Z",
+        "id": 286,
+        "workflowId": "3BKi0U0juxBNd3aO",
+        "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:04:01.197Z",
+        "id": 333,
+        "workflowId": "3BKi0U0juxBNd3aO",
+        "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:04:01.907Z",
+        "id": 334,
+        "workflowId": "3BKi0U0juxBNd3aO",
+        "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }
     ]
-  },
-  "id": "3BKi0U0juxBNd3aO"
+  }
 }

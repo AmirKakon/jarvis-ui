@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-01-08T08:18:39.788Z",
+  "createdAt": "2026-01-08T07:30:15.997Z",
+  "id": "7LHGwHNVnfFNR7Dz",
   "name": "Machine Manager - System Status",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -104,17 +110,240 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "active": true,
-  "pinData": {
-    "When Executed by Another Workflow": [
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+  "activeVersionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+  "versionCounter": 19,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-08T07:30:15.998Z",
+      "createdAt": "2026-01-08T07:30:15.998Z",
+      "role": "workflow:owner",
+      "workflowId": "7LHGwHNVnfFNR7Dz",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-08T07:27:52.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-08",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-08T07:30:16.000Z",
+    "createdAt": "2026-01-08T07:30:16.000Z",
+    "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+    "workflowId": "7LHGwHNVnfFNR7Dz",
+    "nodes": [
       {
-        "json": {
-          "infoType": "all"
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "infoType",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "sys-status-trigger",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Determine which system info command to run based on infoType\nconst infoType = $input.first().json.infoType?.toLowerCase() || 'all';\n\nlet command = '';\n\nswitch(infoType) {\n  case 'cpu':\n    command = \"top -bn1 | head -5 && echo '---CPU INFO---' && lscpu | grep -E 'Model name|CPU\\(s\\)|Thread|Core'\";\n    break;\n  case 'memory':\n  case 'ram':\n    command = \"free -h && echo '---MEMORY DETAILS---' && cat /proc/meminfo | head -10\";\n    break;\n  case 'disk':\n    command = \"df -h && echo '---LARGEST DIRECTORIES---' && du -sh /home/* 2>/dev/null | sort -hr | head -10\";\n    break;\n  case 'network':\n    command = \"ip addr show | grep -E 'inet |link/' && echo '---LISTENING PORTS---' && ss -tlnp | head -20\";\n    break;\n  case 'processes':\n    command = \"ps aux --sort=-%mem | head -15\";\n    break;\n  case 'uptime':\n    command = \"uptime && echo '---SYSTEM INFO---' && uname -a\";\n    break;\n  case 'all':\n  default:\n    command = \"echo '=== UPTIME ===' && uptime && echo '\\n=== CPU ===' && top -bn1 | head -5 && echo '\\n=== MEMORY ===' && free -h && echo '\\n=== DISK ===' && df -h | grep -E '^/dev/' && echo '\\n=== NETWORK ===' && ip addr show | grep 'inet ' | head -5\";\n    break;\n}\n\nreturn [{ json: { command } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ],
+        "id": "sys-status-prepare",
+        "name": "Prepare Command"
+      },
+      {
+        "parameters": {
+          "command": "={{ $json.command }}"
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          440,
+          0
+        ],
+        "id": "sys-status-execute",
+        "name": "Execute System Command",
+        "credentials": {
+          "sshPassword": {
+            "id": "JjGMaWTmkWf8n5Qj",
+            "name": "IOT_Kamuri"
+          }
         }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Format the output for better readability\nconst result = $input.first().json;\nconst stdout = result.stdout || '';\nconst stderr = result.stderr || '';\nconst infoType = $('When Executed by Another Workflow').first().json.infoType || 'all';\n\nreturn [{\n  json: {\n    infoType,\n    status: 'success',\n    output: stdout,\n    errors: stderr || null,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          0
+        ],
+        "id": "sys-status-format",
+        "name": "Format Output"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "Prepare Command",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Command": {
+        "main": [
+          [
+            {
+              "node": "Execute System Command",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute System Command": {
+        "main": [
+          [
+            {
+              "node": "Format Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-08T07:30:16.250Z",
+        "id": 193,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:28.936Z",
+        "id": 238,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:29.160Z",
+        "id": 239,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:31.901Z",
+        "id": 284,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:32.711Z",
+        "id": 285,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:03:59.092Z",
+        "id": 331,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:03:59.781Z",
+        "id": 332,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }
     ]
-  },
-  "id": "7LHGwHNVnfFNR7Dz"
+  }
 }

@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-01-08T08:17:20.324Z",
+  "createdAt": "2026-01-08T07:30:14.133Z",
+  "id": "oj51dGKjapXRP91r",
   "name": "Machine Manager - Docker Control",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -171,18 +177,307 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "active": true,
-  "pinData": {
-    "When Executed by Another Workflow": [
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+  "activeVersionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+  "versionCounter": 19,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-08T07:30:14.134Z",
+      "createdAt": "2026-01-08T07:30:14.134Z",
+      "role": "workflow:owner",
+      "workflowId": "oj51dGKjapXRP91r",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-08T07:27:52.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-08",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-08T07:30:14.137Z",
+    "createdAt": "2026-01-08T07:30:14.137Z",
+    "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+    "workflowId": "oj51dGKjapXRP91r",
+    "nodes": [
       {
-        "json": {
-          "action": "ps",
-          "containerName": ""
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "action",
+                "type": "string"
+              },
+              {
+                "name": "containerName",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "docker-trigger",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Build docker command based on action\nconst action = $input.first().json.action?.toLowerCase() || 'ps';\nconst containerName = $input.first().json.containerName || '';\n\nlet command = '';\nlet requiresContainer = true;\n\nswitch(action) {\n  case 'ps':\n  case 'list':\n    command = 'docker ps -a --format \"table {{.Names}}\\t{{.Status}}\\t{{.Ports}}\\t{{.Image}}\"';\n    requiresContainer = false;\n    break;\n  case 'running':\n    command = 'docker ps --format \"table {{.Names}}\\t{{.Status}}\\t{{.Ports}}\"';\n    requiresContainer = false;\n    break;\n  case 'stats':\n    command = containerName \n      ? `docker stats ${containerName} --no-stream --format \"table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.NetIO}}\"`\n      : 'docker stats --no-stream --format \"table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\\t{{.NetIO}}\"';\n    requiresContainer = false;\n    break;\n  case 'logs':\n    command = `docker logs ${containerName} --tail 100`;\n    break;\n  case 'start':\n    command = `docker start ${containerName} && docker ps --filter name=${containerName} --format \"table {{.Names}}\\t{{.Status}}\"`;\n    break;\n  case 'stop':\n    command = `docker stop ${containerName} && docker ps -a --filter name=${containerName} --format \"table {{.Names}}\\t{{.Status}}\"`;\n    break;\n  case 'restart':\n    command = `docker restart ${containerName} && docker ps --filter name=${containerName} --format \"table {{.Names}}\\t{{.Status}}\"`;\n    break;\n  case 'inspect':\n    command = `docker inspect ${containerName} | head -100`;\n    break;\n  case 'images':\n    command = 'docker images --format \"table {{.Repository}}\\t{{.Tag}}\\t{{.Size}}\\t{{.CreatedSince}}\"';\n    requiresContainer = false;\n    break;\n  case 'volumes':\n    command = 'docker volume ls';\n    requiresContainer = false;\n    break;\n  case 'networks':\n    command = 'docker network ls';\n    requiresContainer = false;\n    break;\n  case 'compose-ps':\n    command = 'docker compose ps 2>/dev/null || docker-compose ps';\n    requiresContainer = false;\n    break;\n  default:\n    return [{ json: { error: `Unknown action: ${action}. Valid actions: ps, list, running, stats, logs, start, stop, restart, inspect, images, volumes, networks, compose-ps` } }];\n}\n\nif (requiresContainer && !containerName) {\n  return [{ json: { error: `Container name required for action: ${action}` } }];\n}\n\nreturn [{ json: { command, action, containerName } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ],
+        "id": "docker-prepare",
+        "name": "Prepare Command"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "docker-check-error",
+                "leftValue": "={{ $json.error }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          440,
+          0
+        ],
+        "id": "docker-check",
+        "name": "Has Error?"
+      },
+      {
+        "parameters": {
+          "command": "=sudo {{ $json.command }}"
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          660,
+          100
+        ],
+        "id": "docker-execute",
+        "name": "Execute Docker Command",
+        "credentials": {
+          "sshPassword": {
+            "id": "JjGMaWTmkWf8n5Qj",
+            "name": "IOT_Kamuri"
+          }
         }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Format the docker output\nconst result = $input.first().json;\nconst inputData = $('Prepare Command').first().json;\n\nreturn [{\n  json: {\n    action: inputData.action,\n    containerName: inputData.containerName || 'N/A',\n    status: 'success',\n    output: result.stdout || '',\n    errors: result.stderr || null,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          100
+        ],
+        "id": "docker-format",
+        "name": "Format Output"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Return the error\nreturn [{ json: $input.first().json }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          -100
+        ],
+        "id": "docker-error",
+        "name": "Return Error"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "Prepare Command",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Command": {
+        "main": [
+          [
+            {
+              "node": "Has Error?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Error?": {
+        "main": [
+          [
+            {
+              "node": "Return Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Execute Docker Command",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute Docker Command": {
+        "main": [
+          [
+            {
+              "node": "Format Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-08T07:30:14.373Z",
+        "id": 189,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:26.229Z",
+        "id": 230,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:26.468Z",
+        "id": 231,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:24.070Z",
+        "id": 276,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:24.618Z",
+        "id": 277,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:03:51.100Z",
+        "id": 323,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:03:51.710Z",
+        "id": 324,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }
     ]
-  },
-  "id": "oj51dGKjapXRP91r"
+  }
 }

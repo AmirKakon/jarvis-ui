@@ -550,7 +550,7 @@ http://localhost:20001
 |----------|-------|
 | **ID** | `3P2iNI900z4nZIGc` |
 | **Status** | Active |
-| **Trigger** | Schedule Trigger (every 15 minutes) |
+| **Trigger** | Schedule Trigger (every 1 hour) |
 | **Description** | Automated health monitoring with alerts for disk usage, CPU load, and service status. |
 
 ### Purpose

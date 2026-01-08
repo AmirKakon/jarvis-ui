@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-07T20:15:31.662Z",
+  "updatedAt": "2026-01-08T08:04:09.059Z",
   "createdAt": "2026-01-07T20:13:31.720Z",
   "id": "GKM344aryPP29f2O",
   "name": "N8N Manager - Workflow Activate",
@@ -143,7 +143,7 @@
   "pinData": null,
   "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
   "activeVersionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
-  "versionCounter": 4,
+  "versionCounter": 29,
   "triggerCount": 0,
   "shared": [
     {
@@ -167,7 +167,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-07T18:05:41.000Z",
+              "updatedAt": "2026-01-08T07:27:52.000Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -193,7 +193,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-07",
+              "lastActiveAt": "2026-01-08",
               "isPending": false
             }
           }
@@ -341,6 +341,86 @@
       {
         "createdAt": "2026-01-07T20:13:32.754Z",
         "id": 130,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:27:58.845Z",
+        "id": 158,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:27:59.080Z",
+        "id": 159,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:30:18.728Z",
+        "id": 200,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:30:18.976Z",
+        "id": 201,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:31.735Z",
+        "id": 246,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:31.973Z",
+        "id": 247,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:41.120Z",
+        "id": 293,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:41.518Z",
+        "id": 294,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:04:09.078Z",
+        "id": 341,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:04:09.791Z",
+        "id": 342,
         "workflowId": "GKM344aryPP29f2O",
         "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
         "event": "activated",

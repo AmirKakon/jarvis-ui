@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-01-08T08:18:35.490Z",
+  "createdAt": "2026-01-08T07:30:15.548Z",
+  "id": "EmRfZ7kbqyAIbz4m",
   "name": "Machine Manager - Service Control",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -171,18 +177,307 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "active": true,
-  "pinData": {
-    "When Executed by Another Workflow": [
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+  "activeVersionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+  "versionCounter": 19,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-08T07:30:15.549Z",
+      "createdAt": "2026-01-08T07:30:15.549Z",
+      "role": "workflow:owner",
+      "workflowId": "EmRfZ7kbqyAIbz4m",
+      "projectId": "cyBU0P25SZASl1ZF",
+      "project": {
+        "updatedAt": "2025-12-17T07:41:57.804Z",
+        "createdAt": "2025-12-17T07:35:20.908Z",
+        "id": "cyBU0P25SZASl1ZF",
+        "name": "Amir Kakon <pppchevy@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-17T07:35:20.908Z",
+            "createdAt": "2025-12-17T07:35:20.908Z",
+            "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+            "projectId": "cyBU0P25SZASl1ZF",
+            "user": {
+              "updatedAt": "2026-01-08T07:27:52.000Z",
+              "createdAt": "2025-12-17T07:35:20.329Z",
+              "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
+              "email": "pppchevy@gmail.com",
+              "firstName": "Amir",
+              "lastName": "Kakon",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-12-17T07:42:13.516Z",
+                "personalization_survey_n8n_version": "2.0.2",
+                "companyType": "personal",
+                "reportedSource": "youtube"
+              },
+              "settings": {
+                "userActivated": true,
+                "firstSuccessfulWorkflowId": "dJmq3O0s7lDAMANm",
+                "userActivatedAt": 1766675621429,
+                "easyAIWorkflowOnboarded": true,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767600020939
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-08",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-08T07:30:15.551Z",
+    "createdAt": "2026-01-08T07:30:15.551Z",
+    "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+    "workflowId": "EmRfZ7kbqyAIbz4m",
+    "nodes": [
       {
-        "json": {
-          "action": "status",
-          "serviceName": ""
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "action",
+                "type": "string"
+              },
+              {
+                "name": "serviceName",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "svc-ctrl-trigger",
+        "name": "When Executed by Another Workflow"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Build systemctl command based on action and service name\nconst action = $input.first().json.action?.toLowerCase() || 'status';\nconst serviceName = $input.first().json.serviceName || '';\n\nlet command = '';\nlet requiresService = true;\n\nswitch(action) {\n  case 'status':\n    command = serviceName \n      ? `systemctl status ${serviceName} --no-pager` \n      : 'systemctl list-units --type=service --state=running --no-pager | head -30';\n    requiresService = false;\n    break;\n  case 'start':\n    command = `systemctl start ${serviceName} && systemctl status ${serviceName} --no-pager`;\n    break;\n  case 'stop':\n    command = `systemctl stop ${serviceName} && systemctl status ${serviceName} --no-pager`;\n    break;\n  case 'restart':\n    command = `systemctl restart ${serviceName} && systemctl status ${serviceName} --no-pager`;\n    break;\n  case 'enable':\n    command = `systemctl enable ${serviceName} && systemctl is-enabled ${serviceName}`;\n    break;\n  case 'disable':\n    command = `systemctl disable ${serviceName} && systemctl is-enabled ${serviceName}`;\n    break;\n  case 'list':\n    command = 'systemctl list-units --type=service --no-pager | head -50';\n    requiresService = false;\n    break;\n  case 'failed':\n    command = 'systemctl list-units --type=service --state=failed --no-pager';\n    requiresService = false;\n    break;\n  case 'logs':\n    command = `journalctl -u ${serviceName} --no-pager -n 50`;\n    break;\n  default:\n    return [{ json: { error: `Unknown action: ${action}. Valid actions: status, start, stop, restart, enable, disable, list, failed, logs` } }];\n}\n\nif (requiresService && !serviceName) {\n  return [{ json: { error: `Service name required for action: ${action}` } }];\n}\n\nreturn [{ json: { command, action, serviceName } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ],
+        "id": "svc-ctrl-prepare",
+        "name": "Prepare Command"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "svc-check-error",
+                "leftValue": "={{ $json.error }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          440,
+          0
+        ],
+        "id": "svc-ctrl-check",
+        "name": "Has Error?"
+      },
+      {
+        "parameters": {
+          "command": "=sudo {{ $json.command }}"
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          660,
+          100
+        ],
+        "id": "svc-ctrl-execute",
+        "name": "Execute Service Command",
+        "credentials": {
+          "sshPassword": {
+            "id": "JjGMaWTmkWf8n5Qj",
+            "name": "IOT_Kamuri"
+          }
         }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Format the service control output\nconst result = $input.first().json;\nconst inputData = $('Prepare Command').first().json;\n\nreturn [{\n  json: {\n    action: inputData.action,\n    serviceName: inputData.serviceName || 'N/A',\n    status: 'success',\n    output: result.stdout || '',\n    errors: result.stderr || null,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          100
+        ],
+        "id": "svc-ctrl-format",
+        "name": "Format Output"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Return the error\nreturn [{ json: $input.first().json }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          -100
+        ],
+        "id": "svc-ctrl-error",
+        "name": "Return Error"
+      }
+    ],
+    "connections": {
+      "When Executed by Another Workflow": {
+        "main": [
+          [
+            {
+              "node": "Prepare Command",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Command": {
+        "main": [
+          [
+            {
+              "node": "Has Error?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Error?": {
+        "main": [
+          [
+            {
+              "node": "Return Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Execute Service Command",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute Service Command": {
+        "main": [
+          [
+            {
+              "node": "Format Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Amir Kakon",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-08T07:30:15.793Z",
+        "id": 192,
+        "workflowId": "EmRfZ7kbqyAIbz4m",
+        "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:28.256Z",
+        "id": 236,
+        "workflowId": "EmRfZ7kbqyAIbz4m",
+        "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T07:31:28.471Z",
+        "id": 237,
+        "workflowId": "EmRfZ7kbqyAIbz4m",
+        "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:29.757Z",
+        "id": 282,
+        "workflowId": "EmRfZ7kbqyAIbz4m",
+        "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:02:30.413Z",
+        "id": 283,
+        "workflowId": "EmRfZ7kbqyAIbz4m",
+        "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:03:57.152Z",
+        "id": 329,
+        "workflowId": "EmRfZ7kbqyAIbz4m",
+        "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-08T08:03:57.770Z",
+        "id": 330,
+        "workflowId": "EmRfZ7kbqyAIbz4m",
+        "versionId": "7ffc69af-d705-440b-ae46-0b33e3191436",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }
     ]
-  },
-  "id": "EmRfZ7kbqyAIbz4m"
+  }
 }
