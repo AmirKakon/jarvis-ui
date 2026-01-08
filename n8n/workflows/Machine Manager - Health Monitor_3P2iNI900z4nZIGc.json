@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-08T08:31:41.306Z",
+  "updatedAt": "2026-01-08T11:32:28.307Z",
   "createdAt": "2026-01-08T07:30:14.601Z",
   "id": "3P2iNI900z4nZIGc",
   "name": "Machine Manager - Health Monitor",
@@ -28,7 +28,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse health check output and determine if alerts are needed\nconst stdout = $input.first().json.stdout || '';\nconst lines = stdout.split('\\n');\n\nlet alerts = [];\nlet healthData = {\n  timestamp: new Date().toISOString(),\n  raw: stdout\n};\n\n// Check disk usage (alert if any partition > 90%)\nconst diskLines = lines.filter(l => l.includes('%'));\nfor (const line of diskLines) {\n  const match = line.match(/(\\d+)%/);\n  if (match) {\n    const usage = parseInt(match[1]);\n    if (usage > 90) {\n      alerts.push(`DISK CRITICAL: ${line.trim()} - ${usage}% used`);\n    } else if (usage > 80) {\n      alerts.push(`DISK WARNING: ${line.trim()} - ${usage}% used`);\n    }\n  }\n}\n\n// Check load average (alert if > number of CPUs)\nconst loadLine = lines.find(l => l.match(/^\\d+\\.\\d+/));\nif (loadLine) {\n  const loads = loadLine.split(' ').slice(0, 3).map(parseFloat);\n  if (loads[0] > 4) { // Assuming 4 cores\n    alerts.push(`CPU LOAD HIGH: 1min=${loads[0]}, 5min=${loads[1]}, 15min=${loads[2]}`);\n  }\n}\n\n// Check memory from free -h output\nconst memLine = lines.find(l => l.includes('Mem:'));\nif (memLine) {\n  const parts = memLine.split(/\\s+/);\n  healthData.memory = {\n    total: parts[1],\n    used: parts[2],\n    free: parts[3],\n    available: parts[6]\n  };\n}\n\nhealthData.alerts = alerts;\nhealthData.alertCount = alerts.length;\nhealthData.status = alerts.length === 0 ? 'healthy' : (alerts.some(a => a.includes('CRITICAL')) ? 'critical' : 'warning');\n\nreturn [{ json: healthData }];"
+        "jsCode": "// Parse health check output and determine if alerts are needed\nconst stdout = $input.first().json.stdout || '';\nconst lines = stdout.split('\\n');\n\nlet alerts = [];\nlet healthData = {\n  timestamp: new Date().toISOString(),\n  raw: stdout\n};\n\n// Check disk usage (alert if any partition > 90%)\nconst diskLines = lines.filter(l => l.includes('%'));\nfor (const line of diskLines) {\n  const match = line.match(/(\\d+)%/);\n  if (match) {\n    const usage = parseInt(match[1]);\n    if (usage > 95) {\n      alerts.push(`DISK CRITICAL: ${line.trim()} - ${usage}% used`);\n    } else if (usage > 85) {\n      alerts.push(`DISK WARNING: ${line.trim()} - ${usage}% used`);\n    }\n  }\n}\n\n// Check load average (alert if > number of CPUs)\nconst loadLine = lines.find(l => l.match(/^\\d+\\.\\d+/));\nif (loadLine) {\n  const loads = loadLine.split(' ').slice(0, 3).map(parseFloat);\n  if (loads[0] > 4) { // Assuming 4 cores\n    alerts.push(`CPU LOAD HIGH: 1min=${loads[0]}, 5min=${loads[1]}, 15min=${loads[2]}`);\n  }\n}\n\n// Check memory from free -h output\nconst memLine = lines.find(l => l.includes('Mem:'));\nif (memLine) {\n  const parts = memLine.split(/\\s+/);\n  healthData.memory = {\n    total: parts[1],\n    used: parts[2],\n    free: parts[3],\n    available: parts[6]\n  };\n}\n\nhealthData.alerts = alerts;\nhealthData.alertCount = alerts.length;\nhealthData.status = alerts.length === 0 ? 'healthy' : (alerts.some(a => a.includes('CRITICAL')) ? 'critical' : 'warning');\n\nreturn [{ json: healthData }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -107,7 +107,7 @@
     {
       "parameters": {
         "chatId": "2125353679",
-        "text": "=🚨 System Health Alert\n\n  ⏱ Time: {{ $now.setZone('Asia/Jerusalem').format('dd/mm/yyyy hh:mm') }}\n\nThe following issues were detected:\n\n{{ $('Analyze Health').item.json.alerts.join('\\n• ') }}\n\nAction recommended.",
+        "text": "=🚨 System Health Alert\n\n  ⏱ Time: {{ $now.setZone('Asia/Jerusalem').format('LLLL dd, yyyy HH:mm') }}\n\nThe following issues were detected:\n\n• {{ $('Analyze Health').item.json.alerts.join('\\n• ') }}\n\nAction recommended.",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.telegram",
@@ -202,9 +202,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "c68b9bc0-4316-4623-ba51-6d4147d54ec1",
-  "activeVersionId": "c68b9bc0-4316-4623-ba51-6d4147d54ec1",
-  "versionCounter": 41,
+  "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+  "activeVersionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+  "versionCounter": 51,
   "triggerCount": 1,
   "shared": [
     {
@@ -264,9 +264,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-08T08:31:42.000Z",
-    "createdAt": "2026-01-08T08:31:41.307Z",
-    "versionId": "c68b9bc0-4316-4623-ba51-6d4147d54ec1",
+    "updatedAt": "2026-01-08T11:32:29.000Z",
+    "createdAt": "2026-01-08T11:32:28.308Z",
+    "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
     "workflowId": "3P2iNI900z4nZIGc",
     "nodes": [
       {
@@ -290,7 +290,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Parse health check output and determine if alerts are needed\nconst stdout = $input.first().json.stdout || '';\nconst lines = stdout.split('\\n');\n\nlet alerts = [];\nlet healthData = {\n  timestamp: new Date().toISOString(),\n  raw: stdout\n};\n\n// Check disk usage (alert if any partition > 90%)\nconst diskLines = lines.filter(l => l.includes('%'));\nfor (const line of diskLines) {\n  const match = line.match(/(\\d+)%/);\n  if (match) {\n    const usage = parseInt(match[1]);\n    if (usage > 90) {\n      alerts.push(`DISK CRITICAL: ${line.trim()} - ${usage}% used`);\n    } else if (usage > 80) {\n      alerts.push(`DISK WARNING: ${line.trim()} - ${usage}% used`);\n    }\n  }\n}\n\n// Check load average (alert if > number of CPUs)\nconst loadLine = lines.find(l => l.match(/^\\d+\\.\\d+/));\nif (loadLine) {\n  const loads = loadLine.split(' ').slice(0, 3).map(parseFloat);\n  if (loads[0] > 4) { // Assuming 4 cores\n    alerts.push(`CPU LOAD HIGH: 1min=${loads[0]}, 5min=${loads[1]}, 15min=${loads[2]}`);\n  }\n}\n\n// Check memory from free -h output\nconst memLine = lines.find(l => l.includes('Mem:'));\nif (memLine) {\n  const parts = memLine.split(/\\s+/);\n  healthData.memory = {\n    total: parts[1],\n    used: parts[2],\n    free: parts[3],\n    available: parts[6]\n  };\n}\n\nhealthData.alerts = alerts;\nhealthData.alertCount = alerts.length;\nhealthData.status = alerts.length === 0 ? 'healthy' : (alerts.some(a => a.includes('CRITICAL')) ? 'critical' : 'warning');\n\nreturn [{ json: healthData }];"
+          "jsCode": "// Parse health check output and determine if alerts are needed\nconst stdout = $input.first().json.stdout || '';\nconst lines = stdout.split('\\n');\n\nlet alerts = [];\nlet healthData = {\n  timestamp: new Date().toISOString(),\n  raw: stdout\n};\n\n// Check disk usage (alert if any partition > 90%)\nconst diskLines = lines.filter(l => l.includes('%'));\nfor (const line of diskLines) {\n  const match = line.match(/(\\d+)%/);\n  if (match) {\n    const usage = parseInt(match[1]);\n    if (usage > 95) {\n      alerts.push(`DISK CRITICAL: ${line.trim()} - ${usage}% used`);\n    } else if (usage > 85) {\n      alerts.push(`DISK WARNING: ${line.trim()} - ${usage}% used`);\n    }\n  }\n}\n\n// Check load average (alert if > number of CPUs)\nconst loadLine = lines.find(l => l.match(/^\\d+\\.\\d+/));\nif (loadLine) {\n  const loads = loadLine.split(' ').slice(0, 3).map(parseFloat);\n  if (loads[0] > 4) { // Assuming 4 cores\n    alerts.push(`CPU LOAD HIGH: 1min=${loads[0]}, 5min=${loads[1]}, 15min=${loads[2]}`);\n  }\n}\n\n// Check memory from free -h output\nconst memLine = lines.find(l => l.includes('Mem:'));\nif (memLine) {\n  const parts = memLine.split(/\\s+/);\n  healthData.memory = {\n    total: parts[1],\n    used: parts[2],\n    free: parts[3],\n    available: parts[6]\n  };\n}\n\nhealthData.alerts = alerts;\nhealthData.alertCount = alerts.length;\nhealthData.status = alerts.length === 0 ? 'healthy' : (alerts.some(a => a.includes('CRITICAL')) ? 'critical' : 'warning');\n\nreturn [{ json: healthData }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -369,7 +369,7 @@
       {
         "parameters": {
           "chatId": "2125353679",
-          "text": "=🚨 System Health Alert\n\n  ⏱ Time: {{ $now.setZone('Asia/Jerusalem').format('dd/mm/yyyy hh:mm') }}\n\nThe following issues were detected:\n\n{{ $('Analyze Health').item.json.alerts.join('\\n• ') }}\n\nAction recommended.",
+          "text": "=🚨 System Health Alert\n\n  ⏱ Time: {{ $now.setZone('Asia/Jerusalem').format('LLLL dd, yyyy HH:mm') }}\n\nThe following issues were detected:\n\n• {{ $('Analyze Health').item.json.alerts.join('\\n• ') }}\n\nAction recommended.",
           "additionalFields": {}
         },
         "type": "n8n-nodes-base.telegram",
@@ -448,14 +448,14 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": "Version c68b9bc0",
+    "name": "Version ae7d5bc2",
     "description": "",
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-08T08:31:42.798Z",
-        "id": 366,
+        "createdAt": "2026-01-08T11:32:29.941Z",
+        "id": 369,
         "workflowId": "3P2iNI900z4nZIGc",
-        "versionId": "c68b9bc0-4316-4623-ba51-6d4147d54ec1",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

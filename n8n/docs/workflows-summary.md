@@ -557,7 +557,7 @@ http://localhost:20001
 Continuously monitor system health and alert on issues.
 
 ### Monitoring Checks
-- **Disk Usage**: Alert if any partition > 90% (critical) or > 80% (warning)
+- **Disk Usage**: Alert if any partition > 95% (critical) or > 85% (warning)
 - **CPU Load**: Alert if 1-minute load > 4 (assuming 4 cores)
 - **Memory**: Track usage stats
 - **Services**: Check n8n, jellyfin, smbd, docker status
