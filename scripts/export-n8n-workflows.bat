@@ -71,6 +71,8 @@ echo Exporting workflows...
 echo.
 python export_workflows.py %EXTRA_ARGS%
 
+cd ..
+
 echo.
 echo Done!
 

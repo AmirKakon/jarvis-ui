@@ -8,24 +8,38 @@ This document provides an overview of all n8n workflows used in the JARVIS syste
 
 ## Table of Contents
 
+### Core Workflows
 1. [Jarvis AI Agent Orchestrator](#1-jarvis-ai-agent-orchestrator) - Main AI assistant
 2. [AI Long Term Memory Agent](#2-ai-long-term-memory-agent) - Memory storage/retrieval
 3. [Memory governance](#3-memory-governance) - Memory classification & validation
 4. [Memory deduplication](#4-memory-deduplication) - Duplicate detection
 5. [Add Memory](#5-add-memory) - Persist memories to database
-6. [gemini cli trigger](#6-gemini-cli-trigger) - Execute Gemini CLI commands
-7. [sudo ssh commands](#7-sudo-ssh-commands) - Execute SSH commands
-8. [N8N Manager - API Request](#8-n8n-manager---api-request) - Base n8n API handler
-9. [N8N Manager - Workflow List](#9-n8n-manager---workflow-list) - List all workflows
-10. [N8N Manager - Workflow Get](#10-n8n-manager---workflow-get) - Get workflow details
-11. [N8N Manager - Workflow Create](#11-n8n-manager---workflow-create) - Create new workflow
-12. [N8N Manager - Workflow Update](#12-n8n-manager---workflow-update) - Update existing workflow
-13. [N8N Manager - Workflow Delete](#13-n8n-manager---workflow-delete) - Delete workflow
-14. [N8N Manager - Workflow Activate](#14-n8n-manager---workflow-activate) - Activate workflow
-15. [N8N Manager - Workflow Deactivate](#15-n8n-manager---workflow-deactivate) - Deactivate workflow
-16. [N8N Manager - Workflow Execute](#16-n8n-manager---workflow-execute) - Execute workflow manually
-17. [download video](#17-download-video) - Video download utility
-18. [Upload File](#18-upload-file) - File upload to network storage
+
+### Machine Manager Workflows
+6. [Machine Manager - System Status](#6-machine-manager---system-status) - CPU, RAM, disk, network info
+7. [Machine Manager - Service Control](#7-machine-manager---service-control) - Systemd service management
+8. [Machine Manager - Docker Control](#8-machine-manager---docker-control) - Docker container management
+9. [Machine Manager - Jellyfin API](#9-machine-manager---jellyfin-api) - Media server management
+10. [Machine Manager - Health Monitor](#10-machine-manager---health-monitor) - Automated health checks
+
+### Utility Workflows
+11. [gemini cli trigger](#11-gemini-cli-trigger) - Execute Gemini CLI commands
+12. [sudo ssh commands](#12-sudo-ssh-commands) - Execute SSH commands
+
+### N8N Manager Workflows
+13. [N8N Manager - API Request](#13-n8n-manager---api-request) - Base n8n API handler
+14. [N8N Manager - Workflow List](#14-n8n-manager---workflow-list) - List all workflows
+15. [N8N Manager - Workflow Get](#15-n8n-manager---workflow-get) - Get workflow details
+16. [N8N Manager - Workflow Create](#16-n8n-manager---workflow-create) - Create new workflow
+17. [N8N Manager - Workflow Update](#17-n8n-manager---workflow-update) - Update existing workflow
+18. [N8N Manager - Workflow Delete](#18-n8n-manager---workflow-delete) - Delete workflow
+19. [N8N Manager - Workflow Activate](#19-n8n-manager---workflow-activate) - Activate workflow
+20. [N8N Manager - Workflow Deactivate](#20-n8n-manager---workflow-deactivate) - Deactivate workflow
+21. [N8N Manager - Workflow Execute](#21-n8n-manager---workflow-execute) - Execute workflow manually
+
+### Media & File Workflows
+22. [download video](#22-download-video) - Video download utility
+23. [Upload File](#23-upload-file) - File upload to network storage
 
 ---
 
@@ -37,10 +51,10 @@ This document provides an overview of all n8n workflows used in the JARVIS syste
 | **Status** | Active |
 | **Trigger** | Webhook (POST, streaming) |
 | **Model** | GPT-5-nano |
-| **Description** | Main JARVIS orchestrator - receives user messages via webhook, coordinates responses using AI agent with tools for memory, SSH, Gemini CLI, and n8n API management. |
+| **Description** | Main JARVIS orchestrator with Machine Manager tools for system, service, Docker, and Jellyfin management. |
 
 ### Purpose
-The main JARVIS AI assistant workflow. Acts as the central orchestrator that receives user messages via webhook and coordinates responses using various tools.
+The main JARVIS AI assistant workflow. Acts as the central orchestrator that receives user messages via webhook and coordinates responses using various tools including the Machine Manager suite.
 
 ### Personality
 - British AI assistant, addresses user as "Sir"
@@ -55,6 +69,7 @@ The system prompt is organized into sections:
 - **Task Guidelines** - Technical, planning, and creative task handling
 - **Commands** - "Jarvis, ..." and "Dismiss" handling
 - **Memory** - Store important facts via Long Term Memory tool
+- **Machine Management** - System, service, Docker, and Jellyfin tools
 - **Context** - Location (Jerusalem) and local time
 
 ### Connected Tools
@@ -64,6 +79,10 @@ The system prompt is organized into sections:
 | **gemini cli trigger** | Execute Gemini CLI commands on local machine |
 | **sudo ssh commands** | Run SSH commands with sudo |
 | **N8N Manager - API Request** | Create/manage n8n workflows via API |
+| **System Status** | Get CPU, memory, disk, network info |
+| **Service Control** | Manage systemd services |
+| **Docker Control** | Manage Docker containers |
+| **Jellyfin API** | Interact with Jellyfin media server |
 | **Calculator** | Mathematical calculations |
 
 ### Nodes
@@ -72,6 +91,7 @@ The system prompt is organized into sections:
 - OpenAI Chat Model (gpt-5-nano)
 - Simple Memory (buffer window with sessionId)
 - Respond to Webhook
+- Machine Manager tool connections
 
 ---
 
@@ -270,7 +290,278 @@ Persist validated memories to the PostgreSQL vector database.
 
 ---
 
-## 6. gemini cli trigger
+## 6. Machine Manager - System Status
+
+| Property | Value |
+|----------|-------|
+| **ID** | `7LHGwHNVnfFNR7Dz` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Retrieves system information including CPU, memory, disk, network, processes, and uptime. |
+
+### Purpose
+Get comprehensive system status information from the machine.
+
+### Input
+- `infoType`: Type of information to retrieve
+
+### Info Types
+
+| Type | Description |
+|------|-------------|
+| `cpu` | CPU usage and info |
+| `memory` / `ram` | Memory usage details |
+| `disk` | Disk space usage |
+| `network` | Network interfaces and listening ports |
+| `processes` | Top processes by memory usage |
+| `uptime` | System uptime and kernel info |
+| `all` | Overview of everything (default) |
+
+### Output
+
+```json
+{
+  "infoType": "all",
+  "status": "success",
+  "output": "... system info ...",
+  "errors": null,
+  "timestamp": "2026-01-08T12:00:00Z"
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger with infoType input
+2. **Prepare Command** - JavaScript to build appropriate bash command
+3. **Execute System Command** - SSH execution
+4. **Format Output** - Clean and format results
+
+### Credentials
+- SSH: `IOT_Kamuri`
+
+---
+
+## 7. Machine Manager - Service Control
+
+| Property | Value |
+|----------|-------|
+| **ID** | `EmRfZ7kbqyAIbz4m` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Manages systemd services: check status, start, stop, restart, enable/disable, and view logs. |
+
+### Purpose
+Control and monitor systemd services on the machine.
+
+### Input
+- `action`: Operation to perform
+- `serviceName`: Name of the service (required for most actions)
+
+### Actions
+
+| Action | Description | Requires Service |
+|--------|-------------|-----------------|
+| `status` | Check service status | Optional (lists running if omitted) |
+| `start` | Start a service | Yes |
+| `stop` | Stop a service | Yes |
+| `restart` | Restart a service | Yes |
+| `enable` | Enable service at boot | Yes |
+| `disable` | Disable service at boot | Yes |
+| `list` | List all services | No |
+| `failed` | List failed services | No |
+| `logs` | View service logs (last 50 lines) | Yes |
+
+### Output
+
+```json
+{
+  "action": "status",
+  "serviceName": "n8n",
+  "status": "success",
+  "output": "... service status ...",
+  "errors": null,
+  "timestamp": "2026-01-08T12:00:00Z"
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger with action and serviceName
+2. **Prepare Command** - Build systemctl command
+3. **Has Error?** - Validate inputs
+4. **Execute Service Command** - SSH with sudo
+5. **Format Output** - Clean results
+
+### Credentials
+- SSH: `IOT_Kamuri`
+
+---
+
+## 8. Machine Manager - Docker Control
+
+| Property | Value |
+|----------|-------|
+| **ID** | `oj51dGKjapXRP91r` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Manages Docker containers: list, stats, logs, start/stop/restart, inspect, and more. |
+
+### Purpose
+Control and monitor Docker containers on the machine.
+
+### Input
+- `action`: Operation to perform
+- `containerName`: Name of the container (required for some actions)
+
+### Actions
+
+| Action | Description | Requires Container |
+|--------|-------------|-------------------|
+| `ps` / `list` | List all containers | No |
+| `running` | List running containers | No |
+| `stats` | Container resource usage | Optional |
+| `logs` | Container logs (last 100 lines) | Yes |
+| `start` | Start a container | Yes |
+| `stop` | Stop a container | Yes |
+| `restart` | Restart a container | Yes |
+| `inspect` | Get container details | Yes |
+| `images` | List Docker images | No |
+| `volumes` | List Docker volumes | No |
+| `networks` | List Docker networks | No |
+| `compose-ps` | List docker-compose services | No |
+
+### Output
+
+```json
+{
+  "action": "ps",
+  "containerName": "N/A",
+  "status": "success",
+  "output": "... container list ...",
+  "errors": null,
+  "timestamp": "2026-01-08T12:00:00Z"
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger with action and containerName
+2. **Prepare Command** - Build docker command
+3. **Has Error?** - Validate inputs
+4. **Execute Docker Command** - SSH with sudo
+5. **Format Output** - Clean results
+
+### Credentials
+- SSH: `IOT_Kamuri`
+
+---
+
+## 9. Machine Manager - Jellyfin API
+
+| Property | Value |
+|----------|-------|
+| **ID** | `JlhBPAIfI8WHfCsj` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Description** | Interacts with Jellyfin media server API (port 20001) for server management and media operations. |
+
+### Purpose
+Manage Jellyfin media server via its REST API.
+
+### Input
+- `action`: API operation to perform
+- `params`: Optional JSON string with additional parameters
+
+### Actions
+
+| Action | Description |
+|--------|-------------|
+| `status` / `info` | Get server information |
+| `health` | Health check endpoint |
+| `users` | List all users |
+| `sessions` | View active sessions |
+| `libraries` / `items` | List media libraries |
+| `scan` / `refresh` | Trigger library scan |
+| `activity` | View activity log |
+| `scheduled-tasks` | List scheduled tasks |
+| `search` | Search media (use params.query) |
+| `playing` | Currently playing sessions |
+| `logs` | Server logs |
+
+### Output
+
+```json
+{
+  "action": "status",
+  "status": "success",
+  "data": { ... },
+  "timestamp": "2026-01-08T12:00:00Z"
+}
+```
+
+### Nodes
+1. **When Executed by Another Workflow** - Trigger with action and params
+2. **Prepare Request** - Build Jellyfin API URL
+3. **Has Error?** - Validate inputs
+4. **Jellyfin API Request** - HTTP request to localhost:20001
+5. **Format Output** - Clean and truncate results
+
+### Base URL
+```
+http://localhost:20001
+```
+
+---
+
+## 10. Machine Manager - Health Monitor
+
+| Property | Value |
+|----------|-------|
+| **ID** | `3P2iNI900z4nZIGc` |
+| **Status** | Active |
+| **Trigger** | Schedule Trigger (every 15 minutes) |
+| **Description** | Automated health monitoring with alerts for disk usage, CPU load, and service status. |
+
+### Purpose
+Continuously monitor system health and alert on issues.
+
+### Monitoring Checks
+- **Disk Usage**: Alert if any partition > 90% (critical) or > 80% (warning)
+- **CPU Load**: Alert if 1-minute load > 4 (assuming 4 cores)
+- **Memory**: Track usage stats
+- **Services**: Check n8n, jellyfin, smbd, docker status
+
+### Output
+
+```json
+{
+  "timestamp": "2026-01-08T12:00:00Z",
+  "status": "healthy" | "warning" | "critical",
+  "alertCount": 0,
+  "alerts": [],
+  "memory": {
+    "total": "16Gi",
+    "used": "8Gi",
+    "free": "4Gi",
+    "available": "7Gi"
+  }
+}
+```
+
+### Nodes
+1. **Every 15 Minutes** - Schedule trigger
+2. **Check System Health** - SSH command for comprehensive check
+3. **Analyze Health** - Parse output and detect issues
+4. **Has Alerts?** - Conditional check
+5. **Send Alert (Placeholder)** - Notification (configure Telegram/Email)
+6. **Log Health Status** - Log healthy status
+
+### Alert Integration
+The workflow has a placeholder for notifications. Connect a Telegram or Email node to `Send Alert (Placeholder)` to receive alerts.
+
+### Credentials
+- SSH: `IOT_Kamuri`
+
+---
+
+## 11. gemini cli trigger
 
 | Property | Value |
 |----------|-------|
@@ -299,7 +590,7 @@ gemini -y -p "<prompt>"
 
 ---
 
-## 7. sudo ssh commands
+## 12. sudo ssh commands
 
 | Property | Value |
 |----------|-------|
@@ -328,7 +619,7 @@ sudo <command>
 
 ---
 
-## 8. N8N Manager - API Request
+## 13. N8N Manager - API Request
 
 | Property | Value |
 |----------|-------|
@@ -357,7 +648,7 @@ http://localhost:20002/api/v1
 
 ---
 
-## 9. N8N Manager - Workflow List
+## 14. N8N Manager - Workflow List
 
 | Property | Value |
 |----------|-------|
@@ -396,7 +687,7 @@ Retrieve a list of all workflows in the n8n instance.
 
 ---
 
-## 10. N8N Manager - Workflow Get
+## 15. N8N Manager - Workflow Get
 
 | Property | Value |
 |----------|-------|
@@ -420,7 +711,7 @@ Full workflow JSON including nodes, connections, settings, and metadata.
 
 ---
 
-## 11. N8N Manager - Workflow Create
+## 16. N8N Manager - Workflow Create
 
 | Property | Value |
 |----------|-------|
@@ -464,7 +755,7 @@ Create a new workflow in n8n from a JSON definition.
 
 ---
 
-## 12. N8N Manager - Workflow Update
+## 17. N8N Manager - Workflow Update
 
 | Property | Value |
 |----------|-------|
@@ -503,7 +794,7 @@ Update an existing workflow with new definition.
 
 ---
 
-## 13. N8N Manager - Workflow Delete
+## 18. N8N Manager - Workflow Delete
 
 | Property | Value |
 |----------|-------|
@@ -536,7 +827,7 @@ Permanently delete a workflow from n8n.
 
 ---
 
-## 14. N8N Manager - Workflow Activate
+## 19. N8N Manager - Workflow Activate
 
 | Property | Value |
 |----------|-------|
@@ -568,7 +859,7 @@ Activate a workflow so it starts listening for triggers.
 
 ---
 
-## 15. N8N Manager - Workflow Deactivate
+## 20. N8N Manager - Workflow Deactivate
 
 | Property | Value |
 |----------|-------|
@@ -600,7 +891,7 @@ Deactivate a workflow so it stops listening for triggers.
 
 ---
 
-## 16. N8N Manager - Workflow Execute
+## 21. N8N Manager - Workflow Execute
 
 | Property | Value |
 |----------|-------|
@@ -643,7 +934,7 @@ Manually trigger execution of a workflow.
 
 ---
 
-## 17. download video
+## 22. download video
 
 | Property | Value |
 |----------|-------|
@@ -697,7 +988,7 @@ Download videos from URLs and organize them into the media library.
 
 ---
 
-## 18. Upload File
+## 23. Upload File
 
 | Property | Value |
 |----------|-------|
@@ -741,44 +1032,62 @@ shared-storage/מסמכים
 ## Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Jarvis AI Agent Orchestrator                  │
-│                         (Main Entry Point)                       │
-│                      Webhook → AI Agent → Response               │
-└─────────────────────────────────────────────────────────────────┘
-                                  │
-          ┌───────────────────────┼───────────────────────┐
-          │                       │                       │
-          ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ AI Long Term    │    │ gemini cli      │    │ sudo ssh        │
-│ Memory Agent    │    │ trigger         │    │ commands        │
-│ (with sessionId)│    │                 │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-          │                                           │
-          │                                           │
-    ┌─────┴─────┬─────────────┐              ┌────────┘
-    │           │             │              │
-    ▼           ▼             ▼              ▼
-┌────────┐ ┌────────┐  ┌────────────┐  ┌───────────────────────────┐
-│Memory  │ │Memory  │  │Add Memory  │  │     N8N Manager Suite     │
-│govern. │ │dedup.  │  │            │  │  ┌─────────────────────┐  │
-└────────┘ └────────┘  └────────────┘  │  │   API Request       │  │
-    │           │             │        │  │   (Base Handler)    │  │
-    └───────────┴─────────────┘        │  └──────────┬──────────┘  │
-                │                      │             │              │
-                ▼                      │  ┌──────────┴──────────┐  │
-    ┌─────────────────────┐            │  │ • Workflow List     │  │
-    │  PostgreSQL + PGVector │          │  │ • Workflow Get      │  │
-    │   (long_term_memory)   │          │  │ • Workflow Create   │  │
-    └─────────────────────┘            │  │ • Workflow Update   │  │
-                                       │  │ • Workflow Delete   │  │
-                                       │  │ • Workflow Activate │  │
-                                       │  │ • Workflow Deactivate│ │
-                                       │  │ • Workflow Execute  │  │
-                                       │  └─────────────────────┘  │
-                                       └───────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      Jarvis AI Agent Orchestrator                        │
+│                           (Main Entry Point)                             │
+│                    Webhook → AI Agent → Response                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+    ┌───────────────┬───────────────┼───────────────┬───────────────┐
+    │               │               │               │               │
+    ▼               ▼               ▼               ▼               ▼
+┌─────────┐   ┌─────────┐   ┌─────────────┐   ┌─────────┐   ┌─────────────┐
+│ Memory  │   │ gemini  │   │ sudo ssh    │   │ N8N     │   │  Machine    │
+│ Agent   │   │ cli     │   │ commands    │   │ Manager │   │  Manager    │
+└─────────┘   └─────────┘   └─────────────┘   └─────────┘   │   Suite     │
+    │                                               │       └─────────────┘
+    │                                               │               │
+┌───┴───────────────┐                       ┌───────┴───────┐       │
+│   Memory Stack    │                       │ Workflow CRUD │       │
+├───────────────────┤                       └───────────────┘       │
+│ governance        │                                               │
+│ deduplication     │                       ┌───────────────────────┤
+│ Add Memory        │                       │                       │
+│ PGVector Store    │                       ▼                       ▼
+└───────────────────┘               ┌───────────────┐       ┌───────────────┐
+        │                           │ System Status │       │ Jellyfin API  │
+        ▼                           │ Service Ctrl  │       │ Port 20001    │
+┌─────────────────────┐             │ Docker Ctrl   │       └───────────────┘
+│  PostgreSQL+PGVector │             └───────────────┘
+│  (long_term_memory)  │                    │
+└─────────────────────┘                     ▼
+                                    ┌───────────────┐
+                                    │ Health Monitor│
+                                    │ (Scheduled)   │
+                                    └───────────────┘
 ```
+
+---
+
+## Port Mapping
+
+| Port  | Service      | Description                |
+|-------|--------------|---------------------------|
+| 20000 | Samba/SSH    | File sharing & remote access |
+| 20001 | Jellyfin     | Media server              |
+| 20002 | n8n          | Automation platform       |
+
+---
+
+## Machine Manager Tool Summary
+
+| Tool | Purpose | Parameters |
+|------|---------|------------|
+| **System Status** | Get system info | `infoType`: cpu, memory, disk, network, processes, uptime, all |
+| **Service Control** | Manage systemd services | `action`, `serviceName` |
+| **Docker Control** | Manage containers | `action`, `containerName` |
+| **Jellyfin API** | Media server management | `action`, `params` |
+| **Health Monitor** | Automated monitoring | Runs every 15 minutes |
 
 ---
 
@@ -803,7 +1112,7 @@ shared-storage/מסמכים
 |-----------------|------|---------|
 | OpenAi account | OpenAI API | Multiple workflows |
 | N8N-Kamuri | PostgreSQL | Memory workflows |
-| IOT_Kamuri | SSH Password | gemini cli, sudo ssh, download video |
+| IOT_Kamuri | SSH Password | gemini cli, sudo ssh, Machine Manager, download video |
 | FTP account | SFTP | Upload File |
 | kakischer_n8n_bot | Telegram API | download video |
 
@@ -826,3 +1135,10 @@ shared-storage/מסמכים
    - All specialized workflows call the base API Request workflow
    - Workflows can be created, updated, deleted, activated/deactivated, and executed
    - This enables the AI agent to create new tools for itself dynamically
+
+6. **Machine Manager**: The Machine Manager suite provides comprehensive machine control:
+   - System Status for monitoring CPU, memory, disk, and network
+   - Service Control for systemd service management
+   - Docker Control for container management
+   - Jellyfin API for media server integration
+   - Health Monitor for automated alerting (configure notifications as needed)

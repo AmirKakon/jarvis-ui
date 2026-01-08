@@ -1,0 +1,188 @@
+{
+  "name": "Machine Manager - Service Control",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "action",
+              "type": "string"
+            },
+            {
+              "name": "serviceName",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "svc-ctrl-trigger",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build systemctl command based on action and service name\nconst action = $input.first().json.action?.toLowerCase() || 'status';\nconst serviceName = $input.first().json.serviceName || '';\n\nlet command = '';\nlet requiresService = true;\n\nswitch(action) {\n  case 'status':\n    command = serviceName \n      ? `systemctl status ${serviceName} --no-pager` \n      : 'systemctl list-units --type=service --state=running --no-pager | head -30';\n    requiresService = false;\n    break;\n  case 'start':\n    command = `systemctl start ${serviceName} && systemctl status ${serviceName} --no-pager`;\n    break;\n  case 'stop':\n    command = `systemctl stop ${serviceName} && systemctl status ${serviceName} --no-pager`;\n    break;\n  case 'restart':\n    command = `systemctl restart ${serviceName} && systemctl status ${serviceName} --no-pager`;\n    break;\n  case 'enable':\n    command = `systemctl enable ${serviceName} && systemctl is-enabled ${serviceName}`;\n    break;\n  case 'disable':\n    command = `systemctl disable ${serviceName} && systemctl is-enabled ${serviceName}`;\n    break;\n  case 'list':\n    command = 'systemctl list-units --type=service --no-pager | head -50';\n    requiresService = false;\n    break;\n  case 'failed':\n    command = 'systemctl list-units --type=service --state=failed --no-pager';\n    requiresService = false;\n    break;\n  case 'logs':\n    command = `journalctl -u ${serviceName} --no-pager -n 50`;\n    break;\n  default:\n    return [{ json: { error: `Unknown action: ${action}. Valid actions: status, start, stop, restart, enable, disable, list, failed, logs` } }];\n}\n\nif (requiresService && !serviceName) {\n  return [{ json: { error: `Service name required for action: ${action}` } }];\n}\n\nreturn [{ json: { command, action, serviceName } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "svc-ctrl-prepare",
+      "name": "Prepare Command"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "svc-check-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "svc-ctrl-check",
+      "name": "Has Error?"
+    },
+    {
+      "parameters": {
+        "command": "=sudo {{ $json.command }}"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        660,
+        100
+      ],
+      "id": "svc-ctrl-execute",
+      "name": "Execute Service Command",
+      "credentials": {
+        "sshPassword": {
+          "id": "JjGMaWTmkWf8n5Qj",
+          "name": "IOT_Kamuri"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the service control output\nconst result = $input.first().json;\nconst inputData = $('Prepare Command').first().json;\n\nreturn [{\n  json: {\n    action: inputData.action,\n    serviceName: inputData.serviceName || 'N/A',\n    status: 'success',\n    output: result.stdout || '',\n    errors: result.stderr || null,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "id": "svc-ctrl-format",
+      "name": "Format Output"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return the error\nreturn [{ json: $input.first().json }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -100
+      ],
+      "id": "svc-ctrl-error",
+      "name": "Return Error"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Command": {
+      "main": [
+        [
+          {
+            "node": "Has Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Error?": {
+      "main": [
+        [
+          {
+            "node": "Return Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Service Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Service Command": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": true,
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "action": "status",
+          "serviceName": ""
+        }
+      }
+    ]
+  },
+  "id": "EmRfZ7kbqyAIbz4m"
+}

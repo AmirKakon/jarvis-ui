@@ -1,0 +1,174 @@
+{
+  "name": "Machine Manager - Health Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "health-schedule",
+      "name": "Every 15 Minutes"
+    },
+    {
+      "parameters": {
+        "command": "echo '=== SYSTEM HEALTH CHECK ===' && echo '' && echo '--- UPTIME ---' && uptime && echo '' && echo '--- MEMORY ---' && free -h | head -2 && echo '' && echo '--- DISK ---' && df -h | grep -E '^/dev/' | awk '{print $1, $5, $6}' && echo '' && echo '--- CPU LOAD ---' && cat /proc/loadavg && echo '' && echo '--- CRITICAL SERVICES ---' && systemctl is-active n8n jellyfin smbd docker 2>/dev/null || echo 'Some services not found'"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "id": "health-system-check",
+      "name": "Check System Health",
+      "credentials": {
+        "sshPassword": {
+          "id": "JjGMaWTmkWf8n5Qj",
+          "name": "IOT_Kamuri"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse health check output and determine if alerts are needed\nconst stdout = $input.first().json.stdout || '';\nconst lines = stdout.split('\\n');\n\nlet alerts = [];\nlet healthData = {\n  timestamp: new Date().toISOString(),\n  raw: stdout\n};\n\n// Check disk usage (alert if any partition > 90%)\nconst diskLines = lines.filter(l => l.includes('%'));\nfor (const line of diskLines) {\n  const match = line.match(/(\\d+)%/);\n  if (match) {\n    const usage = parseInt(match[1]);\n    if (usage > 90) {\n      alerts.push(`DISK CRITICAL: ${line.trim()} - ${usage}% used`);\n    } else if (usage > 80) {\n      alerts.push(`DISK WARNING: ${line.trim()} - ${usage}% used`);\n    }\n  }\n}\n\n// Check load average (alert if > number of CPUs)\nconst loadLine = lines.find(l => l.match(/^\\d+\\.\\d+/));\nif (loadLine) {\n  const loads = loadLine.split(' ').slice(0, 3).map(parseFloat);\n  if (loads[0] > 4) { // Assuming 4 cores\n    alerts.push(`CPU LOAD HIGH: 1min=${loads[0]}, 5min=${loads[1]}, 15min=${loads[2]}`);\n  }\n}\n\n// Check memory from free -h output\nconst memLine = lines.find(l => l.includes('Mem:'));\nif (memLine) {\n  const parts = memLine.split(/\\s+/);\n  healthData.memory = {\n    total: parts[1],\n    used: parts[2],\n    free: parts[3],\n    available: parts[6]\n  };\n}\n\nhealthData.alerts = alerts;\nhealthData.alertCount = alerts.length;\nhealthData.status = alerts.length === 0 ? 'healthy' : (alerts.some(a => a.includes('CRITICAL')) ? 'critical' : 'warning');\n\nreturn [{ json: healthData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "health-analyze",
+      "name": "Analyze Health"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "health-has-alerts",
+              "leftValue": "={{ $json.alertCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ],
+      "id": "health-check-alerts",
+      "name": "Has Alerts?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log alerts (placeholder for notification integration)\nconst data = $input.first().json;\nconsole.log('HEALTH ALERTS:', data.alerts);\n\n// You can add Telegram/Email notification here\n// For now, just return the alert data\n\nreturn [{\n  json: {\n    ...data,\n    notificationSent: false,\n    note: 'Configure Telegram/Email node to receive alerts'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ],
+      "id": "health-alert",
+      "name": "Send Alert (Placeholder)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// System is healthy - just log\nconst data = $input.first().json;\nreturn [{ json: { ...data, logged: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "id": "health-log",
+      "name": "Log Health Status"
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Check System Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check System Health": {
+      "main": [
+        [
+          {
+            "node": "Analyze Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Health": {
+      "main": [
+        [
+          {
+            "node": "Has Alerts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Alerts?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert (Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Health Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": true,
+  "id": "3P2iNI900z4nZIGc"
+}

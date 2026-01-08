@@ -1,0 +1,195 @@
+{
+  "name": "Machine Manager - Jellyfin API",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "action",
+              "type": "string"
+            },
+            {
+              "name": "params",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "jellyfin-trigger",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Jellyfin API request based on action\nconst action = $input.first().json.action?.toLowerCase() || 'status';\nconst paramsStr = $input.first().json.params || '{}';\nlet params = {};\n\ntry {\n  params = typeof paramsStr === 'string' ? JSON.parse(paramsStr) : paramsStr;\n} catch(e) {\n  params = {};\n}\n\nconst baseUrl = 'http://localhost:20001';\nlet endpoint = '';\nlet method = 'GET';\nlet body = null;\n\nswitch(action) {\n  case 'status':\n  case 'info':\n    endpoint = '/System/Info';\n    break;\n  case 'health':\n    endpoint = '/health';\n    break;\n  case 'users':\n    endpoint = '/Users';\n    break;\n  case 'sessions':\n    endpoint = '/Sessions';\n    break;\n  case 'libraries':\n  case 'items':\n    endpoint = '/Library/VirtualFolders';\n    break;\n  case 'scan':\n  case 'refresh':\n    endpoint = '/Library/Refresh';\n    method = 'POST';\n    break;\n  case 'activity':\n    endpoint = '/System/ActivityLog/Entries';\n    break;\n  case 'scheduled-tasks':\n    endpoint = '/ScheduledTasks';\n    break;\n  case 'search':\n    const searchTerm = params.query || params.searchTerm || '';\n    endpoint = `/Items?searchTerm=${encodeURIComponent(searchTerm)}&Recursive=true&Limit=20`;\n    break;\n  case 'playing':\n    endpoint = '/Sessions?ActiveWithinSeconds=960';\n    break;\n  case 'logs':\n    endpoint = '/System/Logs';\n    break;\n  default:\n    return [{ json: { error: `Unknown action: ${action}. Valid actions: status, info, health, users, sessions, libraries, items, scan, refresh, activity, scheduled-tasks, search, playing, logs` } }];\n}\n\nreturn [{ json: { url: baseUrl + endpoint, method, body, action } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "jellyfin-prepare",
+      "name": "Prepare Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "jellyfin-check-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "jellyfin-check",
+      "name": "Has Error?"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        100
+      ],
+      "id": "jellyfin-request",
+      "name": "Jellyfin API Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the Jellyfin API response\nconst result = $input.first().json;\nconst inputData = $('Prepare Request').first().json;\n\n// Truncate large responses\nlet output = result;\nif (typeof result === 'object' && Array.isArray(result) && result.length > 20) {\n  output = {\n    totalItems: result.length,\n    items: result.slice(0, 20),\n    note: `Showing first 20 of ${result.length} items`\n  };\n}\n\nreturn [{\n  json: {\n    action: inputData.action,\n    status: 'success',\n    data: output,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "id": "jellyfin-format",
+      "name": "Format Output"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return the error\nreturn [{ json: $input.first().json }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -100
+      ],
+      "id": "jellyfin-error",
+      "name": "Return Error"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Request": {
+      "main": [
+        [
+          {
+            "node": "Has Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Error?": {
+      "main": [
+        [
+          {
+            "node": "Return Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Jellyfin API Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jellyfin API Request": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": true,
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "action": "status",
+          "params": "{}"
+        }
+      }
+    ]
+  },
+  "id": "JlhBPAIfI8WHfCsj"
+}

@@ -82,6 +82,8 @@ if ($OrganizeByFolder) { $args += "--organize-by-folder" }
 
 python export_workflows.py @args
 
+cd ..
+
 Write-Host ""
 Write-Host "Done!" -ForegroundColor Green
 

@@ -19,6 +19,10 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Fix Unicode output on Windows
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 # Load .env from n8n folder (same directory as this script)
 env_path = Path(__file__).parent / ".env"
 load_dotenv(env_path)
@@ -207,16 +211,13 @@ def import_all_workflows(activate: bool = True, dry_run: bool = False):
             wf_id = workflow_data.get("id")
             wf_name = workflow_data.get("name", wf_file.stem)
             
-            if not wf_id:
-                print(f"⚠ Skipping {wf_file.name}: No workflow ID found")
-                results["failed"].append((wf_name, "No ID"))
-                continue
-            
-            # Check if workflow exists
-            existing = get_existing_workflow(headers, wf_id)
-            
             # Track the ID to use for activation
             activate_id = wf_id
+            existing = None
+            
+            # Check if workflow exists (only if we have an ID)
+            if wf_id:
+                existing = get_existing_workflow(headers, wf_id)
             
             if existing:
                 # Update existing workflow
@@ -237,6 +238,18 @@ def import_all_workflows(activate: bool = True, dry_run: bool = False):
                     # Use the new ID assigned by n8n for activation
                     if new_id:
                         activate_id = new_id
+                        # Update the local file with the new ID
+                        if not dry_run:
+                            workflow_data["id"] = new_id
+                            # Update filename to include new ID
+                            new_filename = f"{wf_name}_{new_id}.json"
+                            new_filepath = wf_file.parent / new_filename
+                            with open(new_filepath, "w", encoding="utf-8") as f:
+                                json.dump(workflow_data, f, indent=2, ensure_ascii=False)
+                            # Remove old file if different
+                            if wf_file != new_filepath and wf_file.exists():
+                                wf_file.unlink()
+                            print(f"  → Saved with ID: {new_filepath.name}")
                 else:
                     print(f"✗ Failed to create '{wf_name}': {msg}")
                     results["failed"].append((wf_name, msg))
