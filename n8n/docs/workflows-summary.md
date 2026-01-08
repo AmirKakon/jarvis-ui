@@ -16,30 +16,31 @@ This document provides an overview of all n8n workflows used in the JARVIS syste
 5. [Add Memory](#5-add-memory) - Persist memories to database
 
 ### Machine Manager Workflows
-6. [Machine Manager - System Status](#6-machine-manager---system-status) - CPU, RAM, disk, network info
-7. [Machine Manager - Service Control](#7-machine-manager---service-control) - Systemd service management
-8. [Machine Manager - Docker Control](#8-machine-manager---docker-control) - Docker container management
-9. [Machine Manager - Jellyfin API](#9-machine-manager---jellyfin-api) - Media server management
-10. [Machine Manager - Health Monitor](#10-machine-manager---health-monitor) - Automated health checks
+6. [Machine Manager Agent](#6-machine-manager-agent) - AI Agent for machine management
+7. [Machine Manager - System Status](#7-machine-manager---system-status) - CPU, RAM, disk, network info
+8. [Machine Manager - Service Control](#8-machine-manager---service-control) - Systemd service management
+9. [Machine Manager - Docker Control](#9-machine-manager---docker-control) - Docker container management
+10. [Machine Manager - Jellyfin API](#10-machine-manager---jellyfin-api) - Media server management
+11. [Machine Manager - Health Monitor](#11-machine-manager---health-monitor) - Automated health checks
 
 ### Utility Workflows
-11. [gemini cli trigger](#11-gemini-cli-trigger) - Execute Gemini CLI commands
-12. [sudo ssh commands](#12-sudo-ssh-commands) - Execute SSH commands
+12. [gemini cli trigger](#12-gemini-cli-trigger) - Execute Gemini CLI commands
+13. [sudo ssh commands](#13-sudo-ssh-commands) - Execute SSH commands
 
 ### N8N Manager Workflows
-13. [N8N Manager - API Request](#13-n8n-manager---api-request) - Base n8n API handler
-14. [N8N Manager - Workflow List](#14-n8n-manager---workflow-list) - List all workflows
-15. [N8N Manager - Workflow Get](#15-n8n-manager---workflow-get) - Get workflow details
-16. [N8N Manager - Workflow Create](#16-n8n-manager---workflow-create) - Create new workflow
-17. [N8N Manager - Workflow Update](#17-n8n-manager---workflow-update) - Update existing workflow
-18. [N8N Manager - Workflow Delete](#18-n8n-manager---workflow-delete) - Delete workflow
-19. [N8N Manager - Workflow Activate](#19-n8n-manager---workflow-activate) - Activate workflow
-20. [N8N Manager - Workflow Deactivate](#20-n8n-manager---workflow-deactivate) - Deactivate workflow
-21. [N8N Manager - Workflow Execute](#21-n8n-manager---workflow-execute) - Execute workflow manually
+14. [N8N Manager - API Request](#14-n8n-manager---api-request) - Base n8n API handler
+15. [N8N Manager - Workflow List](#15-n8n-manager---workflow-list) - List all workflows
+16. [N8N Manager - Workflow Get](#16-n8n-manager---workflow-get) - Get workflow details
+17. [N8N Manager - Workflow Create](#17-n8n-manager---workflow-create) - Create new workflow
+18. [N8N Manager - Workflow Update](#18-n8n-manager---workflow-update) - Update existing workflow
+19. [N8N Manager - Workflow Delete](#19-n8n-manager---workflow-delete) - Delete workflow
+20. [N8N Manager - Workflow Activate](#20-n8n-manager---workflow-activate) - Activate workflow
+21. [N8N Manager - Workflow Deactivate](#21-n8n-manager---workflow-deactivate) - Deactivate workflow
+22. [N8N Manager - Workflow Execute](#22-n8n-manager---workflow-execute) - Execute workflow manually
 
 ### Media & File Workflows
-22. [download video](#22-download-video) - Video download utility
-23. [Upload File](#23-upload-file) - File upload to network storage
+23. [download video](#23-download-video) - Video download utility
+24. [Upload File](#24-upload-file) - File upload to network storage
 
 ---
 
@@ -72,17 +73,13 @@ The system prompt is organized into sections:
 - **Machine Management** - System, service, Docker, and Jellyfin tools
 - **Context** - Location (Jerusalem) and local time
 
-### Connected Tools
-| Tool | Purpose |
-|------|---------|
-| **AI Long Term Memory Agent** | Store/retrieve long-term memories |
-| **gemini cli trigger** | Execute Gemini CLI commands on local machine |
-| **sudo ssh commands** | Run SSH commands with sudo |
-| **N8N Manager - API Request** | Create/manage n8n workflows via API |
-| **System Status** | Get CPU, memory, disk, network info |
-| **Service Control** | Manage systemd services |
-| **Docker Control** | Manage Docker containers |
-| **Jellyfin API** | Interact with Jellyfin media server |
+### Connected Sub-Agents & Tools
+| Agent/Tool | Purpose |
+|------------|---------|
+| **Machine Manager Agent** | AI Agent for all infrastructure tasks |
+| **Long-Term Memory Agent** | Store/retrieve long-term memories |
+| **N8N Manager** | Create/manage n8n workflows via API |
+| **Gemini CLI** | Execute Gemini CLI for AI analysis |
 | **Calculator** | Mathematical calculations |
 
 ### Nodes
@@ -290,7 +287,44 @@ Persist validated memories to the PostgreSQL vector database.
 
 ---
 
-## 6. Machine Manager - System Status
+## 6. Machine Manager Agent
+
+| Property | Value |
+|----------|-------|
+| **ID** | `3BKi0U0juxBNd3aO` |
+| **Status** | Active |
+| **Trigger** | Execute Workflow Trigger |
+| **Model** | GPT-5-nano |
+| **Description** | AI Agent specialized in machine and infrastructure management. Delegates to sub-tools for system, service, Docker, and Jellyfin operations. |
+
+### Purpose
+Expert AI Agent for all machine management tasks. Acts as a sub-agent to Jarvis, handling infrastructure requests with its own focused system prompt.
+
+### Input
+- `chatInput`: The task description (e.g., "check disk usage", "restart docker")
+- `sessionId`: Session identifier for context
+
+### Connected Tools
+| Tool | Purpose |
+|------|---------|
+| **System Status** | CPU, memory, disk, network monitoring |
+| **Service Control** | systemd service management |
+| **Docker Control** | Container management |
+| **Jellyfin API** | Media server operations |
+
+### Nodes
+- Execute Workflow Trigger
+- AI Agent (LangChain) with infrastructure-focused system prompt
+- OpenAI Chat Model (gpt-5-nano)
+- Simple Memory (session-based)
+- Tool workflow connections
+
+### Credentials
+- OpenAI: `OpenAi account`
+
+---
+
+## 7. Machine Manager - System Status
 
 | Property | Value |
 |----------|-------|
@@ -1036,36 +1070,49 @@ shared-storage/מסמכים
 │                      Jarvis AI Agent Orchestrator                        │
 │                           (Main Entry Point)                             │
 │                    Webhook → AI Agent → Response                         │
+│                                                                          │
+│  Tools: Calculator, Gemini CLI                                           │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
-    ┌───────────────┬───────────────┼───────────────┬───────────────┐
-    │               │               │               │               │
-    ▼               ▼               ▼               ▼               ▼
-┌─────────┐   ┌─────────┐   ┌─────────────┐   ┌─────────┐   ┌─────────────┐
-│ Memory  │   │ gemini  │   │ sudo ssh    │   │ N8N     │   │  Machine    │
-│ Agent   │   │ cli     │   │ commands    │   │ Manager │   │  Manager    │
-└─────────┘   └─────────┘   └─────────────┘   └─────────┘   │   Suite     │
-    │                                               │       └─────────────┘
-    │                                               │               │
-┌───┴───────────────┐                       ┌───────┴───────┐       │
-│   Memory Stack    │                       │ Workflow CRUD │       │
-├───────────────────┤                       └───────────────┘       │
-│ governance        │                                               │
-│ deduplication     │                       ┌───────────────────────┤
-│ Add Memory        │                       │                       │
-│ PGVector Store    │                       ▼                       ▼
-└───────────────────┘               ┌───────────────┐       ┌───────────────┐
-        │                           │ System Status │       │ Jellyfin API  │
-        ▼                           │ Service Ctrl  │       │ Port 20001    │
-┌─────────────────────┐             │ Docker Ctrl   │       └───────────────┘
-│  PostgreSQL+PGVector │             └───────────────┘
-│  (long_term_memory)  │                    │
-└─────────────────────┘                     ▼
-                                    ┌───────────────┐
-                                    │ Health Monitor│
-                                    │ (Scheduled)   │
-                                    └───────────────┘
+        ┌───────────────────────────┼───────────────────────────┐
+        │                           │                           │
+        ▼                           ▼                           ▼
+┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
+│  Machine Manager  │   │  Long-Term Memory │   │    N8N Manager    │
+│      AGENT        │   │       AGENT       │   │     (API Tool)    │
+│  (Sub-Agent)      │   │   (Sub-Agent)     │   │                   │
+└───────────────────┘   └───────────────────┘   └───────────────────┘
+        │                           │                       │
+        │                           │               ┌───────┴───────┐
+        ▼                           ▼               │ Workflow CRUD │
+┌───────────────────┐   ┌───────────────────┐       └───────────────┘
+│ Machine Tools:    │   │  Memory Tools:    │
+│ • System Status   │   │  • Governance     │
+│ • Service Control │   │  • Deduplication  │
+│ • Docker Control  │   │  • Add Memory     │
+│ • Jellyfin API    │   │  • PGVector Store │
+└───────────────────┘   └───────────────────┘
+        │                           │
+        │                           ▼
+        │               ┌─────────────────────┐
+        │               │  PostgreSQL+PGVector │
+        │               │  (long_term_memory)  │
+        │               └─────────────────────┘
+        │
+        ├─────────────────────────────────────┐
+        ▼                                     ▼
+┌───────────────┐                   ┌───────────────┐
+│ Health Monitor│                   │ Jellyfin API  │
+│ (Scheduled)   │                   │ Port 20001    │
+└───────────────┘                   └───────────────┘
 ```
+
+### Hierarchical Agent Pattern
+The system uses a **hierarchical agent architecture**:
+- **Jarvis** (Top-level) → Routes to specialized sub-agents
+- **Machine Manager Agent** → Expert in infrastructure
+- **Long-Term Memory Agent** → Expert in memory management
+- **N8N Manager** → Direct API tool for workflow management
 
 ---
 
