@@ -86,9 +86,9 @@ This creates the `sessions` and `messages` tables in your PostgreSQL database.
 
 ### 5. Access the UI
 
-- **Development**: http://localhost:3000
-- **Production**: http://localhost:20003
-- **API Docs**: http://localhost:20003/docs
+- **Development**: http://localhost:20006
+- **Production**: http://localhost:20005
+- **API Docs**: http://localhost:20005/docs
 
 ## Project Structure
 

@@ -11,7 +11,7 @@ echo ======================================
 echo   Jarvis UI - Frontend Dev Server
 echo ======================================
 echo.
-echo Starting on http://localhost:3000
+echo Starting on http://localhost:20006
 echo Press Ctrl+C to stop
 echo.
 

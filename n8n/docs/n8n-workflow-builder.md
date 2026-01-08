@@ -209,7 +209,7 @@ n8n has a native node for self-management:
 
 ```javascript
 const apiKey = $env.N8N_API_KEY;
-const baseUrl = 'http://localhost:20002/api/v1';
+const baseUrl = 'http://localhost:20003/api/v1';
 
 const workflow = {
   name: 'Generated Workflow',
@@ -390,7 +390,7 @@ This enables the agent to create new tools for itself dynamically!
 
 ## 📝 Notes
 
-- API available at: `http://localhost:20002/api/v1/`
+- API available at: `http://localhost:20003/api/v1/`
 - Generate API key in n8n Settings → API
 - Workflow IDs are returned on creation
 - Test workflows before activating in production

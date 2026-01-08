@@ -165,12 +165,19 @@ class N8NClient:
         if DEBUG_STREAMING:
             logger.info(f"Sending streaming request to: {self.webhook_url}")
         
+        # Disable gzip encoding to enable true streaming
+        # If server uses gzip, httpx must wait for complete response before decompressing
+        headers = {
+            "Accept-Encoding": "identity",  # Disable compression for streaming
+        }
+        
         async with httpx.AsyncClient() as client:
             try:
                 async with client.stream(
                     "POST",
                     self.webhook_url,
                     json=payload,
+                    headers=headers,
                     timeout=self.timeout,
                 ) as response:
                     response.raise_for_status()

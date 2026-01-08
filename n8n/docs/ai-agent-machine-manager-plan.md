@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    n8n AI Agent (Main)                      │
-│                    Port 20002                               │
+│                    Port 20003                               │
 ├─────────────────────────────────────────────────────────────┤
 │                         TOOLS                               │
 ├──────────────┬──────────────┬──────────────┬───────────────┤
@@ -24,9 +24,13 @@
 
 | Port  | Service      | Description           |
 |-------|--------------|----------------------|
-| 20000 | Samba/SSH    | File sharing & remote access |
-| 20001 | Jellyfin     | Media server         |
-| 20002 | n8n          | Automation platform  |
+| 20000 | SSH          | Remote access         |
+| 20001 | nginx        | Reverse proxy (streaming) |
+| 20002 | Jellyfin     | Media server          |
+| 20003 | n8n          | Automation platform   |
+| 20004 | PostgreSQL   | Database (pgvector)   |
+| 20005 | Jarvis Backend | FastAPI backend     |
+| 20006 | Jarvis Frontend | React frontend     |
 
 ---
 
@@ -123,7 +127,7 @@ Maintain a list of known services:
   "services": [
     {"name": "samba", "port": 20000, "type": "file-sharing"},
     {"name": "jellyfin", "port": 20001, "type": "media"},
-    {"name": "n8n", "port": 20002, "type": "automation"}
+    {"name": "n8n", "port": 20003, "type": "automation"}
   ]
 }
 ```

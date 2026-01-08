@@ -22,11 +22,11 @@ echo   Application Started!
 echo ======================================
 echo.
 echo Access the application at:
-echo   Frontend (dev): http://localhost:3000
-echo   Backend API:    http://localhost:20003
-echo   API Docs:       http://localhost:20003/docs
+echo   Frontend (dev): http://localhost:20006
+echo   Backend API:    http://localhost:20005
+echo   API Docs:       http://localhost:20005/docs
 echo.
 
 timeout /t 3 /nobreak >nul
-start http://localhost:3000
+start http://localhost:20006
 

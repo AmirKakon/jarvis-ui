@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     
     # Server settings
     host: str = "0.0.0.0"
-    port: int = 20004
+    port: int = 20005
     
     # Database settings (required - must be set in .env)
     database_url: str

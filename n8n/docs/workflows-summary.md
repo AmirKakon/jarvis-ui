@@ -673,7 +673,7 @@ Base API handler for all N8N Manager operations. Makes HTTP requests to the n8n 
 ### Base URL
 
 ```
-http://localhost:20002/api/v1
+http://localhost:20003/api/v1
 ```
 
 ### Nodes
@@ -1120,9 +1120,13 @@ The system uses a **hierarchical agent architecture**:
 
 | Port  | Service      | Description                |
 |-------|--------------|---------------------------|
-| 20000 | Samba/SSH    | File sharing & remote access |
-| 20001 | Jellyfin     | Media server              |
-| 20002 | n8n          | Automation platform       |
+| 20000 | SSH          | Remote access              |
+| 20001 | nginx        | Reverse proxy (streaming)  |
+| 20002 | Jellyfin     | Media server               |
+| 20003 | n8n          | Automation platform        |
+| 20004 | PostgreSQL   | Database (pgvector)        |
+| 20005 | Jarvis Backend | FastAPI backend          |
+| 20006 | Jarvis Frontend | React frontend          |
 
 ---
 

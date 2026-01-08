@@ -34,7 +34,7 @@ if (-not $FrontendOnly) {
     $backendCmd = @"
 Set-Location '$BackendPath'
 & '$activateScript'
-Write-Host 'Backend server starting on port 20004...' -ForegroundColor Green
+Write-Host 'Backend server starting on port 20005...' -ForegroundColor Green
 Write-Host 'Press Ctrl+C to stop' -ForegroundColor Gray
 Write-Host ''
 python main.py
@@ -54,14 +54,14 @@ if (-not $BackendOnly) {
         Push-Location $FrontendPath
         npm run build
         Pop-Location
-        Write-Host "  Frontend built. Serve from backend at http://localhost:20004" -ForegroundColor Green
+        Write-Host "  Frontend built. Serve from backend at http://localhost:20005" -ForegroundColor Green
     } else {
         Write-Host "Starting Frontend Dev Server..." -ForegroundColor Yellow
         
         # Start frontend in new PowerShell window
         $frontendCmd = @"
 Set-Location '$FrontendPath'
-Write-Host 'Frontend dev server starting on port 3000...' -ForegroundColor Green
+Write-Host 'Frontend dev server starting on port 20006...' -ForegroundColor Green
 Write-Host 'Press Ctrl+C to stop' -ForegroundColor Gray
 Write-Host ''
 npm run dev
@@ -80,18 +80,18 @@ Write-Host ""
 
 if ($Production) {
     Write-Host "Access the application at:" -ForegroundColor White
-    Write-Host "  http://localhost:20004" -ForegroundColor Cyan
+    Write-Host "  http://localhost:20005" -ForegroundColor Cyan
 } else {
     Write-Host "Access the application at:" -ForegroundColor White
-    Write-Host "  Frontend (dev): http://localhost:3000" -ForegroundColor Cyan
-    Write-Host "  Backend API:    http://localhost:20004" -ForegroundColor Cyan
-    Write-Host "  API Docs:       http://localhost:20004/docs" -ForegroundColor Cyan
+    Write-Host "  Frontend (dev): http://localhost:20006" -ForegroundColor Cyan
+    Write-Host "  Backend API:    http://localhost:20005" -ForegroundColor Cyan
+    Write-Host "  API Docs:       http://localhost:20005/docs" -ForegroundColor Cyan
 }
 Write-Host ""
 
 # Open browser
 if (-not $NoBrowser -and -not $Production) {
     Start-Sleep -Seconds 2
-    Start-Process "http://localhost:3000"
+    Start-Process "http://localhost:20006"
 }
 

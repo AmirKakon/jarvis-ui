@@ -11,7 +11,7 @@ Write-Host "======================================" -ForegroundColor Cyan
 Write-Host "  Jarvis UI - Frontend Dev Server" -ForegroundColor Cyan
 Write-Host "======================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Starting on http://localhost:3000" -ForegroundColor Green
+Write-Host "Starting on http://localhost:20006" -ForegroundColor Green
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Gray
 Write-Host ""
 
