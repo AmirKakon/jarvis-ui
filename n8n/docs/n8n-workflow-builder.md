@@ -1,8 +1,47 @@
 # n8n Workflow Builder - Self-Generating Workflows
 
+> Last updated: January 11, 2026
+
 ## Overview
 
-n8n can programmatically create, update, and manage its own workflows through its built-in REST API. This enables building an AI agent that can generate new automation workflows on demand.
+n8n can programmatically create, update, and manage its own workflows through its built-in REST API. The JARVIS AI assistant can use these capabilities via the N8N Manager tool suite, now called from the **FastAPI backend** through the Tool Executor.
+
+---
+
+## 🏗️ Architecture (v2 - Backend-Hosted LLM)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     User Request                            │
+│        "Create a workflow that monitors disk space"         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   FastAPI Backend                           │
+│                                                             │
+│   LLM Orchestrator (direct OpenAI/Anthropic API)            │
+│   - Understands request                                     │
+│   - Generates workflow JSON                                 │
+│   - Calls n8n_workflow_create tool                          │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   n8n Tool Executor                         │
+│              POST /webhook/tool-executor                    │
+│                                                             │
+│   Routes to: N8N Manager - Workflow Create                  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   n8n API Call                              │
+│              POST /api/v1/workflows                         │
+│                                                             │
+│   Creates workflow → Returns ID → Optionally activates      │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -26,39 +65,7 @@ n8n can programmatically create, update, and manage its own workflows through it
 
 - Generate API key in: **Settings → API → Create API Key**
 - Use header: `X-N8N-API-KEY: your-api-key`
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     User Request                            │
-│        "Create a workflow that monitors disk space"         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      AI Agent                               │
-│              (Gemini CLI / OpenAI / etc.)                   │
-│                                                             │
-│   Understands request → Generates workflow JSON             │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   n8n API Call                              │
-│              POST /api/v1/workflows                         │
-│                                                             │
-│   Creates workflow → Returns ID → Optionally activates      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  New Workflow Created                       │
-│              Ready to use or activate                       │
-└─────────────────────────────────────────────────────────────┘
-```
+- Base URL: `http://localhost:20002/api/v1`
 
 ---
 
@@ -109,21 +116,6 @@ n8n can programmatically create, update, and manage its own workflows through it
 | `active` | Whether workflow is active (for triggers) |
 | `settings` | Workflow settings (timezone, error handling, etc.) |
 
-### Node Structure
-
-```json
-{
-  "parameters": {
-    // Node-specific parameters
-  },
-  "id": "unique-uuid",
-  "name": "Display Name",
-  "type": "n8n-nodes-base.nodeType",
-  "typeVersion": 1,
-  "position": [x, y]
-}
-```
-
 ---
 
 ## 🔌 Common Node Types
@@ -148,110 +140,92 @@ n8n can programmatically create, update, and manage its own workflows through it
 | `n8n-nodes-base.set` | Set/transform data |
 | `n8n-nodes-base.telegram` | Send Telegram message |
 | `n8n-nodes-base.slack` | Send Slack message |
+| `n8n-nodes-base.ssh` | Execute SSH commands |
+
+---
+
+## 🛠️ Workflow Management Tools (Backend → n8n)
+
+The backend calls these tools via the Tool Executor webhook:
+
+| Tool Name | Description | n8n Workflow |
+|-----------|-------------|--------------|
+| `n8n_workflow_list` | List all workflows | N8N Manager - Workflow List |
+| `n8n_workflow_get` | Get workflow details | N8N Manager - Workflow Get |
+| `n8n_workflow_create` | Create new workflow | N8N Manager - Workflow Create |
+| `n8n_workflow_update` | Update workflow | N8N Manager - Workflow Update |
+| `n8n_workflow_delete` | Delete workflow | N8N Manager - Workflow Delete |
+| `n8n_workflow_activate` | Activate workflow | N8N Manager - Workflow Activate |
+| `n8n_workflow_deactivate` | Deactivate workflow | N8N Manager - Workflow Deactivate |
+| `n8n_workflow_execute` | Execute workflow | N8N Manager - Workflow Execute |
+
+### Backend Tool Registry Schema
+
+```python
+# In backend/services/tool_registry.py
+
+{
+    "type": "function",
+    "function": {
+        "name": "n8n_workflow_list",
+        "description": "List all n8n workflows",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "activeOnly": {
+                    "type": "boolean",
+                    "description": "Filter to only active workflows"
+                }
+            }
+        }
+    }
+},
+{
+    "type": "function",
+    "function": {
+        "name": "n8n_workflow_create",
+        "description": "Create a new n8n workflow from JSON definition",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "workflowJson": {
+                    "type": "object",
+                    "description": "Complete workflow definition with name, nodes, connections, settings"
+                }
+            },
+            "required": ["workflowJson"]
+        }
+    }
+},
+# ... more tool schemas
+```
 
 ---
 
 ## 🤖 AI-Powered Workflow Generation
 
+The LLM in the FastAPI backend can generate workflow JSON based on natural language requests:
+
 ### Process Flow
 
-1. **User Input**: Natural language description of desired workflow
-2. **AI Processing**: LLM generates valid n8n workflow JSON
-3. **Validation**: Check JSON structure and node types
-4. **Creation**: POST to n8n API
-5. **Activation**: Optionally activate the workflow
+1. **User Input**: "Create a workflow that checks disk space every hour and alerts me if > 90%"
+2. **Backend LLM**: Generates valid n8n workflow JSON
+3. **Tool Call**: `n8n_workflow_create` with the JSON
+4. **Tool Executor**: Routes to N8N Manager - Workflow Create
+5. **n8n API**: Creates the workflow
+6. **Response**: Workflow ID returned to user
 
 ### Example Prompts → Workflows
 
 | User Request | Generated Workflow |
 |--------------|-------------------|
-| "Check disk space every hour, alert if > 90%" | Schedule Trigger → Execute Command → IF → Telegram |
+| "Check disk space every hour, alert if > 90%" | Schedule Trigger → SSH Command → IF → Telegram |
 | "When I receive a webhook, save data to file" | Webhook → Code → Write File |
 | "Monitor a URL and notify me if it's down" | Schedule Trigger → HTTP Request → IF → Email |
 
 ---
 
-## 🛠️ Workflow Management Tools
-
-### Tool Definitions for AI Agent
-
-| Tool Name | Description | Implementation |
-|-----------|-------------|----------------|
-| `workflow_list` | List all workflows with status | GET /api/v1/workflows |
-| `workflow_get` | Get details of a specific workflow | GET /api/v1/workflows/{id} |
-| `workflow_create` | Create new workflow from JSON or description | POST /api/v1/workflows |
-| `workflow_update` | Modify existing workflow | PUT /api/v1/workflows/{id} |
-| `workflow_delete` | Delete a workflow | DELETE /api/v1/workflows/{id} |
-| `workflow_activate` | Activate a workflow | POST /api/v1/workflows/{id}/activate |
-| `workflow_deactivate` | Deactivate a workflow | POST /api/v1/workflows/{id}/deactivate |
-| `workflow_execute` | Run a workflow manually | POST /api/v1/workflows/{id}/execute |
-| `workflow_generate` | AI generates workflow from description | AI + POST to API |
-
----
-
-## 📋 Implementation Options
-
-### Option 1: Using n8n's Built-in "n8n" Node
-
-n8n has a native node for self-management:
-- No API key needed (internal calls)
-- Simpler setup
-- Limited to same n8n instance
-
-### Option 2: Using HTTP Request Node
-
-- More flexible
-- Can manage remote n8n instances
-- Requires API key
-- Full control over requests
-
-### Option 3: Using Code Node + API
-
-```javascript
-const apiKey = $env.N8N_API_KEY;
-const baseUrl = 'http://localhost:20003/api/v1';
-
-const workflow = {
-  name: 'Generated Workflow',
-  nodes: [...],
-  connections: {...}
-};
-
-const response = await fetch(`${baseUrl}/workflows`, {
-  method: 'POST',
-  headers: {
-    'X-N8N-API-KEY': apiKey,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(workflow)
-});
-
-return response.json();
-```
-
----
-
-## ⚠️ Security Considerations
-
-| Risk | Mitigation |
-|------|------------|
-| Arbitrary code execution | Validate generated workflows before creation |
-| Credential exposure | Never include credentials in workflow JSON |
-| Infinite loops | Limit trigger frequency, add circuit breakers |
-| Resource exhaustion | Set execution limits and timeouts |
-| Unauthorized access | Secure API key, use internal network only |
-
-### Recommended Safeguards
-
-1. **Template-based generation** - Use pre-approved templates that AI modifies
-2. **Validation layer** - Check workflow JSON before creation
-3. **Approval workflow** - Human approval for sensitive workflows
-4. **Audit logging** - Log all workflow changes
-5. **Sandboxing** - Test generated workflows before activation
-
----
-
-## 📚 Workflow Templates
+## 📋 Workflow Templates
 
 ### Template: Scheduled Command with Alert
 
@@ -272,9 +246,9 @@ return response.json();
     },
     {
       "parameters": {
-        "command": "={{ $json.command }}"
+        "command": "df -h | grep -E '^/dev'"
       },
-      "name": "Run Command",
+      "name": "Check Disk",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [450, 300]
@@ -282,7 +256,7 @@ return response.json();
     {
       "parameters": {
         "conditions": {
-          "string": [{"value1": "={{ $json.stdout }}", "operation": "contains", "value2": "ERROR"}]
+          "string": [{"value1": "={{ $json.stdout }}", "operation": "contains", "value2": "9"}]
         }
       },
       "name": "Check Result",
@@ -292,13 +266,13 @@ return response.json();
     }
   ],
   "connections": {
-    "Schedule": {"main": [[{"node": "Run Command", "type": "main", "index": 0}]]},
-    "Run Command": {"main": [[{"node": "Check Result", "type": "main", "index": 0}]]}
+    "Schedule": {"main": [[{"node": "Check Disk", "type": "main", "index": 0}]]},
+    "Check Disk": {"main": [[{"node": "Check Result", "type": "main", "index": 0}]]}
   }
 }
 ```
 
-### Template: Webhook to Action
+### Template: Webhook Handler
 
 ```json
 {
@@ -333,67 +307,68 @@ return response.json();
 
 ---
 
-## 🎯 Integration with AI Agent
+## ⚠️ Security Considerations
 
-The N8N Manager workflow suite is now available for the AI Agent:
+| Risk | Mitigation |
+|------|------------|
+| Arbitrary code execution | Validate generated workflows before creation |
+| Credential exposure | Never include credentials in workflow JSON |
+| Infinite loops | Limit trigger frequency, add circuit breakers |
+| Resource exhaustion | Set execution limits and timeouts |
+| Unauthorized access | Secure API key, use internal network only |
+
+### Recommended Safeguards
+
+1. **Template-based generation** - Use pre-approved templates that AI modifies
+2. **Validation layer** - Backend checks workflow JSON before creation
+3. **Approval workflow** - Human approval for sensitive workflows (future)
+4. **Audit logging** - Log all workflow changes with session ID
+5. **Sandboxing** - Test generated workflows before activation
+
+---
+
+## 🎯 Integration with Tool Executor
+
+All N8N Manager calls now go through the Tool Executor:
 
 ```
-AI Agent Tools:
-├── System Tools (existing)
-├── Service Tools (existing)
-├── Gemini Tools (existing)
-├── Memory Tools (existing)
-└── N8N Manager Suite (IMPLEMENTED)
-    ├── N8N Manager - API Request      [rJoy4infFhxMynsJ] - Base API handler
-    ├── N8N Manager - Workflow List    [WFList001]        - List all workflows
-    ├── N8N Manager - Workflow Get     [WFGet001]         - Get workflow details
-    ├── N8N Manager - Workflow Create  [WFCreate001]      - Create new workflow
-    ├── N8N Manager - Workflow Update  [WFUpdate001]      - Update workflow
-    ├── N8N Manager - Workflow Delete  [WFDelete001]      - Delete workflow
-    ├── N8N Manager - Workflow Activate   [WFActivate001]   - Activate workflow
-    ├── N8N Manager - Workflow Deactivate [WFDeactivate001] - Deactivate workflow
-    └── N8N Manager - Workflow Execute [WFExecute001]     - Execute workflow manually
-```
-
-This enables the agent to create new tools for itself dynamically!
-
-### Usage Examples
-
-**List all workflows:**
-```json
-{ "activeOnly": false }
-```
-
-**Get workflow details:**
-```json
-{ "workflowId": "bGlXB1gv8DM69uIQ" }
-```
-
-**Create a new workflow:**
-```json
+Backend Tool Call:
 {
-  "workflowJson": {
-    "name": "My New Workflow",
-    "nodes": [...],
-    "connections": {...},
-    "settings": {}
+  "tool": "n8n_workflow_create",
+  "params": {
+    "workflowJson": { ... }
   }
 }
+    ↓
+Tool Executor Webhook:
+POST /webhook/tool-executor
+    ↓
+Switch Node → Routes to N8N Manager - Workflow Create
+    ↓
+Result returned to Backend
 ```
 
-**Activate a workflow:**
-```json
-{ "workflowId": "newWorkflowId" }
-```
+### N8N Manager Suite (All Active)
+
+| Workflow | ID | Status |
+|----------|-----|--------|
+| N8N Manager - API Request | `rJoy4infFhxMynsJ` | 🟢 Active |
+| N8N Manager - Workflow List | `Qa93D3eLsEyc8lP8` | 🟢 Active |
+| N8N Manager - Workflow Get | `pnlb3Sp3BsBxRMwo` | 🟢 Active |
+| N8N Manager - Workflow Create | `rmHtxGxBYPtmotHz` | 🟢 Active |
+| N8N Manager - Workflow Update | `HGtPmkUCzYOy3lo1` | 🟢 Active |
+| N8N Manager - Workflow Delete | `BMvwGw7h9cRylQUE` | 🟢 Active |
+| N8N Manager - Workflow Activate | `GKM344aryPP29f2O` | 🟢 Active |
+| N8N Manager - Workflow Deactivate | `OMqZ93GtwiWTuXne` | 🟢 Active |
+| N8N Manager - Workflow Execute | `eEtS2fTRa7FA8wAl` | 🟢 Active |
 
 ---
 
 ## 📝 Notes
 
-- API available at: `http://localhost:20003/api/v1/`
-- Generate API key in n8n Settings → API
+- API available at: `http://localhost:20002/api/v1/`
+- API key stored in n8n credentials
 - Workflow IDs are returned on creation
 - Test workflows before activating in production
 - Keep template library for common patterns
-- All N8N Manager workflows are in the `n8n/workflows/` folder with "N8N Manager - " prefix
-
+- All calls now routed through Tool Executor for consistency

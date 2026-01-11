@@ -2,252 +2,459 @@
 
 ## Executive Summary
 
-This document outlines the strategy and architecture for building a web-based UI for Jarvis, an AI assistant running in n8n. The solution is designed to be extensible, supporting future features like speech I/O, file sharing, camera/screen sharing, and multi-device access (web + Android app).
+This document outlines the strategy and architecture for building a web-based UI for Jarvis, an AI assistant. The solution uses a **backend-hosted LLM architecture** where the FastAPI backend directly communicates with LLM providers, with n8n serving as a **tool executor** for infrastructure operations. This design enables:
+
+- ✅ Native streaming support via WebSocket
+- ✅ Easy model swapping via LLM abstraction layer
+- ✅ Faster response times (direct LLM calls)
+- ✅ Single n8n entry point for all tools
+- ✅ Future extensibility (speech I/O, file sharing, multi-device)
+
+---
 
 ## Architecture Overview
 
-### High-Level Architecture
+### High-Level Architecture (v2 - Backend-Hosted LLM)
 
 ```
 ┌─────────────────┐
-│  Web Frontend   │ (React/Vanilla JS)
-│  Port: 20003    │
+│  React Frontend │ (Port 20006)
 └────────┬────────┘
-         │ WebSocket
+         │ WebSocket (streaming)
          │ HTTP REST API
-┌────────▼─────────────────────────┐
-│  Python FastAPI Backend          │
-│  - WebSocket Server               │
-│  - Session Management             │
-│  - Message History                │
-│  - n8n Communication Layer        │
-│  - MCP Abstraction Layer          │
-└────────┬──────────────────────────┘
-         │ HTTP POST (Webhook)
-┌────────▼────────┐
-│   n8n Workflow  │
-│   (Jarvis)      │
-└─────────────────┘
+┌────────▼─────────────────────────────────────────────────┐
+│  Python FastAPI Backend (Port 20005)                     │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │  LLM Orchestrator                                   │ │
+│  │  - Direct LLM API calls (OpenAI, Anthropic, etc.)   │ │
+│  │  - Streaming responses to WebSocket                 │ │
+│  │  - Tool/function calling                            │ │
+│  │  - Session & conversation memory                    │ │
+│  └─────────────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │  Tool Registry                                      │ │
+│  │  - Built-in tools (calculator, memory, etc.)        │ │
+│  │  - n8n tool executor (HTTP calls to n8n webhook)    │ │
+│  └─────────────────────────────────────────────────────┘ │
+└────────┬─────────────────────────────────────────────────┘
+         │ HTTP POST (only when tool execution needed)
+┌────────▼────────────────────┐     ┌─────────────────────┐
+│  n8n Tool Executor Workflow │     │  PostgreSQL+PGVector │
+│  (Single Entry Point)       │     │  - sessions          │
+│  ├── System Status          │     │  - messages          │
+│  ├── Docker Control         │     │  - long_term_memory  │
+│  ├── Service Control        │     └─────────────────────┘
+│  ├── Jellyfin API           │
+│  ├── SSH Commands           │
+│  └── Gemini CLI             │
+└─────────────────────────────┘
 ```
 
-### Technology Stack
+### Why This Architecture?
 
-**Backend:**
-- **Python FastAPI**: Modern, async, excellent WebSocket support, easy to extend
-- **PostgreSQL**: Production-ready database for sessions and chat history (already running locally)
-- **WebSocket**: Real-time bidirectional communication for best UX
-- **HTTP Client**: `httpx` or `requests` for n8n webhook communication
-- **Database ORM**: SQLAlchemy with asyncpg for async PostgreSQL operations
+| Aspect | Previous (n8n-hosted LLM) | New (Backend-hosted LLM) |
+|--------|---------------------------|--------------------------|
+| **Streaming** | ❌ Broken through webhook | ✅ Native WebSocket streaming |
+| **Latency** | ~2-5s overhead per request | ~200ms overhead |
+| **Model Swapping** | Edit n8n workflow | Change config/env var |
+| **Tool Calls** | n8n sub-workflows for everything | HTTP only when needed |
+| **Session Memory** | Duplicated (backend + n8n) | Single source (backend) |
+| **Debugging** | Complex n8n execution logs | Python logging/tracing |
 
-**Frontend:**
-- **React** (recommended) or **Vanilla JS**: React preferred for future React Native Android app
-- **WebSocket Client**: Real-time message updates
-- **LocalStorage**: Persist sessionId across page reloads
+---
 
-**Database Schema:**
+## Technology Stack
 
-**Existing Table (already in database):**
-- `long_term_memory`: Used by Jarvis for storing important notes and long-term memory
+### Backend
+- **Python FastAPI**: Modern, async, excellent WebSocket support
+- **LLM Client**: OpenAI SDK with abstraction layer for easy model swapping
+- **PostgreSQL + PGVector**: Sessions, messages, and vector memory storage
+- **WebSocket**: Real-time bidirectional streaming
+- **httpx**: Async HTTP client for n8n tool calls
 
-**New Tables (to be created):**
+### Frontend
+- **React**: Modern UI framework, future React Native compatibility
+- **WebSocket Client**: Real-time streaming message updates
+- **LocalStorage**: Session persistence across reloads
+
+### n8n (Tool Executor)
+- **Single Webhook Endpoint**: Routes to appropriate tool sub-workflows
+- **Existing Tools**: System Status, Docker Control, Service Control, Jellyfin API, SSH Commands, Gemini CLI
+- **No LLM Logic**: Pure tool execution, no AI decision-making
+
+---
+
+## LLM Abstraction Layer
+
+### Purpose
+Decouple LLM provider logic from the application, enabling easy switching between providers (OpenAI, Anthropic, local models, etc.)
+
+### Implementation
+
+```python
+from abc import ABC, abstractmethod
+from typing import AsyncIterator, Optional
+
+class LLMProvider(ABC):
+    """Abstract base for LLM providers"""
+    
+    @abstractmethod
+    async def chat_stream(
+        self, 
+        messages: list[dict], 
+        tools: Optional[list[dict]] = None,
+        system_prompt: Optional[str] = None
+    ) -> AsyncIterator[dict]:
+        """Stream chat completions with optional tool calling"""
+        pass
+    
+    @abstractmethod
+    async def chat(
+        self, 
+        messages: list[dict], 
+        tools: Optional[list[dict]] = None,
+        system_prompt: Optional[str] = None
+    ) -> dict:
+        """Non-streaming chat completion"""
+        pass
+
+class OpenAIProvider(LLMProvider):
+    """OpenAI/GPT implementation"""
+    def __init__(self, model: str = "gpt-4o", api_key: str = None):
+        self.model = model
+        self.client = AsyncOpenAI(api_key=api_key)
+    
+    async def chat_stream(self, messages, tools=None, system_prompt=None):
+        # Stream tokens directly to WebSocket
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            tools=tools,
+            stream=True
+        )
+        async for chunk in response:
+            yield chunk
+
+class AnthropicProvider(LLMProvider):
+    """Anthropic/Claude implementation"""
+    # Similar implementation
+
+class LocalProvider(LLMProvider):
+    """Local model (Ollama, llama.cpp) implementation"""
+    # Similar implementation
+
+# Factory function
+def get_llm_provider(provider: str = "openai") -> LLMProvider:
+    providers = {
+        "openai": OpenAIProvider,
+        "anthropic": AnthropicProvider,
+        "local": LocalProvider,
+    }
+    return providers[provider]()
+```
+
+### Configuration
+
+```bash
+# .env
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o
+OPENAI_API_KEY=sk-...
+
+# Or for Anthropic
+# LLM_PROVIDER=anthropic
+# LLM_MODEL=claude-3-opus
+# ANTHROPIC_API_KEY=sk-ant-...
+```
+
+---
+
+## Tool System
+
+### Tool Registry
+
+The backend maintains a registry of available tools that can be called by the LLM:
+
+```python
+class ToolRegistry:
+    def __init__(self, n8n_webhook_url: str):
+        self.n8n_url = n8n_webhook_url
+        self.tools: dict[str, Callable] = {}
+        self._register_builtin_tools()
+        self._register_n8n_tools()
+    
+    def _register_builtin_tools(self):
+        """Register Python-native tools"""
+        self.tools["calculator"] = self._calculator
+        self.tools["get_current_time"] = self._get_current_time
+        self.tools["search_memory"] = self._search_memory
+        self.tools["store_memory"] = self._store_memory
+    
+    def _register_n8n_tools(self):
+        """Register tools that call n8n workflows"""
+        n8n_tools = [
+            ("system_status", "Get system CPU, RAM, disk, network info"),
+            ("docker_control", "Manage Docker containers"),
+            ("service_control", "Manage systemd services"),
+            ("jellyfin_api", "Interact with Jellyfin media server"),
+            ("ssh_command", "Execute SSH commands with sudo"),
+            ("gemini_cli", "Execute Gemini CLI queries"),
+            ("n8n_workflow", "Manage n8n workflows"),
+        ]
+        for tool_name, description in n8n_tools:
+            self.tools[tool_name] = self._make_n8n_tool(tool_name)
+    
+    def _make_n8n_tool(self, tool_name: str):
+        """Create a callable that invokes n8n tool executor"""
+        async def call_n8n(params: dict) -> dict:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    self.n8n_url,
+                    json={"tool": tool_name, "params": params},
+                    timeout=120.0
+                )
+                return response.json()
+        return call_n8n
+    
+    def get_tool_schemas(self) -> list[dict]:
+        """Return OpenAI-compatible tool definitions"""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "system_status",
+                    "description": "Get system information: CPU, memory, disk, network",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "infoType": {
+                                "type": "string",
+                                "enum": ["cpu", "memory", "disk", "network", "processes", "uptime", "all"],
+                                "description": "Type of system info to retrieve"
+                            }
+                        },
+                        "required": ["infoType"]
+                    }
+                }
+            },
+            # ... more tool schemas
+        ]
+```
+
+### Tool Categories
+
+| Category | Location | Tools |
+|----------|----------|-------|
+| **Built-in (Python)** | Backend | Calculator, Memory Search, Memory Store, Time |
+| **Infrastructure (n8n)** | n8n Tool Executor | System Status, Docker, Services, Jellyfin, SSH |
+| **AI (n8n)** | n8n Tool Executor | Gemini CLI |
+| **Workflow (n8n)** | n8n Tool Executor | N8N Manager suite |
+
+---
+
+## n8n Tool Executor Workflow
+
+### Single Entry Point
+
+Instead of multiple entry points, create one "Tool Executor" workflow that routes to sub-workflows:
+
+```
+Webhook: POST /webhook/tool-executor
+  ↓
+Input: { "tool": "docker_control", "params": { "action": "ps" } }
+  ↓
+Switch Node (route by tool name)
+  ├── system_status → Machine Manager - System Status
+  ├── docker_control → Machine Manager - Docker Control
+  ├── service_control → Machine Manager - Service Control
+  ├── jellyfin_api → Machine Manager - Jellyfin API
+  ├── ssh_command → sudo ssh commands
+  ├── gemini_cli → gemini cli trigger
+  └── n8n_workflow → N8N Manager suite
+  ↓
+Return: { "status": "success", "result": {...} }
+```
+
+### What Stays in n8n
+
+| Workflow | Reason | Status |
+|----------|--------|--------|
+| Tool Executor | Single entry point for all tools | **NEW - To Create** |
+| Machine Manager - System Status | SSH execution | Keep |
+| Machine Manager - Docker Control | SSH execution | Keep |
+| Machine Manager - Service Control | SSH execution | Keep |
+| Machine Manager - Jellyfin API | HTTP to Jellyfin | Keep |
+| gemini cli trigger | SSH execution | Keep |
+| sudo ssh commands | SSH execution | Keep |
+| N8N Manager suite | n8n API calls | Keep |
+| Health Monitor | Scheduled task with Telegram | Keep |
+| download video | Form trigger + file ops | Keep |
+| Upload File | Form trigger + SFTP | Keep |
+
+### What Moves to Backend
+
+| Component | New Location |
+|-----------|--------------|
+| LLM orchestration | FastAPI backend |
+| System prompt (Jarvis personality) | Backend config |
+| Session/conversation memory | Backend (PostgreSQL) |
+| Tool calling logic | Backend (LLM function calling) |
+| Streaming responses | Backend (WebSocket) |
+
+### What Gets Deprecated
+
+| Workflow | Reason |
+|----------|--------|
+| Jarvis AI Agent Orchestrator | Replaced by backend LLM orchestrator |
+| AI Long Term Memory Agent | Memory now handled by backend |
+| Memory governance | Can move to backend or stay in n8n |
+| Memory deduplication | Can move to backend or stay in n8n |
+| Add Memory | Can move to backend or stay in n8n |
+| Machine Manager Agent | No longer needed - backend calls tools directly |
+
+---
+
+## Database Schema
+
+### Existing Tables
+
+```sql
+-- Already exists in 'memory' database
+long_term_memory:
+  - id (UUID, PRIMARY KEY)
+  - text (TEXT) -- Note: n8n pgvector uses 'text' not 'content'
+  - metadata (JSONB)
+  - embedding (vector(1536))
+  - hash (TEXT, generated)
+  - created_at (TIMESTAMPTZ)
+```
+
+### New Tables (in 'jarvis' database)
+
 ```sql
 sessions:
   - session_id (UUID, PRIMARY KEY)
   - user_id (TEXT, optional for future multi-user)
-  - created_at (TIMESTAMP WITH TIME ZONE)
-  - last_activity (TIMESTAMP WITH TIME ZONE)
-  - metadata (JSONB, for future features)
+  - created_at (TIMESTAMPTZ)
+  - last_activity (TIMESTAMPTZ)
+  - metadata (JSONB)
 
 messages:
   - id (SERIAL, PRIMARY KEY)
-  - session_id (UUID, FOREIGN KEY REFERENCES sessions(session_id))
-  - role (TEXT: 'user' | 'assistant')
+  - session_id (UUID, FK → sessions)
+  - role (TEXT: 'user' | 'assistant' | 'tool')
   - content (TEXT)
-  - timestamp (TIMESTAMP WITH TIME ZONE)
-  - metadata (JSONB, for images/files in future)
-  
+  - tool_calls (JSONB, optional)
+  - tool_call_id (TEXT, optional)
+  - timestamp (TIMESTAMPTZ)
+  - metadata (JSONB)
+
 CREATE INDEX idx_messages_session_id ON messages(session_id);
 CREATE INDEX idx_messages_timestamp ON messages(timestamp);
 CREATE INDEX idx_sessions_last_activity ON sessions(last_activity);
 ```
 
-**Note:** The existing `long_term_memory` table will remain separate and continue to be used by the n8n workflow. The new `sessions` and `messages` tables are specifically for UI chat history and session management.
+---
 
-**Database Initialization:**
-- Use Alembic for database migrations (standard with SQLAlchemy)
-- Initial migration will create `sessions` and `messages` tables
-- Existing `long_term_memory` table will not be modified
-- Safe to run migrations multiple times (idempotent)
+## Session Management
 
-## Session Management Strategy
+### Flow
 
-### Current State
-- No sessionId implementation in n8n
-- Each page load creates a new session
-
-### Recommended Approach
-
-**1. Client-Side Session Persistence**
-- Generate UUID sessionId on first visit
-- Store in browser `localStorage` (persists across reloads)
-- Send sessionId with every message to backend
-
-**2. Backend Session Storage**
-- Backend maintains session database
-- On first message with new sessionId: create session record
-- Store all messages linked to sessionId
-- Load chat history when sessionId is recognized
-
-**3. Session Lifecycle**
-- **Creation**: First message from client generates new sessionId (if not in localStorage)
-- **Persistence**: SessionId stored in localStorage + database
-- **Retrieval**: On page load, check localStorage → load history from backend
-- **Expiration**: Optional TTL (e.g., 30 days of inactivity) - future enhancement
-
-**4. Future Multi-Device Support**
-- Same sessionId can be used across devices
-- Backend syncs messages by sessionId
-- User can "continue conversation" by entering sessionId or via account linking
-
-### Implementation Details
-
-**Frontend Flow:**
 ```
 1. Page Load:
    - Check localStorage for sessionId
-   - If exists: Connect WebSocket with sessionId, load history
-   - If not: Generate new UUID, store in localStorage
+   - If exists: Connect WebSocket, request history from backend
+   - If not: Generate UUID, store in localStorage, connect WebSocket
 
 2. Send Message:
-   - Include sessionId in WebSocket message
-   - Backend handles session creation/retrieval
+   - Send via WebSocket: { "type": "message", "content": "..." }
+   - Backend stores message, calls LLM, streams response
 
-3. Receive Message:
-   - Display in chat UI
-   - History automatically synced from backend
+3. Receive Streaming Response:
+   - Backend streams tokens via WebSocket
+   - Frontend displays in real-time
+   - On complete, backend stores full response
+
+4. Tool Execution:
+   - LLM requests tool call
+   - Backend executes tool (built-in or n8n)
+   - Result fed back to LLM
+   - Continue streaming response
 ```
 
-**Backend Flow:**
-```
-1. Receive Message:
-   - Extract sessionId from request
-   - If session doesn't exist: create new session
-   - Store user message in database
-   - Forward to n8n webhook
+---
 
-2. Receive Response from n8n:
-   - Store assistant message in database
-   - Push to client via WebSocket
+## System Prompt
 
-3. Client Requests History:
-   - Query messages by sessionId
-   - Return chronological list
-```
+The Jarvis personality and capabilities are defined in the backend:
 
-## n8n Integration Strategy
-
-### Connection Method: Webhook + Backend Bridge
-
-**Why not direct WebSocket to n8n?**
-- n8n's native WebSocket support is limited
-- Webhook is standard, reliable, and well-supported
-- Backend bridge provides better control and session management
-
-**Implementation:**
-1. **n8n Webhook Node**: Configure to accept POST requests
-   - Endpoint: `/webhook/jarvis` (or custom)
-   - Method: POST
-   - Expected payload: `{ "message": "...", "sessionId": "..." }`
-
-2. **Backend Bridge**:
-   - FastAPI receives WebSocket message from frontend
-   - Converts to HTTP POST to n8n webhook
-   - Waits for response (sync)
-   - Converts response back to WebSocket message
-   - Stores in database
-
-3. **Error Handling**:
-   - Timeout handling (n8n might be slow)
-   - Retry logic for failed requests
-   - User-friendly error messages
-
-### n8n Workflow Modifications
-
-**Current:** Request → Response (sync)
-
-**Recommended Enhancement:**
-- Add sessionId handling in n8n workflow
-- Store sessionId in workflow context (optional, backend handles primary storage)
-- Return sessionId in response for verification
-
-**n8n Workflow Structure:**
-```
-Webhook Trigger
-  ↓
-Extract: message, sessionId
-  ↓
-[Your existing Jarvis logic]
-  ↓
-Return: { "response": "...", "sessionId": "..." }
-```
-
-## MCP (Model Context Protocol) Abstraction
-
-### Purpose
-Decouple LLM provider logic from n8n workflow, enabling easy switching between providers (OpenAI, Anthropic, etc.)
-
-### Implementation
-
-**Backend Abstraction Layer:**
 ```python
-class LLMProvider:
-    """Abstract base for LLM providers"""
-    def send_message(self, message: str, session_id: str, context: dict) -> str:
-        raise NotImplementedError
+JARVIS_SYSTEM_PROMPT = """
+You are JARVIS, a British AI assistant. You address the user as "Sir" and maintain a dry, courteous, slightly cheeky tone. You use British English spelling and phrasing.
 
-class OpenAIProvider(LLMProvider):
-    """OpenAI implementation"""
-    # Handles OpenAI-specific logic
+## Response Style
+- Begin acknowledgements with phrases like "At once, Sir" or "Certainly, Sir"
+- Be concise and lean in your responses
+- Use markdown formatting when appropriate
 
-class N8NProvider(LLMProvider):
-    """n8n webhook implementation (current)"""
-    # Handles n8n communication
-    # Can be replaced with direct API calls later
+## Available Tools
+You have access to the following tools:
+
+### Infrastructure Tools (via n8n)
+- system_status: Get CPU, memory, disk, network information
+- docker_control: Manage Docker containers (ps, start, stop, restart, logs)
+- service_control: Manage systemd services (status, start, stop, restart)
+- jellyfin_api: Interact with Jellyfin media server
+- ssh_command: Execute arbitrary SSH commands with sudo
+
+### Utility Tools
+- calculator: Perform mathematical calculations
+- get_current_time: Get current date and time
+- gemini_cli: Query Google's Gemini AI
+
+### Memory Tools
+- search_memory: Search long-term memory for relevant information
+- store_memory: Store important facts to long-term memory
+
+### Workflow Tools
+- n8n_workflow: Manage n8n workflows (list, create, update, delete, activate, execute)
+
+## Location & Context
+- Default timezone: Asia/Jerusalem
+- Location: Jerusalem, Israel
+"""
 ```
 
-**Benefits:**
-- Easy to switch providers without changing frontend
-- Can add multiple providers (fallback, A/B testing)
-- Future: Direct API calls bypassing n8n if needed
+---
 
-## Future Features Roadmap
+## Configuration
 
-### Phase 1: Text Chat (Current Focus)
-- ✅ WebSocket-based text chat
-- ✅ Session management
-- ✅ Chat history
-- ✅ Basic UI
+### Environment Variables
 
-### Phase 2: Enhanced Chat
-- Speech-to-text input
-- Text-to-speech output
-- Voice activity detection
+```bash
+# Backend Server
+HOST=0.0.0.0
+PORT=20005
+CORS_ORIGINS=*
 
-### Phase 3: Media Support
-- Image upload/display
-- File sharing
-- Image generation display
+# Database
+DATABASE_URL=postgresql+asyncpg://n8n:n8npass@192.168.1.100:20004/jarvis
+MEMORY_DATABASE_URL=postgresql+asyncpg://n8n:n8npass@192.168.1.100:20004/memory
 
-### Phase 4: Real-time Media
-- Live camera feed
-- Screen sharing
-- Video chat
+# LLM Provider
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o
+OPENAI_API_KEY=sk-...
 
-### Phase 5: Multi-Device
-- Android app (React Native)
-- Cross-device session sync
-- Push notifications
-- User authentication (optional)
+# n8n Tool Executor
+N8N_TOOL_EXECUTOR_URL=http://192.168.1.100:20002/webhook/tool-executor
+N8N_TIMEOUT_SECONDS=120
+
+# Session
+SESSION_TTL_DAYS=30
+```
+
+---
 
 ## File Structure
 
@@ -255,188 +462,165 @@ class N8NProvider(LLMProvider):
 jarvis-ui/
 ├── backend/
 │   ├── main.py                 # FastAPI app entry point
-│   ├── models/
-│   │   ├── session.py          # Session database model
-│   │   └── message.py          # Message database model
-│   ├── routers/
-│   │   ├── websocket.py        # WebSocket endpoints
-│   │   └── api.py              # REST API endpoints
-│   ├── services/
-│   │   ├── n8n_client.py      # n8n webhook communication
-│   │   ├── session_manager.py # Session management logic
-│   │   └── llm_provider.py    # MCP abstraction layer
+│   ├── config.py               # Configuration settings
 │   ├── database/
-│   │   ├── db.py              # Database setup and connection (PostgreSQL)
-│   │   └── migrations/        # Alembic migrations for schema
-│   └── config.py              # Configuration (n8n URL, port, etc.)
+│   │   └── db.py               # Database connection
+│   ├── models/
+│   │   ├── session.py          # Session model
+│   │   └── message.py          # Message model
+│   ├── routers/
+│   │   ├── api.py              # REST API endpoints
+│   │   └── websocket.py        # WebSocket handler with streaming
+│   ├── services/
+│   │   ├── llm_provider.py     # LLM abstraction layer (NEW)
+│   │   ├── tool_registry.py    # Tool definitions and execution (NEW)
+│   │   ├── orchestrator.py     # AI orchestration logic (NEW)
+│   │   ├── memory_service.py   # Memory search/store (NEW)
+│   │   ├── n8n_client.py       # n8n tool executor client
+│   │   └── session_manager.py  # Session management
+│   ├── prompts/
+│   │   └── jarvis.py           # System prompt (NEW)
+│   ├── alembic/                # Database migrations
+│   └── requirements.txt
 ├── frontend/
-│   ├── public/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Chat.jsx       # Main chat component
+│   │   │   ├── Chat.jsx
 │   │   │   ├── MessageList.jsx
 │   │   │   └── MessageInput.jsx
 │   │   ├── services/
-│   │   │   └── websocket.js   # WebSocket client
-│   │   ├── utils/
-│   │   │   └── session.js     # SessionId management
-│   │   └── App.jsx
+│   │   │   └── websocket.js    # WebSocket with streaming support
+│   │   └── utils/
+│   │       └── session.js
 │   └── package.json
-├── requirements.txt           # Python dependencies
-├── alembic.ini                # Alembic configuration for migrations
-├── alembic/                   # Migration scripts
-│   └── versions/
+├── n8n/
+│   ├── workflows/
+│   │   ├── Tool Executor.json  # NEW - Single entry point
+│   │   ├── Machine Manager - *.json
+│   │   ├── N8N Manager - *.json
+│   │   └── ... other tools
+│   └── docs/
+│       └── workflows-summary.md
+├── scripts/
 ├── README.md
-└── STRATEGY.md               # This file
+└── STRATEGY.md                 # This file
 ```
 
-**Key Python Dependencies:**
-- `fastapi` - Web framework
-- `uvicorn` - ASGI server
-- `websockets` - WebSocket support
-- `sqlalchemy` - ORM
-- `asyncpg` - Async PostgreSQL driver
-- `alembic` - Database migrations
-- `httpx` - Async HTTP client for n8n
-- `python-dotenv` - Environment variable management
+---
 
-## Configuration
+## Implementation Phases
 
-### Environment Variables
-```bash
-# Backend
-N8N_WEBHOOK_URL=http://localhost:5678/webhook/jarvis
-PORT=20003
-DATABASE_URL=postgresql://user:password@localhost:5432/dbname
-# Or if using connection pooling:
-# DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/dbname
+### Phase 1: Backend LLM Integration (Current)
+1. [ ] Add LLM provider abstraction layer
+2. [ ] Implement tool registry with schemas
+3. [ ] Create AI orchestrator service
+4. [ ] Update WebSocket handler for streaming
+5. [ ] Port Jarvis system prompt to backend
 
-# Optional
-SESSION_TTL_DAYS=30
-N8N_TIMEOUT_SECONDS=60
-```
+### Phase 2: n8n Tool Executor
+1. [ ] Create Tool Executor workflow in n8n
+2. [ ] Test all tool routes
+3. [ ] Update n8n client in backend
+4. [ ] Deprecate old orchestrator workflow
 
-**Note:** Update `DATABASE_URL` with your actual PostgreSQL connection details. The database should already contain the `long_term_memory` table used by Jarvis.
+### Phase 3: Memory Integration
+1. [ ] Implement memory search in backend (PGVector)
+2. [ ] Implement memory store with governance
+3. [ ] Decide: keep memory workflows in n8n or move to backend
 
-## Deployment Strategy
+### Phase 4: Polish & Testing
+1. [ ] End-to-end streaming tests
+2. [ ] Tool execution tests
+3. [ ] Performance benchmarking
+4. [ ] Error handling improvements
 
-### Local Development
-- Run FastAPI with `uvicorn` (auto-reload)
-- Run frontend dev server (Vite/Webpack)
-- Connect to existing PostgreSQL database (local or Docker)
-- Database migrations will create `sessions` and `messages` tables if they don't exist
+### Phase 5: Future Features
+- Speech-to-text input
+- Text-to-speech output
+- Image upload/display
+- Android app (React Native)
 
-### Production (Local Machine)
-- Run FastAPI with `gunicorn` + `uvicorn` workers
-- Serve frontend as static files from FastAPI
-- Connect to existing PostgreSQL database
-- Process manager: `systemd` or `supervisord`
-- Ensure PostgreSQL is accessible (check if running directly or via Docker)
+---
 
-### Future: Docker Deployment
-- Multi-stage Dockerfile
-- Docker Compose for n8n + UI + database
-- Volume mounts for persistence
+## Migration Path
+
+### Parallel Operation
+During migration, both systems can run in parallel:
+1. Backend can fall back to n8n orchestrator if needed
+2. Gradually move tool calls to new system
+3. Test streaming with real users
+4. Deprecate n8n orchestrator once stable
+
+### Rollback Plan
+If issues arise:
+1. Set `LLM_PROVIDER=n8n` in config
+2. Backend falls back to calling n8n orchestrator
+3. No data loss (same database)
+
+---
 
 ## Security Considerations
 
 ### Current (MVP)
-- Basic input validation
-- SQL injection prevention (ORM/SQLAlchemy with parameterized queries)
+- Input validation on all endpoints
+- SQL injection prevention (SQLAlchemy ORM)
 - CORS configuration
-- PostgreSQL connection security (credentials via environment variables)
+- API keys via environment variables
+- Rate limiting on WebSocket connections
 
 ### Future Enhancements
-- Rate limiting
-- Authentication/authorization
+- User authentication
+- API key authentication for tool execution
+- Audit logging
 - HTTPS/TLS
-- Input sanitization
 - Session encryption
-
-## Testing Strategy
-
-### Phase 1 (MVP)
-- Manual testing of chat flow
-- Session persistence testing
-- n8n integration testing
-
-### Future
-- Unit tests for backend services
-- Integration tests for WebSocket
-- E2E tests for chat flow
-- Load testing for concurrent sessions
-
-## Implementation Phases
-
-### Phase 1: MVP (Current Focus)
-1. ✅ Set up FastAPI backend with WebSocket
-2. ✅ Create basic React frontend
-3. ✅ Implement session management (localStorage + database)
-4. ✅ Connect to n8n webhook
-5. ✅ Display chat history
-6. ✅ Basic error handling
-
-### Phase 2: Polish
-1. Improve UI/UX
-2. Add loading states
-3. Better error messages
-4. Message timestamps
-5. Auto-scroll to latest message
-
-### Phase 3: Future Features
-- Speech I/O
-- Media support
-- Multi-device sync
-- Android app
-
-## Questions & Decisions
-
-### Open Questions
-1. **n8n Webhook URL**: What is your current n8n webhook URL? (Will be configurable)
-2. **UI Style**: Any design preferences? (Material-UI, Tailwind, custom?)
-3. **Message Format**: Does n8n return plain text or JSON? (Will handle both)
-4. **PostgreSQL Connection**: What are your PostgreSQL connection details? (host, port, database name, user, password - can be provided via environment variable)
-5. **Database Access**: Is PostgreSQL running directly on the host or in Docker? (affects connection string format)
-
-### Decisions Made
-- ✅ WebSocket for real-time UX
-- ✅ FastAPI backend (async, WebSocket support)
-- ✅ PostgreSQL database (already running locally, production-ready)
-- ✅ React frontend (future Android app compatibility)
-- ✅ MCP abstraction for LLM flexibility
-- ✅ SessionId in localStorage + database
-- ✅ Backend bridge to n8n webhook
-- ✅ Use existing PostgreSQL instance with `long_term_memory` table
-
-## Next Steps
-
-1. **Review this strategy** - Confirm approach and answer open questions
-2. **Set up project structure** - Create directories and base files
-3. **Implement backend** - FastAPI, WebSocket, database, n8n client
-4. **Implement frontend** - React app with WebSocket client
-5. **Integration testing** - Connect to n8n and test full flow
-6. **Deploy** - Run on port 20003
 
 ---
 
-## Appendix: Alternative Approaches Considered
+## Appendix: Architecture Comparison
 
-### Direct HTTP Polling
-- ❌ Poor UX, inefficient
-- ✅ Simple implementation
+### Previous Architecture (n8n-hosted LLM)
 
-### Server-Sent Events (SSE)
-- ✅ Simpler than WebSocket
-- ❌ One-way only (would need HTTP for requests)
+```
+Frontend → Backend → n8n Webhook → n8n AI Agent → LLM API
+                                        ↓
+                                  Sub-agent workflows
+                                        ↓
+                                  Tool execution
+```
 
-### WebSocket Direct to n8n
-- ❌ n8n WebSocket support limited
-- ❌ Less control over session management
+**Problems:**
+- Streaming broken (webhook doesn't preserve streaming)
+- High latency (multiple hops)
+- Complex debugging
+- Duplicated session management
 
-### Streamlit/Gradio
-- ✅ Very fast to build
-- ❌ Less flexible for future features
-- ❌ Harder to extend to Android app
+### New Architecture (Backend-hosted LLM)
 
-**Decision: FastAPI + React + WebSocket** - Best balance of UX, flexibility, and future extensibility.
+```
+Frontend → Backend → LLM API (streaming)
+              ↓
+        Tool Registry
+              ↓
+        n8n Tool Executor (only when needed)
+```
 
+**Benefits:**
+- Native streaming via WebSocket
+- Low latency (direct LLM calls)
+- Simple debugging (Python logs)
+- Single source of truth for sessions
+- Easy model swapping
+
+---
+
+## Port Mapping
+
+| Port  | Service          | Description                |
+|-------|------------------|---------------------------|
+| 20000 | SSH              | Remote access              |
+| 20001 | Jellyfin         | Media server               |
+| 20002 | n8n              | Automation platform        |
+| 20004 | PostgreSQL       | Database (pgvector)        |
+| 20005 | Jarvis Backend   | FastAPI backend            |
+| 20006 | Jarvis Frontend  | React frontend             |

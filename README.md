@@ -1,44 +1,66 @@
 # Jarvis UI
 
-A modern web interface for Jarvis AI Assistant running in n8n.
+A modern web interface for Jarvis AI Assistant with native streaming support and easy model swapping.
 
 ![Jarvis UI](https://via.placeholder.com/800x400?text=Jarvis+UI+Screenshot)
 
 ## Features
 
-- 🚀 **Real-time Chat** - WebSocket-based communication for instant responses
+- 🚀 **Real-time Streaming** - Native WebSocket streaming for instant token-by-token responses
+- 🔄 **Easy Model Swapping** - Switch between OpenAI, Anthropic, or local models via config
 - 💾 **Session Persistence** - Chat history saved across page reloads
+- 🛠️ **Tool Execution** - AI can control your infrastructure via n8n tools
 - 🎨 **Modern UI** - Beautiful dark theme with smooth animations
-- 🔌 **n8n Integration** - Seamlessly connects to your n8n Jarvis workflow
 - 📱 **Responsive Design** - Works on desktop and mobile devices
-- 🔧 **Easy Setup** - PowerShell scripts for quick installation
 
 ## Architecture
 
+The system uses a **backend-hosted LLM architecture** where the FastAPI backend directly communicates with LLM providers, with n8n serving as a tool executor:
+
 ```
 ┌─────────────────┐
-│  React Frontend │ (Port 3000 dev / served by backend in prod)
+│  React Frontend │ (Port 20006)
 └────────┬────────┘
-         │ WebSocket + REST API
-┌────────▼────────┐
-│  FastAPI Backend│ (Port 20003)
-│  - WebSocket    │
-│  - Sessions     │
-│  - Messages     │
-└────────┬────────┘
-         │ HTTP POST (Webhook)
-┌────────▼────────┐     ┌─────────────┐
-│  n8n Workflow   │     │ PostgreSQL  │
-│  (Jarvis)       │     │ (Messages)  │
-└─────────────────┘     └─────────────┘
+         │ WebSocket (streaming)
+┌────────▼──────────────────────────────────────────┐
+│  FastAPI Backend (Port 20005)                     │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  LLM Orchestrator                            │ │
+│  │  - Direct LLM API calls (streaming)          │ │
+│  │  - Tool/function calling                     │ │
+│  │  - Session & memory management               │ │
+│  └──────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  Tool Registry                               │ │
+│  │  - Built-in: calculator, memory, time        │ │
+│  │  - n8n: system, docker, services, jellyfin   │ │
+│  └──────────────────────────────────────────────┘ │
+└────────┬──────────────────────────────────────────┘
+         │ HTTP (only for tool execution)
+┌────────▼────────┐     ┌─────────────────────┐
+│  n8n Tool       │     │  PostgreSQL+PGVector │
+│  Executor       │     │  - sessions          │
+│  (Port 20002)   │     │  - messages          │
+└─────────────────┘     │  - long_term_memory  │
+                        └─────────────────────┘
 ```
+
+### Why This Architecture?
+
+| Feature | Benefit |
+|---------|---------|
+| **Native Streaming** | Token-by-token responses via WebSocket |
+| **Low Latency** | Direct LLM calls, no n8n overhead |
+| **Model Flexibility** | Switch providers via environment variable |
+| **Simple Debugging** | Python logging instead of n8n execution traces |
 
 ## Prerequisites
 
 - **Python 3.10+** - [Download](https://python.org)
 - **Node.js 18+** - [Download](https://nodejs.org)
-- **PostgreSQL** - Running on your target machine
-- **n8n** - With Jarvis workflow configured
+- **PostgreSQL with PGVector** - Running on your target machine
+- **n8n** - With tool workflows configured
+- **OpenAI API Key** (or other LLM provider)
 
 ## Quick Start
 
@@ -58,11 +80,22 @@ cd jarvis-ui
 Edit `backend/.env` with your settings:
 
 ```env
-# PostgreSQL connection (on your target machine)
-DATABASE_URL=postgresql+asyncpg://username:password@192.168.1.100:5432/jarvis
+# Server
+HOST=0.0.0.0
+PORT=20005
 
-# n8n webhook URL
-N8N_WEBHOOK_URL=http://192.168.1.100:5678/webhook/jarvis
+# PostgreSQL connection
+DATABASE_URL=postgresql+asyncpg://n8n:n8npass@192.168.1.100:20004/jarvis
+MEMORY_DATABASE_URL=postgresql+asyncpg://n8n:n8npass@192.168.1.100:20004/memory
+
+# LLM Provider (openai, anthropic, or local)
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o
+OPENAI_API_KEY=sk-your-key-here
+
+# n8n Tool Executor webhook
+N8N_TOOL_EXECUTOR_URL=http://192.168.1.100:20002/webhook/tool-executor
+N8N_TIMEOUT_SECONDS=120
 ```
 
 ### 3. Run Database Migrations
@@ -70,8 +103,6 @@ N8N_WEBHOOK_URL=http://192.168.1.100:5678/webhook/jarvis
 ```powershell
 .\scripts\migrate.ps1
 ```
-
-This creates the `sessions` and `messages` tables in your PostgreSQL database.
 
 ### 4. Start the Application
 
@@ -104,31 +135,37 @@ jarvis-ui/
 │   │   └── message.py       # Message model
 │   ├── routers/
 │   │   ├── api.py           # REST API endpoints
-│   │   └── websocket.py     # WebSocket handler
+│   │   └── websocket.py     # WebSocket handler (streaming)
 │   ├── services/
-│   │   ├── n8n_client.py    # n8n webhook client
-│   │   ├── session_manager.py
-│   │   └── llm_provider.py  # LLM abstraction layer
+│   │   ├── llm_provider.py  # LLM abstraction layer
+│   │   ├── tool_registry.py # Tool definitions
+│   │   ├── orchestrator.py  # AI orchestration
+│   │   ├── n8n_client.py    # n8n tool executor client
+│   │   └── session_manager.py
+│   ├── prompts/
+│   │   └── jarvis.py        # Jarvis system prompt
 │   ├── alembic/             # Database migrations
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Chat.jsx     # Main chat component
+│   │   │   ├── Chat.jsx
 │   │   │   ├── MessageList.jsx
 │   │   │   └── MessageInput.jsx
 │   │   ├── services/
-│   │   │   └── websocket.js # WebSocket client
+│   │   │   └── websocket.js # WebSocket with streaming
 │   │   └── utils/
-│   │       └── session.js   # Session management
+│   │       └── session.js
 │   └── package.json
+├── n8n/
+│   ├── workflows/           # n8n tool workflows
+│   └── docs/
+│       └── workflows-summary.md
 ├── scripts/
-│   ├── setup.ps1            # Initial setup
-│   ├── migrate.ps1          # Database migrations
-│   ├── start.ps1            # Start all services
-│   ├── start-backend.ps1    # Start backend only
-│   ├── start-frontend.ps1   # Start frontend only
-│   └── build.ps1            # Production build
+│   ├── setup.ps1
+│   ├── migrate.ps1
+│   ├── start.ps1
+│   └── ...
 └── README.md
 ```
 
@@ -138,32 +175,100 @@ jarvis-ui/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | Required |
-| `N8N_WEBHOOK_URL` | n8n Jarvis webhook URL | Required |
-| `N8N_TIMEOUT_SECONDS` | Timeout for n8n requests | `120` |
 | `HOST` | Server bind address | `0.0.0.0` |
-| `PORT` | Server port | `20003` |
+| `PORT` | Server port | `20005` |
+| `DATABASE_URL` | PostgreSQL connection (jarvis db) | Required |
+| `MEMORY_DATABASE_URL` | PostgreSQL connection (memory db) | Required |
+| `LLM_PROVIDER` | LLM provider: openai, anthropic, local | `openai` |
+| `LLM_MODEL` | Model name | `gpt-4o` |
+| `OPENAI_API_KEY` | OpenAI API key | Required if using OpenAI |
+| `ANTHROPIC_API_KEY` | Anthropic API key | Required if using Anthropic |
+| `N8N_TOOL_EXECUTOR_URL` | n8n tool executor webhook URL | Required |
+| `N8N_TIMEOUT_SECONDS` | Timeout for n8n requests | `120` |
 | `CORS_ORIGINS` | Allowed CORS origins | `*` |
 | `SESSION_TTL_DAYS` | Session expiration days | `30` |
 
-## n8n Webhook Setup
+### Switching LLM Providers
 
-Your n8n Jarvis workflow should have a webhook node configured to:
+```bash
+# OpenAI (default)
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o
+OPENAI_API_KEY=sk-...
 
-1. **Receive**: POST requests with JSON body:
-   ```json
-   {
-     "message": "User message text",
-     "sessionId": "uuid-session-id"
-   }
-   ```
+# Anthropic Claude
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-3-opus-20240229
+ANTHROPIC_API_KEY=sk-ant-...
 
-2. **Return**: JSON response:
-   ```json
-   {
-     "response": "AI response text"
-   }
-   ```
+# Local (Ollama)
+LLM_PROVIDER=local
+LLM_MODEL=llama3
+LOCAL_LLM_URL=http://localhost:11434
+```
+
+## n8n Tool Executor Setup
+
+The backend calls n8n for infrastructure tools. Set up a single "Tool Executor" workflow:
+
+### Tool Executor Webhook
+
+Create a webhook workflow that routes to your existing tool workflows:
+
+```
+POST /webhook/tool-executor
+Body: {
+  "tool": "docker_control",
+  "params": { "action": "ps" }
+}
+
+Response: {
+  "status": "success",
+  "result": { ... }
+}
+```
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `system_status` | CPU, memory, disk, network info |
+| `docker_control` | Manage Docker containers |
+| `service_control` | Manage systemd services |
+| `jellyfin_api` | Jellyfin media server API |
+| `ssh_command` | Execute SSH commands with sudo |
+| `gemini_cli` | Query Gemini AI |
+| `n8n_workflow` | Manage n8n workflows |
+
+## API Endpoints
+
+### REST API
+
+- `GET /api/health` - Health check
+- `GET /api/history/{session_id}` - Get chat history
+- `GET /api/session/{session_id}` - Check if session exists
+
+### WebSocket
+
+Connect to: `ws://localhost:20005/ws/{session_id}`
+
+**Client → Server Messages:**
+```json
+{"type": "message", "content": "Hello!"}
+{"type": "get_history"}
+{"type": "stop"}
+```
+
+**Server → Client Messages (Streaming):**
+```json
+{"type": "stream_start"}
+{"type": "stream_token", "content": "Hello"}
+{"type": "stream_token", "content": ", Sir"}
+{"type": "stream_end", "full_content": "Hello, Sir!"}
+{"type": "tool_call", "tool": "docker_control", "params": {...}}
+{"type": "tool_result", "result": {...}}
+{"type": "error", "content": "..."}
+```
 
 ## Development
 
@@ -183,65 +288,9 @@ Your n8n Jarvis workflow should have a webhook node configured to:
 # Build the frontend
 .\scripts\build.ps1
 
-# The backend will serve the built frontend from /
+# The backend will serve the built frontend
 .\scripts\start-backend.ps1
 ```
-
-### Database Migrations
-
-```powershell
-# Apply all migrations
-.\scripts\migrate.ps1
-
-# Apply specific revision
-.\scripts\migrate.ps1 -Revision "001"
-
-# Rollback
-.\scripts\migrate.ps1 -Downgrade -Revision "-1"
-```
-
-## API Endpoints
-
-### REST API
-
-- `GET /api/health` - Health check
-- `GET /api/history/{session_id}` - Get chat history
-- `GET /api/session/{session_id}` - Check if session exists
-
-### WebSocket
-
-Connect to: `ws://localhost:20003/ws/{session_id}`
-
-**Client → Server Messages:**
-```json
-{"type": "message", "content": "Hello!"}
-{"type": "get_history"}
-```
-
-**Server → Client Messages:**
-```json
-{"type": "message", "role": "assistant", "content": "...", "timestamp": "..."}
-{"type": "history", "messages": [...]}
-{"type": "typing", "status": true}
-{"type": "error", "content": "..."}
-```
-
-## Deploying to Target Machine
-
-Since PostgreSQL and n8n are on a different machine:
-
-1. Copy the entire `jarvis-ui` folder to the target machine
-2. Run `.\scripts\setup.ps1` to install dependencies
-3. Configure `backend/.env` with correct IP addresses
-4. Run `.\scripts\migrate.ps1` to create database tables
-5. Build for production: `.\scripts\build.ps1`
-6. Start the server: `.\scripts\start-backend.ps1`
-
-### Running as a Service
-
-For production, consider running the backend as a Windows service using:
-- [NSSM](https://nssm.cc/) - Non-Sucking Service Manager
-- [PM2](https://pm2.keymetrics.io/) - Process manager for Node.js (works with Python too)
 
 ## Troubleshooting
 
@@ -249,23 +298,30 @@ For production, consider running the backend as a Windows service using:
 
 1. **Cannot connect to PostgreSQL**
    - Verify the database server is running
-   - Check firewall allows connections on port 5432
+   - Check firewall allows connections on port 20004
    - Verify credentials in `DATABASE_URL`
 
-2. **Cannot connect to n8n**
-   - Verify n8n is running
-   - Check the webhook URL is correct
-   - Ensure n8n webhook is enabled
+2. **LLM API errors**
+   - Verify your API key is correct
+   - Check the model name is valid
+   - Ensure you have API credits
 
-3. **WebSocket connection fails**
-   - Check if backend is running on port 20003
-   - Verify no firewall blocking WebSocket connections
+3. **Tool execution fails**
+   - Verify n8n is running on port 20002
+   - Check the Tool Executor webhook is active
+   - Check n8n execution logs
+
+4. **Streaming not working**
+   - Ensure WebSocket connection is established
+   - Check browser console for errors
+   - Verify no proxy is buffering responses
 
 ### Common Errors
 
 - **"Virtual environment not found"**: Run `.\scripts\setup.ps1` first
 - **"Migration failed"**: Check `DATABASE_URL` and network connectivity
-- **"Connection refused"**: Ensure backend/n8n/PostgreSQL are running
+- **"LLM provider not found"**: Check `LLM_PROVIDER` env var
+- **"Tool execution timeout"**: Increase `N8N_TIMEOUT_SECONDS`
 
 ## Future Roadmap
 
@@ -275,8 +331,8 @@ For production, consider running the backend as a Windows service using:
 - [ ] File sharing
 - [ ] Android app (React Native)
 - [ ] User authentication
+- [ ] Multi-user support
 
 ## License
 
 MIT License
-
