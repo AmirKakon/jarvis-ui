@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-08T08:18:44.296Z",
+  "updatedAt": "2026-01-09T12:48:01.718Z",
   "createdAt": "2026-01-08T08:02:33.416Z",
   "id": "3BKi0U0juxBNd3aO",
   "name": "Machine Manager Agent",
@@ -24,7 +24,7 @@
       "typeVersion": 1.1,
       "position": [
         0,
-        300
+        304
       ],
       "id": "machine-agent-trigger",
       "name": "When Executed by Another Workflow"
@@ -32,14 +32,15 @@
     {
       "parameters": {
         "options": {
-          "systemMessage": "You are the Machine Manager Agent for JARVIS.\n\n## Purpose\nManage, monitor, and control the local machine infrastructure. You are an infrastructure specialist—efficient, precise, and reliable.\n\n## Available Tools\n\n### System Status\nGet system information. Use infoType parameter:\n- 'cpu' - CPU usage and info\n- 'memory' or 'ram' - Memory usage\n- 'disk' - Disk space usage\n- 'network' - Network interfaces and ports\n- 'processes' - Top processes by memory\n- 'uptime' - System uptime\n- 'all' - Overview of everything (default)\n\n### Service Control\nManage systemd services. Use action parameter:\n- 'status' - Check service status\n- 'start' / 'stop' / 'restart' - Control services\n- 'enable' / 'disable' - Boot configuration\n- 'list' - List all services\n- 'failed' - List failed services\n- 'logs' - View service logs\nRequires serviceName for most actions.\n\n### Docker Control\nManage containers. Use action parameter:\n- 'ps' / 'list' - List containers\n- 'running' - Running containers only\n- 'stats' - Resource usage\n- 'logs' - Container logs\n- 'start' / 'stop' / 'restart' - Control containers\n- 'inspect' - Container details\n- 'images' / 'volumes' / 'networks' - List resources\nRequires containerName for some actions.\n\n### Jellyfin API\nMedia server on port 20001. Use action parameter:\n- 'status' / 'info' - Server info\n- 'health' - Health check\n- 'users' / 'sessions' - User management\n- 'libraries' - Media libraries\n- 'scan' / 'refresh' - Trigger library scan\n- 'search' - Search media (use params.query)\n- 'playing' - Currently playing\n\n## Port Mapping\n- 20000: Samba/SSH (file sharing)\n- 20001: Jellyfin (media server)\n- 20002: n8n (automation)\n\n## Operating Principles\n- Execute requested operations efficiently\n- Report results clearly and concisely\n- Warn about potentially destructive actions\n- If an operation fails, explain what went wrong\n- Suggest related actions when appropriate\n\nAct accordingly."
+          "systemMessage": "You are the Machine Manager Agent for JARVIS.\n\n## Purpose\nManage, monitor, and control the local machine infrastructure. You are an infrastructure specialist—efficient, precise, and reliable.\n\n## Available Tools\n\n### System Status\nGet system information. Use infoType parameter:\n- 'cpu' - CPU usage and info\n- 'memory' or 'ram' - Memory usage\n- 'disk' - Disk space usage\n- 'network' - Network interfaces and ports\n- 'processes' - Top processes by memory\n- 'uptime' - System uptime\n- 'all' - Overview of everything (default)\n\n### Service Control\nManage systemd services. Use action parameter:\n- 'status' - Check service status\n- 'start' / 'stop' / 'restart' - Control services\n- 'enable' / 'disable' - Boot configuration\n- 'list' - List all services\n- 'failed' - List failed services\n- 'logs' - View service logs\nRequires serviceName for most actions.\n\n### Docker Control\nManage containers. Use action parameter:\n- 'ps' / 'list' - List containers\n- 'running' - Running containers only\n- 'stats' - Resource usage\n- 'logs' - Container logs\n- 'start' / 'stop' / 'restart' - Control containers\n- 'inspect' - Container details\n- 'images' / 'volumes' / 'networks' - List resources\nRequires containerName for some actions.\n\n### Jellyfin API\nMedia server on port 20001. Use action parameter:\n- 'status' / 'info' - Server info\n- 'health' - Health check\n- 'users' / 'sessions' - User management\n- 'libraries' - Media libraries\n- 'scan' / 'refresh' - Trigger library scan\n- 'search' - Search media (use params.query)\n- 'playing' - Currently playing\n\n## Port Mapping\n- 20000: Samba/SSH (file sharing)\n- 20001: Jellyfin (media server)\n- 20002: n8n (automation)\n\n## Operating Principles\n- Execute requested operations efficiently\n- Report results clearly and concisely\n- Warn about potentially destructive actions\n- If an operation fails, explain what went wrong\n- Suggest related actions when appropriate\n\nAct accordingly.",
+          "enableStreaming": true
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3,
       "position": [
         400,
-        300
+        304
       ],
       "id": "machine-agent-ai",
       "name": "AI Agent"
@@ -58,8 +59,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
       "position": [
-        200,
-        520
+        208,
+        528
       ],
       "id": "machine-agent-llm",
       "name": "OpenAI Chat Model",
@@ -78,8 +79,8 @@
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
       "position": [
-        328,
-        520
+        336,
+        528
       ],
       "id": "machine-agent-memory",
       "name": "Simple Memory"
@@ -121,8 +122,8 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        456,
-        520
+        464,
+        528
       ],
       "id": "machine-agent-system",
       "name": "System Status"
@@ -176,8 +177,8 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        584,
-        520
+        592,
+        528
       ],
       "id": "machine-agent-service",
       "name": "Service Control"
@@ -231,8 +232,8 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        712,
-        520
+        720,
+        528
       ],
       "id": "machine-agent-docker",
       "name": "Docker Control"
@@ -286,8 +287,8 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        840,
-        520
+        848,
+        528
       ],
       "id": "machine-agent-jellyfin",
       "name": "Jellyfin API"
@@ -379,10 +380,10 @@
   },
   "staticData": null,
   "meta": null,
-  "pinData": null,
-  "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
-  "activeVersionId": "af2192b0-ebde-4189-bfd3-f58410965098",
-  "versionCounter": 9,
+  "pinData": {},
+  "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
+  "activeVersionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
+  "versionCounter": 13,
   "triggerCount": 0,
   "shared": [
     {
@@ -406,7 +407,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-08T07:27:52.000Z",
+              "updatedAt": "2026-01-11T06:27:15.000Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -432,7 +433,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-08",
+              "lastActiveAt": "2026-01-11",
               "isPending": false
             }
           }
@@ -442,9 +443,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-08T08:02:33.420Z",
-    "createdAt": "2026-01-08T08:02:33.420Z",
-    "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
+    "updatedAt": "2026-01-09T12:48:06.000Z",
+    "createdAt": "2026-01-09T12:48:01.720Z",
+    "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
     "workflowId": "3BKi0U0juxBNd3aO",
     "nodes": [
       {
@@ -464,7 +465,7 @@
         "typeVersion": 1.1,
         "position": [
           0,
-          300
+          304
         ],
         "id": "machine-agent-trigger",
         "name": "When Executed by Another Workflow"
@@ -472,14 +473,15 @@
       {
         "parameters": {
           "options": {
-            "systemMessage": "You are the Machine Manager Agent for JARVIS.\n\n## Purpose\nManage, monitor, and control the local machine infrastructure. You are an infrastructure specialist—efficient, precise, and reliable.\n\n## Available Tools\n\n### System Status\nGet system information. Use infoType parameter:\n- 'cpu' - CPU usage and info\n- 'memory' or 'ram' - Memory usage\n- 'disk' - Disk space usage\n- 'network' - Network interfaces and ports\n- 'processes' - Top processes by memory\n- 'uptime' - System uptime\n- 'all' - Overview of everything (default)\n\n### Service Control\nManage systemd services. Use action parameter:\n- 'status' - Check service status\n- 'start' / 'stop' / 'restart' - Control services\n- 'enable' / 'disable' - Boot configuration\n- 'list' - List all services\n- 'failed' - List failed services\n- 'logs' - View service logs\nRequires serviceName for most actions.\n\n### Docker Control\nManage containers. Use action parameter:\n- 'ps' / 'list' - List containers\n- 'running' - Running containers only\n- 'stats' - Resource usage\n- 'logs' - Container logs\n- 'start' / 'stop' / 'restart' - Control containers\n- 'inspect' - Container details\n- 'images' / 'volumes' / 'networks' - List resources\nRequires containerName for some actions.\n\n### Jellyfin API\nMedia server on port 20001. Use action parameter:\n- 'status' / 'info' - Server info\n- 'health' - Health check\n- 'users' / 'sessions' - User management\n- 'libraries' - Media libraries\n- 'scan' / 'refresh' - Trigger library scan\n- 'search' - Search media (use params.query)\n- 'playing' - Currently playing\n\n## Port Mapping\n- 20000: Samba/SSH (file sharing)\n- 20001: Jellyfin (media server)\n- 20002: n8n (automation)\n\n## Operating Principles\n- Execute requested operations efficiently\n- Report results clearly and concisely\n- Warn about potentially destructive actions\n- If an operation fails, explain what went wrong\n- Suggest related actions when appropriate\n\nAct accordingly."
+            "systemMessage": "You are the Machine Manager Agent for JARVIS.\n\n## Purpose\nManage, monitor, and control the local machine infrastructure. You are an infrastructure specialist—efficient, precise, and reliable.\n\n## Available Tools\n\n### System Status\nGet system information. Use infoType parameter:\n- 'cpu' - CPU usage and info\n- 'memory' or 'ram' - Memory usage\n- 'disk' - Disk space usage\n- 'network' - Network interfaces and ports\n- 'processes' - Top processes by memory\n- 'uptime' - System uptime\n- 'all' - Overview of everything (default)\n\n### Service Control\nManage systemd services. Use action parameter:\n- 'status' - Check service status\n- 'start' / 'stop' / 'restart' - Control services\n- 'enable' / 'disable' - Boot configuration\n- 'list' - List all services\n- 'failed' - List failed services\n- 'logs' - View service logs\nRequires serviceName for most actions.\n\n### Docker Control\nManage containers. Use action parameter:\n- 'ps' / 'list' - List containers\n- 'running' - Running containers only\n- 'stats' - Resource usage\n- 'logs' - Container logs\n- 'start' / 'stop' / 'restart' - Control containers\n- 'inspect' - Container details\n- 'images' / 'volumes' / 'networks' - List resources\nRequires containerName for some actions.\n\n### Jellyfin API\nMedia server on port 20001. Use action parameter:\n- 'status' / 'info' - Server info\n- 'health' - Health check\n- 'users' / 'sessions' - User management\n- 'libraries' - Media libraries\n- 'scan' / 'refresh' - Trigger library scan\n- 'search' - Search media (use params.query)\n- 'playing' - Currently playing\n\n## Port Mapping\n- 20000: Samba/SSH (file sharing)\n- 20001: Jellyfin (media server)\n- 20002: n8n (automation)\n\n## Operating Principles\n- Execute requested operations efficiently\n- Report results clearly and concisely\n- Warn about potentially destructive actions\n- If an operation fails, explain what went wrong\n- Suggest related actions when appropriate\n\nAct accordingly.",
+            "enableStreaming": true
           }
         },
         "type": "@n8n/n8n-nodes-langchain.agent",
         "typeVersion": 3,
         "position": [
           400,
-          300
+          304
         ],
         "id": "machine-agent-ai",
         "name": "AI Agent"
@@ -498,8 +500,8 @@
         "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
         "typeVersion": 1.3,
         "position": [
-          200,
-          520
+          208,
+          528
         ],
         "id": "machine-agent-llm",
         "name": "OpenAI Chat Model",
@@ -518,8 +520,8 @@
         "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
         "typeVersion": 1.3,
         "position": [
-          328,
-          520
+          336,
+          528
         ],
         "id": "machine-agent-memory",
         "name": "Simple Memory"
@@ -561,8 +563,8 @@
         "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
         "typeVersion": 2.2,
         "position": [
-          456,
-          520
+          464,
+          528
         ],
         "id": "machine-agent-system",
         "name": "System Status"
@@ -616,8 +618,8 @@
         "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
         "typeVersion": 2.2,
         "position": [
-          584,
-          520
+          592,
+          528
         ],
         "id": "machine-agent-service",
         "name": "Service Control"
@@ -671,8 +673,8 @@
         "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
         "typeVersion": 2.2,
         "position": [
-          712,
-          520
+          720,
+          528
         ],
         "id": "machine-agent-docker",
         "name": "Docker Control"
@@ -726,8 +728,8 @@
         "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
         "typeVersion": 2.2,
         "position": [
-          840,
-          520
+          848,
+          528
         ],
         "id": "machine-agent-jellyfin",
         "name": "Jellyfin API"
@@ -813,30 +815,14 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": null,
-    "description": null,
+    "name": "Version f4cf6ed2",
+    "description": "",
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-08T08:02:34.348Z",
-        "id": 286,
+        "createdAt": "2026-01-09T12:48:06.782Z",
+        "id": 370,
         "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-08T08:04:01.197Z",
-        "id": 333,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-08T08:04:01.907Z",
-        "id": 334,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "af2192b0-ebde-4189-bfd3-f58410965098",
+        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

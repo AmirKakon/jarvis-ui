@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-08T08:03:48.933Z",
+  "updatedAt": "2026-01-09T12:58:51.813Z",
   "createdAt": "2025-12-28T16:45:20.366Z",
   "id": "bGlXB1gv8DM69uIQ",
   "name": "Jarvis AI Agent Orchestrator",
@@ -317,6 +317,49 @@
       ],
       "id": "404ccc8f-1b1b-4ddb-8fec-b33e8d2ea3b7",
       "name": "Gemini CLI"
+    },
+    {
+      "parameters": {
+        "description": "This tool allows you to run any ssh commands on the local machine that you are running on.\nAll commands are at sudo level.\nThis is a linux machine - commands must match accordingly.",
+        "workflowId": {
+          "__rl": true,
+          "value": "TTqKNvyugLWoVF08",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/TTqKNvyugLWoVF08",
+          "cachedResultName": "sudo ssh commands"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "command": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('command', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "command"
+          ],
+          "schema": [
+            {
+              "id": "command",
+              "displayName": "command",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        752,
+        208
+      ],
+      "id": "8b5c72dd-8ef5-4b3c-99ec-6fedf56c10c8",
+      "name": "Call 'sudo ssh commands'"
     }
   ],
   "connections": {
@@ -418,6 +461,17 @@
           }
         ]
       ]
+    },
+    "Call 'sudo ssh commands'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -430,9 +484,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "c6202d4f-a424-43ec-b470-a3414726a126",
-  "activeVersionId": "c6202d4f-a424-43ec-b470-a3414726a126",
-  "versionCounter": 123,
+  "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+  "activeVersionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+  "versionCounter": 128,
   "triggerCount": 1,
   "shared": [
     {
@@ -456,7 +510,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-08T07:27:52.000Z",
+              "updatedAt": "2026-01-11T06:27:15.000Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -482,7 +536,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-08",
+              "lastActiveAt": "2026-01-11",
               "isPending": false
             }
           }
@@ -492,9 +546,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-08T08:03:48.935Z",
-    "createdAt": "2026-01-08T08:03:48.935Z",
-    "versionId": "c6202d4f-a424-43ec-b470-a3414726a126",
+    "updatedAt": "2026-01-09T12:58:56.000Z",
+    "createdAt": "2026-01-09T12:58:51.814Z",
+    "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
     "workflowId": "bGlXB1gv8DM69uIQ",
     "nodes": [
       {
@@ -807,6 +861,49 @@
         ],
         "id": "404ccc8f-1b1b-4ddb-8fec-b33e8d2ea3b7",
         "name": "Gemini CLI"
+      },
+      {
+        "parameters": {
+          "description": "This tool allows you to run any ssh commands on the local machine that you are running on.\nAll commands are at sudo level.\nThis is a linux machine - commands must match accordingly.",
+          "workflowId": {
+            "__rl": true,
+            "value": "TTqKNvyugLWoVF08",
+            "mode": "list",
+            "cachedResultUrl": "/workflow/TTqKNvyugLWoVF08",
+            "cachedResultName": "sudo ssh commands"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "command": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('command', ``, 'string') }}"
+            },
+            "matchingColumns": [
+              "command"
+            ],
+            "schema": [
+              {
+                "id": "command",
+                "displayName": "command",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [
+          752,
+          208
+        ],
+        "id": "8b5c72dd-8ef5-4b3c-99ec-6fedf56c10c8",
+        "name": "Call 'sudo ssh commands'"
       }
     ],
     "connections": {
@@ -908,25 +1005,28 @@
             }
           ]
         ]
+      },
+      "Call 'sudo ssh commands'": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Amir Kakon",
-    "name": null,
-    "description": null,
+    "name": "Version 3d127f8f",
+    "description": "",
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-08T08:03:48.964Z",
-        "id": 321,
+        "createdAt": "2026-01-09T12:58:56.850Z",
+        "id": 371,
         "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "c6202d4f-a424-43ec-b470-a3414726a126",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-08T08:03:49.628Z",
-        "id": 322,
-        "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "c6202d4f-a424-43ec-b470-a3414726a126",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }
