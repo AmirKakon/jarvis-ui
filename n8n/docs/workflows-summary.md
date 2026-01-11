@@ -1,6 +1,6 @@
 # n8n Workflows Summary
 
-> Last updated: January 8, 2026
+> Last updated: January 11, 2026
 
 This document provides an overview of all n8n workflows used in the JARVIS system.
 
@@ -52,7 +52,7 @@ This document provides an overview of all n8n workflows used in the JARVIS syste
 | **Status** | Active |
 | **Trigger** | Webhook (POST, streaming) |
 | **Model** | GPT-5-nano |
-| **Description** | Main JARVIS orchestrator with Machine Manager tools for system, service, Docker, and Jellyfin management. |
+| **Updated** | January 9, 2026 |
 
 ### Purpose
 The main JARVIS AI assistant workflow. Acts as the central orchestrator that receives user messages via webhook and coordinates responses using various tools including the Machine Manager suite.
@@ -69,9 +69,7 @@ The system prompt is organized into sections:
 - **Response Style** - Concise, lean responses with acknowledgements
 - **Task Guidelines** - Technical, planning, and creative task handling
 - **Commands** - "Jarvis, ..." and "Dismiss" handling
-- **Memory** - Store important facts via Long Term Memory tool
-- **Machine Management** - System, service, Docker, and Jellyfin tools
-- **Context** - Location (Jerusalem) and local time
+- **Available Sub-Agents** - Machine Manager, Long-Term Memory, N8N Manager, Gemini CLI
 
 ### Connected Sub-Agents & Tools
 | Agent/Tool | Purpose |
@@ -80,6 +78,7 @@ The system prompt is organized into sections:
 | **Long-Term Memory Agent** | Store/retrieve long-term memories |
 | **N8N Manager** | Create/manage n8n workflows via API |
 | **Gemini CLI** | Execute Gemini CLI for AI analysis |
+| **sudo ssh commands** | Run any sudo-level SSH commands on the local machine |
 | **Calculator** | Mathematical calculations |
 
 ### Nodes
@@ -100,7 +99,7 @@ The system prompt is organized into sections:
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Model** | GPT-5-nano |
-| **Description** | Manages persistent storage and retrieval of long-term memories. Enforces governance rules, deduplication, and memory integrity for the JARVIS system. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Responsible for persistent storage and retrieval of high-confidence, long-term knowledge. Acts as the authoritative source of truth for user facts, preferences, skills, and historical events.
@@ -145,7 +144,7 @@ Responsible for persistent storage and retrieval of high-confidence, long-term k
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Model** | GPT-5-nano |
-| **Description** | Classifies memory candidates and enforces governance rules. Returns classification (type, confidence) or rejection reason. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Decides if a memory is allowed to be stored and how it should be structured. Always runs governance check (no bypass).
@@ -212,7 +211,7 @@ Memory proceeds only if:
 | **ID** | `07RhLX2UKvMjY1cr` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Checks if a memory already exists in the database by comparing SHA-256 hash of normalized content. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Normalize candidate memory, generate its hash, and verify whether it already exists in the database.
@@ -252,7 +251,7 @@ If `exists` = true → **DO NOT STORE**
 | **ID** | `sCcmYT1ufy8hrHMA` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Persists validated memories to PostgreSQL vector database with embeddings and metadata (type, confidence, source, timestamp). |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Persist validated memories to the PostgreSQL vector database.
@@ -295,7 +294,7 @@ Persist validated memories to the PostgreSQL vector database.
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
 | **Model** | GPT-5-nano |
-| **Description** | AI Agent specialized in machine and infrastructure management. Delegates to sub-tools for system, service, Docker, and Jellyfin operations. |
+| **Updated** | January 9, 2026 |
 
 ### Purpose
 Expert AI Agent for all machine management tasks. Acts as a sub-agent to Jarvis, handling infrastructure requests with its own focused system prompt.
@@ -311,6 +310,11 @@ Expert AI Agent for all machine management tasks. Acts as a sub-agent to Jarvis,
 | **Service Control** | systemd service management |
 | **Docker Control** | Container management |
 | **Jellyfin API** | Media server operations |
+
+### Port Mapping (from system prompt)
+- 20000: Samba/SSH (file sharing)
+- 20001: Jellyfin (media server)
+- 20002: n8n (automation)
 
 ### Nodes
 - Execute Workflow Trigger
@@ -331,7 +335,7 @@ Expert AI Agent for all machine management tasks. Acts as a sub-agent to Jarvis,
 | **ID** | `7LHGwHNVnfFNR7Dz` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Retrieves system information including CPU, memory, disk, network, processes, and uptime. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Get comprehensive system status information from the machine.
@@ -374,14 +378,14 @@ Get comprehensive system status information from the machine.
 
 ---
 
-## 7. Machine Manager - Service Control
+## 8. Machine Manager - Service Control
 
 | Property | Value |
 |----------|-------|
 | **ID** | `EmRfZ7kbqyAIbz4m` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Manages systemd services: check status, start, stop, restart, enable/disable, and view logs. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Control and monitor systemd services on the machine.
@@ -429,14 +433,14 @@ Control and monitor systemd services on the machine.
 
 ---
 
-## 8. Machine Manager - Docker Control
+## 9. Machine Manager - Docker Control
 
 | Property | Value |
 |----------|-------|
 | **ID** | `oj51dGKjapXRP91r` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Manages Docker containers: list, stats, logs, start/stop/restart, inspect, and more. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Control and monitor Docker containers on the machine.
@@ -487,14 +491,14 @@ Control and monitor Docker containers on the machine.
 
 ---
 
-## 9. Machine Manager - Jellyfin API
+## 10. Machine Manager - Jellyfin API
 
 | Property | Value |
 |----------|-------|
 | **ID** | `JlhBPAIfI8WHfCsj` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Interacts with Jellyfin media server API (port 20001) for server management and media operations. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Manage Jellyfin media server via its REST API.
@@ -544,17 +548,17 @@ http://localhost:20001
 
 ---
 
-## 10. Machine Manager - Health Monitor
+## 11. Machine Manager - Health Monitor
 
 | Property | Value |
 |----------|-------|
 | **ID** | `3P2iNI900z4nZIGc` |
 | **Status** | Active |
 | **Trigger** | Schedule Trigger (every 1 hour) |
-| **Description** | Automated health monitoring with alerts for disk usage, CPU load, and service status. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
-Continuously monitor system health and alert on issues.
+Continuously monitor system health and alert on issues via Telegram.
 
 ### Monitoring Checks
 - **Disk Usage**: Alert if any partition > 95% (critical) or > 85% (warning)
@@ -580,29 +584,30 @@ Continuously monitor system health and alert on issues.
 ```
 
 ### Nodes
-1. **Every 15 Minutes** - Schedule trigger
+1. **Every Hour** - Schedule trigger
 2. **Check System Health** - SSH command for comprehensive check
 3. **Analyze Health** - Parse output and detect issues
 4. **Has Alerts?** - Conditional check
-5. **Send Alert (Placeholder)** - Notification (configure Telegram/Email)
+5. **Send a text message** - Telegram notification when alerts detected
 6. **Log Health Status** - Log healthy status
 
 ### Alert Integration
-The workflow has a placeholder for notifications. Connect a Telegram or Email node to `Send Alert (Placeholder)` to receive alerts.
+Alerts are sent via Telegram to the configured chat ID when issues are detected.
 
 ### Credentials
 - SSH: `IOT_Kamuri`
+- Telegram: `kakischer_n8n_bot`
 
 ---
 
-## 11. gemini cli trigger
+## 12. gemini cli trigger
 
 | Property | Value |
 |----------|-------|
 | **ID** | `anunjMp26km77JN7` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Executes Gemini CLI commands on the local machine via SSH. Command format: gemini -y -p "<prompt>" |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Execute Gemini CLI commands on the local machine via SSH.
@@ -617,21 +622,22 @@ gemini -y -p "<prompt>"
 ```
 
 ### Nodes
-1. **Execute gemini cli** - SSH node with password auth
+1. **When Executed by Another Workflow** - Trigger with prompt input
+2. **Execute gemini cli** - SSH node with password auth
 
 ### Credentials
 - SSH: `IOT_Kamuri`
 
 ---
 
-## 12. sudo ssh commands
+## 13. sudo ssh commands
 
 | Property | Value |
 |----------|-------|
 | **ID** | `TTqKNvyugLWoVF08` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Executes SSH commands with sudo privileges on the local machine. Sudo prefix is added automatically. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Run any SSH command on the local machine with sudo privileges.
@@ -646,21 +652,22 @@ sudo <command>
 ```
 
 ### Nodes
-1. **ssh command** - SSH node with password auth
+1. **When Executed by Another Workflow** - Trigger with command input
+2. **ssh command** - SSH node with password auth
 
 ### Credentials
 - SSH: `IOT_Kamuri`
 
 ---
 
-## 13. N8N Manager - API Request
+## 14. N8N Manager - API Request
 
 | Property | Value |
 |----------|-------|
 | **ID** | `rJoy4infFhxMynsJ` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Base workflow for N8N Manager. Makes HTTP requests to the n8n API for workflow management (create, read, update, delete workflows). |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Base API handler for all N8N Manager operations. Makes HTTP requests to the n8n REST API.
@@ -673,23 +680,23 @@ Base API handler for all N8N Manager operations. Makes HTTP requests to the n8n 
 ### Base URL
 
 ```
-http://localhost:20003/api/v1
+http://localhost:20002/api/v1
 ```
 
 ### Nodes
-1. **Normalize Path** - Ensure path starts with `/`
-2. **HTTP Request** - Execute API call with auth header
+1. **When Executed by Another Workflow** - Trigger with inputs
+2. **Normalize Path** - Ensure path starts with `/`
+3. **HTTP Request** - Execute API call with auth header
 
 ---
 
-## 14. N8N Manager - Workflow List
+## 15. N8N Manager - Workflow List
 
 | Property | Value |
 |----------|-------|
 | **ID** | `Qa93D3eLsEyc8lP8` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Lists all n8n workflows with their status, name, and ID. Returns array of workflow summaries. |
 
 ### Purpose
 Retrieve a list of all workflows in the n8n instance.
@@ -721,14 +728,13 @@ Retrieve a list of all workflows in the n8n instance.
 
 ---
 
-## 15. N8N Manager - Workflow Get
+## 16. N8N Manager - Workflow Get
 
 | Property | Value |
 |----------|-------|
 | **ID** | `pnlb3Sp3BsBxRMwo` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Gets detailed information about a specific workflow by ID. Returns full workflow definition including nodes and connections. |
 
 ### Purpose
 Retrieve complete details of a specific workflow.
@@ -745,14 +751,13 @@ Full workflow JSON including nodes, connections, settings, and metadata.
 
 ---
 
-## 16. N8N Manager - Workflow Create
+## 17. N8N Manager - Workflow Create
 
 | Property | Value |
 |----------|-------|
 | **ID** | `rmHtxGxBYPtmotHz` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Creates a new n8n workflow from a JSON definition. Requires name, nodes, and connections. Returns the created workflow with its assigned ID. |
 
 ### Purpose
 Create a new workflow in n8n from a JSON definition.
@@ -789,14 +794,13 @@ Create a new workflow in n8n from a JSON definition.
 
 ---
 
-## 17. N8N Manager - Workflow Update
+## 18. N8N Manager - Workflow Update
 
 | Property | Value |
 |----------|-------|
 | **ID** | `HGtPmkUCzYOy3lo1` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Updates an existing n8n workflow. Requires workflowId and the updated workflow JSON. Returns the updated workflow. |
 
 ### Purpose
 Update an existing workflow with new definition.
@@ -828,14 +832,13 @@ Update an existing workflow with new definition.
 
 ---
 
-## 18. N8N Manager - Workflow Delete
+## 19. N8N Manager - Workflow Delete
 
 | Property | Value |
 |----------|-------|
 | **ID** | `BMvwGw7h9cRylQUE` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Deletes an n8n workflow by ID. Returns confirmation of deletion. |
 
 ### Purpose
 Permanently delete a workflow from n8n.
@@ -861,14 +864,13 @@ Permanently delete a workflow from n8n.
 
 ---
 
-## 19. N8N Manager - Workflow Activate
+## 20. N8N Manager - Workflow Activate
 
 | Property | Value |
 |----------|-------|
 | **ID** | `GKM344aryPP29f2O` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Activates an n8n workflow by ID. The workflow will start listening for triggers after activation. |
 
 ### Purpose
 Activate a workflow so it starts listening for triggers.
@@ -893,14 +895,13 @@ Activate a workflow so it starts listening for triggers.
 
 ---
 
-## 20. N8N Manager - Workflow Deactivate
+## 21. N8N Manager - Workflow Deactivate
 
 | Property | Value |
 |----------|-------|
 | **ID** | `OMqZ93GtwiWTuXne` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Deactivates an n8n workflow by ID. The workflow will stop listening for triggers after deactivation. |
 
 ### Purpose
 Deactivate a workflow so it stops listening for triggers.
@@ -925,14 +926,13 @@ Deactivate a workflow so it stops listening for triggers.
 
 ---
 
-## 21. N8N Manager - Workflow Execute
+## 22. N8N Manager - Workflow Execute
 
 | Property | Value |
 |----------|-------|
 | **ID** | `eEtS2fTRa7FA8wAl` |
 | **Status** | Active |
 | **Trigger** | Execute Workflow Trigger |
-| **Description** | Manually executes an n8n workflow by ID. Can optionally provide input data for the execution. |
 
 ### Purpose
 Manually trigger execution of a workflow.
@@ -968,14 +968,14 @@ Manually trigger execution of a workflow.
 
 ---
 
-## 22. download video
+## 23. download video
 
 | Property | Value |
 |----------|-------|
 | **ID** | `dJmq3O0s7lDAMANm` |
 | **Status** | Active |
 | **Trigger** | Form Trigger |
-| **Description** | Downloads videos from URLs to media library (movies/TV shows) with optional Jellyfin sync and Telegram notifications. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Download videos from URLs and organize them into the media library.
@@ -1022,14 +1022,14 @@ Download videos from URLs and organize them into the media library.
 
 ---
 
-## 23. Upload File
+## 24. Upload File
 
 | Property | Value |
 |----------|-------|
 | **ID** | `Ne4nanoy1AypIGqE` |
 | **Status** | Active |
 | **Trigger** | Form Trigger |
-| **Description** | Uploads files to network storage via SFTP with auto-numbering for multiple files and custom subpath support. |
+| **Updated** | January 8, 2026 |
 
 ### Purpose
 Upload files to network storage via SFTP.
@@ -1071,7 +1071,7 @@ shared-storage/מסמכים
 │                           (Main Entry Point)                             │
 │                    Webhook → AI Agent → Response                         │
 │                                                                          │
-│  Tools: Calculator, Gemini CLI                                           │
+│  Tools: Calculator, Gemini CLI, sudo ssh commands                        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
         ┌───────────────────────────┼───────────────────────────┐
@@ -1118,15 +1118,14 @@ The system uses a **hierarchical agent architecture**:
 
 ## Port Mapping
 
-| Port  | Service      | Description                |
-|-------|--------------|---------------------------|
-| 20000 | SSH          | Remote access              |
-| 20001 | nginx        | Reverse proxy (streaming)  |
-| 20002 | Jellyfin     | Media server               |
-| 20003 | n8n          | Automation platform        |
-| 20004 | PostgreSQL   | Database (pgvector)        |
-| 20005 | Jarvis Backend | FastAPI backend          |
-| 20006 | Jarvis Frontend | React frontend          |
+| Port  | Service          | Description                |
+|-------|------------------|---------------------------|
+| 20000 | SSH              | Remote access              |
+| 20001 | Jellyfin         | Media server               |
+| 20002 | n8n              | Automation platform        |
+| 20004 | PostgreSQL       | Database (pgvector)        |
+| 20005 | Jarvis Backend   | FastAPI backend            |
+| 20006 | Jarvis Frontend  | React frontend             |
 
 ---
 
@@ -1138,7 +1137,7 @@ The system uses a **hierarchical agent architecture**:
 | **Service Control** | Manage systemd services | `action`, `serviceName` |
 | **Docker Control** | Manage containers | `action`, `containerName` |
 | **Jellyfin API** | Media server management | `action`, `params` |
-| **Health Monitor** | Automated monitoring | Runs every 15 minutes |
+| **Health Monitor** | Automated monitoring | Runs every hour with Telegram alerts |
 
 ---
 
@@ -1165,7 +1164,7 @@ The system uses a **hierarchical agent architecture**:
 | N8N-Kamuri | PostgreSQL | Memory workflows |
 | IOT_Kamuri | SSH Password | gemini cli, sudo ssh, Machine Manager, download video |
 | FTP account | SFTP | Upload File |
-| kakischer_n8n_bot | Telegram API | download video |
+| kakischer_n8n_bot | Telegram API | download video, Health Monitor |
 
 ---
 
@@ -1192,4 +1191,6 @@ The system uses a **hierarchical agent architecture**:
    - Service Control for systemd service management
    - Docker Control for container management
    - Jellyfin API for media server integration
-   - Health Monitor for automated alerting (configure notifications as needed)
+   - Health Monitor for automated alerting via Telegram (runs every hour)
+
+7. **Jarvis Orchestrator**: The main orchestrator now includes `sudo ssh commands` as a direct tool, allowing arbitrary Linux commands to be executed with sudo privileges.
