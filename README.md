@@ -179,10 +179,11 @@ jarvis-ui/
 | `PORT` | Server port | `20005` |
 | `DATABASE_URL` | PostgreSQL connection (jarvis db) | Required |
 | `MEMORY_DATABASE_URL` | PostgreSQL connection (memory db) | Required |
-| `LLM_PROVIDER` | LLM provider: openai, anthropic, local | `openai` |
+| `LLM_PROVIDER` | LLM provider: openai, anthropic, gemini, local | `openai` |
 | `LLM_MODEL` | Model name | `gpt-4o` |
 | `OPENAI_API_KEY` | OpenAI API key | Required if using OpenAI |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Required if using Anthropic |
+| `GEMINI_API_KEY` | Google Gemini API key | Required if using Gemini |
 | `N8N_TOOL_EXECUTOR_URL` | n8n tool executor webhook URL | Required |
 | `N8N_TIMEOUT_SECONDS` | Timeout for n8n requests | `120` |
 | `CORS_ORIGINS` | Allowed CORS origins | `*` |
@@ -200,6 +201,11 @@ OPENAI_API_KEY=sk-...
 LLM_PROVIDER=anthropic
 LLM_MODEL=claude-3-opus-20240229
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Google Gemini
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-1.5-pro
+GEMINI_API_KEY=your-gemini-api-key
 
 # Local (Ollama)
 LLM_PROVIDER=local

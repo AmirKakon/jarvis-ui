@@ -139,6 +139,10 @@ class AnthropicProvider(LLMProvider):
     """Anthropic/Claude implementation"""
     # Similar implementation
 
+class GeminiProvider(LLMProvider):
+    """Google Gemini implementation"""
+    # Similar implementation with google-generativeai SDK
+
 class LocalProvider(LLMProvider):
     """Local model (Ollama, llama.cpp) implementation"""
     # Similar implementation
@@ -148,6 +152,7 @@ def get_llm_provider(provider: str = "openai") -> LLMProvider:
     providers = {
         "openai": OpenAIProvider,
         "anthropic": AnthropicProvider,
+        "gemini": GeminiProvider,
         "local": LocalProvider,
     }
     return providers[provider]()
@@ -165,6 +170,11 @@ OPENAI_API_KEY=sk-...
 # LLM_PROVIDER=anthropic
 # LLM_MODEL=claude-3-opus
 # ANTHROPIC_API_KEY=sk-ant-...
+
+# Or for Google Gemini
+# LLM_PROVIDER=gemini
+# LLM_MODEL=gemini-1.5-pro
+# GEMINI_API_KEY=your-gemini-api-key
 ```
 
 ---

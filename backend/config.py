@@ -2,6 +2,7 @@
 import os
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -14,15 +15,42 @@ class Settings(BaseSettings):
     # Database settings (required - must be set in .env)
     database_url: str
     
-    # n8n settings (required - must be set in .env)
-    n8n_webhook_url: str
-    n8n_timeout_seconds: int = 60
+    # Memory database (optional - defaults to main database)
+    memory_database_url: Optional[str] = None
+    
+    # LLM Provider settings
+    llm_provider: str = "openai"  # openai, anthropic, gemini, n8n, mock
+    llm_model: str = "gpt-4o"
+    
+    # OpenAI settings
+    openai_api_key: Optional[str] = None
+    
+    # Anthropic settings
+    anthropic_api_key: Optional[str] = None
+    
+    # Google Gemini settings
+    gemini_api_key: Optional[str] = None
+    
+    # n8n Tool Executor settings
+    n8n_tool_executor_url: Optional[str] = None
+    n8n_timeout_seconds: int = 120
+    
+    # Legacy n8n webhook (for fallback/compatibility)
+    n8n_webhook_url: Optional[str] = None
     
     # Session settings
     session_ttl_days: int = 30
     
     # CORS settings
     cors_origins: str = "*"
+    
+    # Streaming settings
+    stream_enabled: bool = True
+    
+    @property
+    def effective_memory_db_url(self) -> str:
+        """Get the memory database URL, defaulting to main database."""
+        return self.memory_database_url or self.database_url
     
     class Config:
         env_file = ".env"
@@ -34,4 +62,3 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
-

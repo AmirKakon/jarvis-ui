@@ -1,11 +1,12 @@
-"""WebSocket endpoints for real-time chat."""
+"""WebSocket endpoints for real-time chat with streaming support."""
 import json
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import Dict
+from typing import Dict, Optional
 from database.db import async_session_maker
 from services.session_manager import session_manager
-from services.llm_provider import llm_provider
+from services.orchestrator import get_orchestrator, OrchestratorEvent
+from services.llm_provider import ChatMessage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -54,21 +55,41 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def load_conversation_history(db, session_id: str, limit: int = 20) -> list[ChatMessage]:
+    """Load recent conversation history as ChatMessage objects."""
+    messages = await session_manager.get_messages(db, session_id, limit=limit)
+    
+    history = []
+    for msg in messages:
+        history.append(ChatMessage(
+            role=msg.role,
+            content=msg.content,
+        ))
+    
+    return history
+
+
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     """
-    WebSocket endpoint for chat communication.
+    WebSocket endpoint for chat communication with streaming support.
     
     Protocol:
-    - Client sends: {"type": "message", "content": "..."}
-    - Client sends: {"type": "get_history"}
-    - Server sends: {"type": "message", "role": "user"|"assistant", "content": "...", "timestamp": "..."}
-    - Server sends: {"type": "history", "messages": [...]}
-    - Server sends: {"type": "error", "content": "..."}
-    - Server sends: {"type": "typing", "status": true|false}
-    - Server sends: {"type": "stream_start"} - Streaming response started
-    - Server sends: {"type": "stream_chunk", "content": "..."} - Streaming text chunk
-    - Server sends: {"type": "stream_end", "id": ..., "timestamp": "..."} - Streaming ended
+    Client → Server:
+        {"type": "message", "content": "..."}
+        {"type": "get_history"}
+        {"type": "stop"} - Stop current generation (future)
+    
+    Server → Client:
+        {"type": "message", "role": "user"|"assistant", "content": "...", "timestamp": "...", "id": ...}
+        {"type": "history", "messages": [...]}
+        {"type": "error", "content": "..."}
+        {"type": "typing", "status": true|false}
+        {"type": "stream_start"}
+        {"type": "stream_token", "content": "..."}
+        {"type": "stream_end", "id": ..., "timestamp": "...", "content": "..."}
+        {"type": "tool_call", "tool": "...", "args": {...}}
+        {"type": "tool_result", "tool": "...", "result": {...}}
     """
     await manager.connect(websocket, session_id)
     
@@ -128,14 +149,24 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         "status": True,
                     })
                     
-                    # Stream response from LLM
+                    # Load conversation history for context
+                    conversation_history = await load_conversation_history(db, session_id)
+                    # Remove the last message (the one we just added) since orchestrator will add it
+                    if conversation_history:
+                        conversation_history = conversation_history[:-1]
+                    
+                    # Get orchestrator and process message
+                    orchestrator = get_orchestrator()
                     full_response = ""
                     stream_started = False
                     has_error = False
                     
                     try:
-                        async for event_type, chunk_content in llm_provider.stream_message(content, session_id):
-                            if event_type == "start":
+                        async for event in orchestrator.process_message(
+                            user_message=content,
+                            conversation_history=conversation_history,
+                        ):
+                            if event.type == "start":
                                 stream_started = True
                                 # Turn off typing indicator, start streaming
                                 await websocket.send_json({
@@ -146,26 +177,39 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                                     "type": "stream_start",
                                 })
                             
-                            elif event_type == "chunk":
+                            elif event.type == "token":
                                 await websocket.send_json({
-                                    "type": "stream_chunk",
-                                    "content": chunk_content,
+                                    "type": "stream_token",
+                                    "content": event.content,
                                 })
                             
-                            elif event_type == "end":
-                                full_response = chunk_content
+                            elif event.type == "tool_call":
+                                await websocket.send_json({
+                                    "type": "tool_call",
+                                    "tool": event.tool_name,
+                                    "args": event.tool_args,
+                                })
                             
-                            elif event_type == "error":
+                            elif event.type == "tool_result":
+                                await websocket.send_json({
+                                    "type": "tool_result",
+                                    "tool": event.tool_name,
+                                    "result": event.tool_result,
+                                })
+                            
+                            elif event.type == "end":
+                                full_response = event.full_response or ""
+                            
+                            elif event.type == "error":
                                 has_error = True
-                                full_response = chunk_content
+                                full_response = event.content
                                 await websocket.send_json({
                                     "type": "error",
-                                    "content": chunk_content,
+                                    "content": event.content,
                                 })
-                                break
                     
                     except Exception as e:
-                        logger.error(f"Streaming error: {e}")
+                        logger.error(f"Orchestrator error: {e}")
                         has_error = True
                         full_response = f"Error communicating with AI: {str(e)}"
                         await websocket.send_json({
@@ -191,7 +235,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             "type": "stream_end",
                             "id": assistant_msg.id,
                             "timestamp": assistant_msg.timestamp.isoformat(),
-                            "content": full_response,  # Include full content for verification
+                            "content": full_response,
                         })
                     else:
                         # No response received
@@ -199,6 +243,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             "type": "stream_end",
                             "content": "",
                         })
+                
+                elif msg_type == "stop":
+                    # TODO: Implement generation stopping
+                    logger.info(f"Stop requested for session {session_id}")
+                    await websocket.send_json({
+                        "type": "info",
+                        "content": "Stop requested (not yet implemented)",
+                    })
                 
                 else:
                     await websocket.send_json({
