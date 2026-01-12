@@ -39,8 +39,8 @@ The system uses a **backend-hosted LLM architecture** where the FastAPI backend 
          │ HTTP (only for tool execution)
 ┌────────▼────────┐     ┌─────────────────────┐
 │  n8n Tool       │     │  PostgreSQL+PGVector │
-│  Executor       │     │  - sessions          │
-│  (Port 20003)   │     │  - messages          │
+│  Executor       │     │  (Port 20004)        │
+│  (Port 20003)   │     │  - sessions          │
 └─────────────────┘     │  - long_term_memory  │
                         └─────────────────────┘
 ```
@@ -313,9 +313,9 @@ Connect to: `ws://localhost:20005/ws/{session_id}`
    - Ensure you have API credits
 
 3. **Tool execution fails**
-   - Verify n8n is running on port 20003
-   - Check the Tool Executor webhook is active
-   - Check n8n execution logs
+   - Verify n8n is running on port 20003 (check `N8N_TOOL_EXECUTOR_URL` in `.env`)
+   - Check the Tool Executor webhook is active in n8n
+   - Check n8n execution logs for errors
 
 4. **Streaming not working**
    - Ensure WebSocket connection is established

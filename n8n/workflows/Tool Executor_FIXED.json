@@ -1,0 +1,278 @@
+{
+  "name": "Tool Executor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tool-executor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "id": "webhook-1",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract tool and params from request body\nconst body = $input.first().json.body || $input.first().json;\nconst tool = body.tool || '';\nconst params = body.params || {};\n\nreturn [{\n  json: {\n    tool,\n    params,\n    ...params\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "id": "extract-params",
+      "name": "Extract Params"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {"output": 0, "value": "system_status"},
+            {"output": 1, "value": "docker_control"},
+            {"output": 2, "value": "service_control"},
+            {"output": 3, "value": "jellyfin_api"},
+            {"output": 4, "value": "ssh_command"},
+            {"output": 5, "value": "gemini_cli"},
+            {"output": 6, "value": "add_memory"},
+            {"output": 7, "value": "n8n_workflow_list"},
+            {"output": 8, "value": "n8n_workflow_get"},
+            {"output": 9, "value": "n8n_workflow_create"},
+            {"output": 10, "value": "n8n_workflow_update"},
+            {"output": 11, "value": "n8n_workflow_delete"},
+            {"output": 12, "value": "n8n_workflow_activate"},
+            {"output": 13, "value": "n8n_workflow_deactivate"},
+            {"output": 14, "value": "n8n_workflow_execute"}
+          ]
+        },
+        "dataType": "string",
+        "value1": "={{ $json.tool }}",
+        "fallbackOutput": "extra"
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [440, 300],
+      "id": "switch-tool",
+      "name": "Route by Tool"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "7LHGwHNVnfFNR7Dz"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, -200],
+      "id": "exec-system-status",
+      "name": "System Status"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "oj51dGKjapXRP91r"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, -100],
+      "id": "exec-docker-control",
+      "name": "Docker Control"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "EmRfZ7kbqyAIbz4m"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 0],
+      "id": "exec-service-control",
+      "name": "Service Control"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "JlhBPAIfI8WHfCsj"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 100],
+      "id": "exec-jellyfin-api",
+      "name": "Jellyfin API"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "TTqKNvyugLWoVF08"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 200],
+      "id": "exec-ssh-command",
+      "name": "SSH Command"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "anunjMp26km77JN7"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 300],
+      "id": "exec-gemini-cli",
+      "name": "Gemini CLI"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "sCcmYT1ufy8hrHMA"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 400],
+      "id": "exec-add-memory",
+      "name": "Add Memory"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "Qa93D3eLsEyc8lP8"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 500],
+      "id": "exec-n8n-list",
+      "name": "N8N Workflow List"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "pnlb3Sp3BsBxRMwo"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 600],
+      "id": "exec-n8n-get",
+      "name": "N8N Workflow Get"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "rmHtxGxBYPtmotHz"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 700],
+      "id": "exec-n8n-create",
+      "name": "N8N Workflow Create"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "HGtPmkUCzYOy3lo1"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 800],
+      "id": "exec-n8n-update",
+      "name": "N8N Workflow Update"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "BMvwGw7h9cRylQUE"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 900],
+      "id": "exec-n8n-delete",
+      "name": "N8N Workflow Delete"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "GKM344aryPP29f2O"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 1000],
+      "id": "exec-n8n-activate",
+      "name": "N8N Workflow Activate"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "OMqZ93GtwiWTuXne"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 1100],
+      "id": "exec-n8n-deactivate",
+      "name": "N8N Workflow Deactivate"
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "id", "value": "eEtS2fTRa7FA8wAl"}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [700, 1200],
+      "id": "exec-n8n-execute",
+      "name": "N8N Workflow Execute"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Unknown tool fallback\nconst tool = $input.first().json.tool || 'unknown';\nreturn [{\n  json: {\n    status: 'error',\n    tool,\n    error: `Unknown tool: ${tool}`,\n    availableTools: ['system_status', 'docker_control', 'service_control', 'jellyfin_api', 'ssh_command', 'gemini_cli', 'add_memory', 'n8n_workflow_list', 'n8n_workflow_get', 'n8n_workflow_create', 'n8n_workflow_update', 'n8n_workflow_delete', 'n8n_workflow_activate', 'n8n_workflow_deactivate', 'n8n_workflow_execute']\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 1300],
+      "id": "unknown-tool",
+      "name": "Unknown Tool"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300],
+      "id": "respond-1",
+      "name": "Respond"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Extract Params", "type": "main", "index": 0}]]
+    },
+    "Extract Params": {
+      "main": [[{"node": "Route by Tool", "type": "main", "index": 0}]]
+    },
+    "Route by Tool": {
+      "main": [
+        [{"node": "System Status", "type": "main", "index": 0}],
+        [{"node": "Docker Control", "type": "main", "index": 0}],
+        [{"node": "Service Control", "type": "main", "index": 0}],
+        [{"node": "Jellyfin API", "type": "main", "index": 0}],
+        [{"node": "SSH Command", "type": "main", "index": 0}],
+        [{"node": "Gemini CLI", "type": "main", "index": 0}],
+        [{"node": "Add Memory", "type": "main", "index": 0}],
+        [{"node": "N8N Workflow List", "type": "main", "index": 0}],
+        [{"node": "N8N Workflow Get", "type": "main", "index": 0}],
+        [{"node": "N8N Workflow Create", "type": "main", "index": 0}],
+        [{"node": "N8N Workflow Update", "type": "main", "index": 0}],
+        [{"node": "N8N Workflow Delete", "type": "main", "index": 0}],
+        [{"node": "N8N Workflow Activate", "type": "main", "index": 0}],
+        [{"node": "N8N Workflow Deactivate", "type": "main", "index": 0}],
+        [{"node": "N8N Workflow Execute", "type": "main", "index": 0}],
+        [{"node": "Unknown Tool", "type": "main", "index": 0}]
+      ]
+    },
+    "System Status": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "Docker Control": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "Service Control": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "Jellyfin API": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "SSH Command": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "Gemini CLI": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "Add Memory": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "N8N Workflow List": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "N8N Workflow Get": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "N8N Workflow Create": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "N8N Workflow Update": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "N8N Workflow Delete": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "N8N Workflow Activate": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "N8N Workflow Deactivate": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "N8N Workflow Execute": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]},
+    "Unknown Tool": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "active": false
+}
+

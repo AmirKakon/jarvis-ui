@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     n8n_tool_executor_url: Optional[str] = None
     n8n_timeout_seconds: int = 120
     
+    # n8n API settings (for direct workflow execution)
+    n8n_api_url: Optional[str] = None  # e.g., http://192.168.1.100:20003/api/v1
+    n8n_api_key: Optional[str] = None  # n8n API key for authentication
+    
     # Legacy n8n webhook (for fallback/compatibility)
     n8n_webhook_url: Optional[str] = None
     

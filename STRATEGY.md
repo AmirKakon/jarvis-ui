@@ -634,4 +634,6 @@ Frontend → Backend → LLM API (streaming)
 | 20003 | n8n              | Automation platform        |
 | 20004 | PostgreSQL       | Database (pgvector)        |
 | 20005 | Jarvis Backend   | FastAPI backend            |
-| 20006 | Jarvis Frontend  | React frontend             |  
+| 20006 | Jarvis Frontend  | React frontend             |
+
+> **Note**: n8n webhook URL format: `http://hostname:20003/webhook/tool-executor`  

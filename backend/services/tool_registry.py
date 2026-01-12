@@ -15,9 +15,32 @@ logger = logging.getLogger(__name__)
 class ToolRegistry:
     """Registry of all available tools for the LLM."""
     
+    # Map tool names to n8n workflow IDs for direct API calls
+    N8N_WORKFLOW_IDS = {
+        "system_status": "7LHGwHNVnfFNR7Dz",
+        "docker_control": "oj51dGKjapXRP91r",
+        "service_control": "EmRfZ7kbqyAIbz4m",
+        "jellyfin_api": "JlhBPAIfI8WHfCsj",
+        "ssh_command": "TTqKNvyugLWoVF08",
+        "gemini_cli": "anunjMp26km77JN7",
+        "add_memory": "sCcmYT1ufy8hrHMA",
+        "memory_governance": "dUc4LsfxP25i11wD",
+        "memory_deduplication": "07RhLX2UKvMjY1cr",
+        "n8n_workflow_list": "Qa93D3eLsEyc8lP8",
+        "n8n_workflow_get": "pnlb3Sp3BsBxRMwo",
+        "n8n_workflow_create": "rmHtxGxBYPtmotHz",
+        "n8n_workflow_update": "HGtPmkUCzYOy3lo1",
+        "n8n_workflow_delete": "BMvwGw7h9cRylQUE",
+        "n8n_workflow_activate": "GKM344aryPP29f2O",
+        "n8n_workflow_deactivate": "OMqZ93GtwiWTuXne",
+        "n8n_workflow_execute": "eEtS2fTRa7FA8wAl",
+    }
+    
     def __init__(self):
         self.settings = get_settings()
         self.n8n_url = self.settings.n8n_tool_executor_url
+        self.n8n_api_url = self.settings.n8n_api_url
+        self.n8n_api_key = self.settings.n8n_api_key
         self.n8n_timeout = self.settings.n8n_timeout_seconds
         self.tools: dict[str, Callable] = {}
         self.tool_schemas: list[dict] = []
@@ -241,25 +264,73 @@ class ToolRegistry:
             })
     
     def _make_n8n_tool(self, tool_name: str) -> Callable:
-        """Create a callable that invokes n8n Tool Executor."""
+        """Create a callable that invokes n8n workflow (via API or Tool Executor)."""
         async def call_n8n(params: dict) -> dict:
-            if not self.n8n_url:
-                return {"status": "error", "error": "n8n Tool Executor URL not configured"}
+            # Prefer direct API calls if configured
+            if self.n8n_api_url and self.n8n_api_key and tool_name in self.N8N_WORKFLOW_IDS:
+                return await self._call_n8n_api(tool_name, params)
             
-            try:
-                async with httpx.AsyncClient(timeout=self.n8n_timeout) as client:
-                    response = await client.post(
-                        self.n8n_url,
-                        json={"tool": tool_name, "params": params},
-                    )
-                    return response.json()
-            except httpx.TimeoutException:
-                return {"status": "error", "error": f"Tool execution timed out after {self.n8n_timeout}s"}
-            except Exception as e:
-                logger.error(f"n8n tool execution error: {e}")
-                return {"status": "error", "error": str(e)}
+            # Fallback to Tool Executor webhook
+            if self.n8n_url:
+                return await self._call_tool_executor(tool_name, params)
+            
+            return {"status": "error", "error": "n8n not configured (set N8N_API_URL + N8N_API_KEY, or N8N_TOOL_EXECUTOR_URL)"}
         
         return call_n8n
+    
+    async def _call_n8n_api(self, tool_name: str, params: dict) -> dict:
+        """Execute n8n workflow directly via API."""
+        workflow_id = self.N8N_WORKFLOW_IDS.get(tool_name)
+        if not workflow_id:
+            return {"status": "error", "error": f"No workflow ID mapped for tool: {tool_name}"}
+        
+        url = f"{self.n8n_api_url}/workflows/{workflow_id}/run"
+        headers = {"X-N8N-API-KEY": self.n8n_api_key}
+        
+        try:
+            async with httpx.AsyncClient(timeout=self.n8n_timeout) as client:
+                response = await client.post(url, json=params, headers=headers)
+                response.raise_for_status()
+                result = response.json()
+                
+                # Extract the actual result from n8n API response
+                if isinstance(result, dict):
+                    # n8n API returns data in a specific format
+                    if "data" in result and "resultData" in result["data"]:
+                        run_data = result["data"]["resultData"].get("runData", {})
+                        # Get the last node's output
+                        for node_name, node_runs in reversed(list(run_data.items())):
+                            if node_runs and len(node_runs) > 0:
+                                last_run = node_runs[-1]
+                                if "data" in last_run and "main" in last_run["data"]:
+                                    main_output = last_run["data"]["main"]
+                                    if main_output and len(main_output) > 0 and len(main_output[0]) > 0:
+                                        return {"status": "success", "tool": tool_name, "result": main_output[0][0].get("json", {})}
+                    return {"status": "success", "tool": tool_name, "result": result}
+                return {"status": "success", "tool": tool_name, "result": result}
+        except httpx.TimeoutException:
+            return {"status": "error", "error": f"Tool execution timed out after {self.n8n_timeout}s"}
+        except httpx.HTTPStatusError as e:
+            logger.error(f"n8n API error: {e.response.status_code} - {e.response.text}")
+            return {"status": "error", "error": f"n8n API error: {e.response.status_code}"}
+        except Exception as e:
+            logger.error(f"n8n API call error: {e}")
+            return {"status": "error", "error": str(e)}
+    
+    async def _call_tool_executor(self, tool_name: str, params: dict) -> dict:
+        """Execute tool via n8n Tool Executor webhook."""
+        try:
+            async with httpx.AsyncClient(timeout=self.n8n_timeout) as client:
+                response = await client.post(
+                    self.n8n_url,
+                    json={"tool": tool_name, "params": params},
+                )
+                return response.json()
+        except httpx.TimeoutException:
+            return {"status": "error", "error": f"Tool execution timed out after {self.n8n_timeout}s"}
+        except Exception as e:
+            logger.error(f"n8n tool executor error: {e}")
+            return {"status": "error", "error": str(e)}
     
     async def _calculator(self, params: dict) -> dict:
         """Evaluate a mathematical expression safely."""

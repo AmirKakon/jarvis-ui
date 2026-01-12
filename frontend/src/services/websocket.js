@@ -18,7 +18,10 @@ class WebSocketClient {
       disconnect: [],
       stream_start: [],
       stream_chunk: [],
+      stream_token: [],  // Backend sends this for streaming tokens
       stream_end: [],
+      tool_call: [],
+      tool_result: [],
     };
   }
 
@@ -30,9 +33,9 @@ class WebSocketClient {
   getWebSocketUrl(sessionId) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname;
-    // In development, use the Vite proxy (same port)
-    // In production, use the same origin
-    const port = import.meta.env.DEV ? window.location.port : (window.location.port || (protocol === 'wss:' ? '443' : '80'));
+    // In development, connect directly to backend on port 20005
+    // In production, use the same origin (backend serves frontend)
+    const port = import.meta.env.DEV ? '20005' : (window.location.port || (protocol === 'wss:' ? '443' : '80'));
     return `${protocol}//${host}:${port}/ws/${sessionId}`;
   }
 
@@ -117,8 +120,19 @@ class WebSocketClient {
       case 'stream_chunk':
         this.emit('stream_chunk', payload);
         break;
+      case 'stream_token':
+        // Backend sends stream_token, emit as both for compatibility
+        this.emit('stream_token', payload);
+        this.emit('stream_chunk', payload);  // Also emit as stream_chunk for components expecting it
+        break;
       case 'stream_end':
         this.emit('stream_end', payload);
+        break;
+      case 'tool_call':
+        this.emit('tool_call', payload);
+        break;
+      case 'tool_result':
+        this.emit('tool_result', payload);
         break;
       default:
         console.log('Unknown message type:', type, data);
