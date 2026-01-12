@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:10.238Z",
+  "updatedAt": "2026-01-12T11:52:34.400Z",
   "createdAt": "2026-01-01T14:00:53.870Z",
   "id": "sCcmYT1ufy8hrHMA",
   "name": "Add Memory",
@@ -198,7 +198,7 @@
   "pinData": {},
   "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
   "activeVersionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
-  "versionCounter": 120,
+  "versionCounter": 125,
   "triggerCount": 0,
   "shared": [
     {
@@ -664,6 +664,22 @@
       {
         "createdAt": "2026-01-12T08:06:11.017Z",
         "id": 520,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:34.435Z",
+        "id": 574,
+        "workflowId": "sCcmYT1ufy8hrHMA",
+        "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:34.712Z",
+        "id": 575,
         "workflowId": "sCcmYT1ufy8hrHMA",
         "versionId": "691f9e51-9a88-453f-a062-2cd7488104ac",
         "event": "activated",

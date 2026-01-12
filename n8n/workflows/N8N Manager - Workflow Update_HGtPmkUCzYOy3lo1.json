@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:57.594Z",
+  "updatedAt": "2026-01-12T11:52:50.300Z",
   "createdAt": "2026-01-07T20:14:00.201Z",
   "id": "HGtPmkUCzYOy3lo1",
   "name": "N8N Manager - Workflow Update",
@@ -149,7 +149,7 @@
   "pinData": null,
   "versionId": "7de4d83e-ccb2-42f0-916b-ad19b33ea723",
   "activeVersionId": "7de4d83e-ccb2-42f0-916b-ad19b33ea723",
-  "versionCounter": 50,
+  "versionCounter": 55,
   "triggerCount": 0,
   "shared": [
     {
@@ -496,6 +496,22 @@
       {
         "createdAt": "2026-01-12T08:06:57.897Z",
         "id": 562,
+        "workflowId": "HGtPmkUCzYOy3lo1",
+        "versionId": "7de4d83e-ccb2-42f0-916b-ad19b33ea723",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:50.323Z",
+        "id": 616,
+        "workflowId": "HGtPmkUCzYOy3lo1",
+        "versionId": "7de4d83e-ccb2-42f0-916b-ad19b33ea723",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:50.575Z",
+        "id": 617,
         "workflowId": "HGtPmkUCzYOy3lo1",
         "versionId": "7de4d83e-ccb2-42f0-916b-ad19b33ea723",
         "event": "activated",

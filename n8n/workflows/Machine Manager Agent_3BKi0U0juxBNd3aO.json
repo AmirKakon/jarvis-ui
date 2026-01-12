@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:31.466Z",
+  "updatedAt": "2026-01-12T11:52:42.034Z",
   "createdAt": "2026-01-08T08:02:33.416Z",
   "id": "3BKi0U0juxBNd3aO",
   "name": "Machine Manager Agent",
@@ -381,9 +381,9 @@
   "staticData": null,
   "meta": null,
   "pinData": {},
-  "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-  "activeVersionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-  "versionCounter": 33,
+  "versionId": "57503d44-fcf2-47ea-b268-e40b714d884b",
+  "activeVersionId": "57503d44-fcf2-47ea-b268-e40b714d884b",
+  "versionCounter": 38,
   "triggerCount": 0,
   "shared": [
     {
@@ -442,9 +442,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-09T12:48:06.000Z",
-    "createdAt": "2026-01-09T12:48:01.720Z",
-    "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
+    "updatedAt": "2026-01-12T11:52:42.035Z",
+    "createdAt": "2026-01-12T11:52:42.035Z",
+    "versionId": "57503d44-fcf2-47ea-b268-e40b714d884b",
     "workflowId": "3BKi0U0juxBNd3aO",
     "nodes": [
       {
@@ -472,7 +472,7 @@
       {
         "parameters": {
           "options": {
-            "systemMessage": "You are the Machine Manager Agent for JARVIS.\n\n## Purpose\nManage, monitor, and control the local machine infrastructure. You are an infrastructure specialist—efficient, precise, and reliable.\n\n## Available Tools\n\n### System Status\nGet system information. Use infoType parameter:\n- 'cpu' - CPU usage and info\n- 'memory' or 'ram' - Memory usage\n- 'disk' - Disk space usage\n- 'network' - Network interfaces and ports\n- 'processes' - Top processes by memory\n- 'uptime' - System uptime\n- 'all' - Overview of everything (default)\n\n### Service Control\nManage systemd services. Use action parameter:\n- 'status' - Check service status\n- 'start' / 'stop' / 'restart' - Control services\n- 'enable' / 'disable' - Boot configuration\n- 'list' - List all services\n- 'failed' - List failed services\n- 'logs' - View service logs\nRequires serviceName for most actions.\n\n### Docker Control\nManage containers. Use action parameter:\n- 'ps' / 'list' - List containers\n- 'running' - Running containers only\n- 'stats' - Resource usage\n- 'logs' - Container logs\n- 'start' / 'stop' / 'restart' - Control containers\n- 'inspect' - Container details\n- 'images' / 'volumes' / 'networks' - List resources\nRequires containerName for some actions.\n\n### Jellyfin API\nMedia server on port 20001. Use action parameter:\n- 'status' / 'info' - Server info\n- 'health' - Health check\n- 'users' / 'sessions' - User management\n- 'libraries' - Media libraries\n- 'scan' / 'refresh' - Trigger library scan\n- 'search' - Search media (use params.query)\n- 'playing' - Currently playing\n\n## Port Mapping\n- 20000: Samba/SSH (file sharing)\n- 20001: NGINX (Reverse Proxy)\n- 20002 Jellyfin (media server)\n- 20003: n8n (automation)\n\n## Operating Principles\n- Execute requested operations efficiently\n- Report results clearly and concisely\n- Warn about potentially destructive actions\n- If an operation fails, explain what went wrong\n- Suggest related actions when appropriate\n\nAct accordingly.",
+            "systemMessage": "You are the Machine Manager Agent for JARVIS.\n\n## Purpose\nManage, monitor, and control the local machine infrastructure. You are an infrastructure specialist—efficient, precise, and reliable.\n\n## Available Tools\n\n### System Status\nGet system information. Use infoType parameter:\n- 'cpu' - CPU usage and info\n- 'memory' or 'ram' - Memory usage\n- 'disk' - Disk space usage\n- 'network' - Network interfaces and ports\n- 'processes' - Top processes by memory\n- 'uptime' - System uptime\n- 'all' - Overview of everything (default)\n\n### Service Control\nManage systemd services. Use action parameter:\n- 'status' - Check service status\n- 'start' / 'stop' / 'restart' - Control services\n- 'enable' / 'disable' - Boot configuration\n- 'list' - List all services\n- 'failed' - List failed services\n- 'logs' - View service logs\nRequires serviceName for most actions.\n\n### Docker Control\nManage containers. Use action parameter:\n- 'ps' / 'list' - List containers\n- 'running' - Running containers only\n- 'stats' - Resource usage\n- 'logs' - Container logs\n- 'start' / 'stop' / 'restart' - Control containers\n- 'inspect' - Container details\n- 'images' / 'volumes' / 'networks' - List resources\nRequires containerName for some actions.\n\n### Jellyfin API\nMedia server on port 20001. Use action parameter:\n- 'status' / 'info' - Server info\n- 'health' - Health check\n- 'users' / 'sessions' - User management\n- 'libraries' - Media libraries\n- 'scan' / 'refresh' - Trigger library scan\n- 'search' - Search media (use params.query)\n- 'playing' - Currently playing\n\n## Port Mapping\n- 20000: Samba/SSH (file sharing)\n- 20001: NGINX (Reverse Proxy)\n- 20002: Jellyfin (media server)\n- 20003: n8n (automation)\n\n## Operating Principles\n- Execute requested operations efficiently\n- Report results clearly and concisely\n- Warn about potentially destructive actions\n- If an operation fails, explain what went wrong\n- Suggest related actions when appropriate\n\nAct accordingly.",
             "enableStreaming": true
           }
         },
@@ -814,78 +814,22 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": "Version f4cf6ed2",
-    "description": "",
+    "name": null,
+    "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-09T12:48:06.782Z",
-        "id": 370,
+        "createdAt": "2026-01-12T11:52:42.060Z",
+        "id": 594,
         "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
+        "versionId": "57503d44-fcf2-47ea-b268-e40b714d884b",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       },
       {
-        "createdAt": "2026-01-11T15:00:48.609Z",
-        "id": 392,
+        "createdAt": "2026-01-12T11:52:42.320Z",
+        "id": 595,
         "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-11T15:00:48.951Z",
-        "id": 393,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T07:58:51.164Z",
-        "id": 441,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T07:58:51.511Z",
-        "id": 442,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T08:04:24.408Z",
-        "id": 490,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T08:04:25.349Z",
-        "id": 491,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T08:06:31.489Z",
-        "id": 539,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T08:06:31.766Z",
-        "id": 540,
-        "workflowId": "3BKi0U0juxBNd3aO",
-        "versionId": "f4cf6ed2-9da4-4cff-b91f-8d87a7b84706",
+        "versionId": "57503d44-fcf2-47ea-b268-e40b714d884b",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

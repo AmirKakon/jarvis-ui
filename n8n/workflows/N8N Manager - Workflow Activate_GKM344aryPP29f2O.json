@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:38.168Z",
+  "updatedAt": "2026-01-12T11:52:45.060Z",
   "createdAt": "2026-01-07T20:13:31.720Z",
   "id": "GKM344aryPP29f2O",
   "name": "N8N Manager - Workflow Activate",
@@ -143,7 +143,7 @@
   "pinData": null,
   "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
   "activeVersionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
-  "versionCounter": 50,
+  "versionCounter": 55,
   "triggerCount": 0,
   "shared": [
     {
@@ -484,6 +484,22 @@
       {
         "createdAt": "2026-01-12T08:06:39.620Z",
         "id": 548,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:45.082Z",
+        "id": 602,
+        "workflowId": "GKM344aryPP29f2O",
+        "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:45.340Z",
+        "id": 603,
         "workflowId": "GKM344aryPP29f2O",
         "versionId": "037ed67e-283d-4e0c-b11e-c6ea3c616477",
         "event": "activated",

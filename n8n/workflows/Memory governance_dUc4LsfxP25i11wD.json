@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:34.171Z",
+  "updatedAt": "2026-01-12T11:52:43.596Z",
   "createdAt": "2025-12-29T18:50:25.303Z",
   "id": "dUc4LsfxP25i11wD",
   "name": "Memory governance",
@@ -242,7 +242,7 @@
   },
   "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
   "activeVersionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
-  "versionCounter": 112,
+  "versionCounter": 117,
   "triggerCount": 0,
   "shared": [
     {
@@ -709,6 +709,22 @@
       {
         "createdAt": "2026-01-12T08:06:35.207Z",
         "id": 544,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:43.620Z",
+        "id": 598,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:43.866Z",
+        "id": 599,
         "workflowId": "dUc4LsfxP25i11wD",
         "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
         "event": "activated",

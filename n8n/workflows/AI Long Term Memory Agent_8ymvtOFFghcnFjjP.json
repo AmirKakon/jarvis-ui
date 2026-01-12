@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:11.707Z",
+  "updatedAt": "2026-01-12T11:52:35.187Z",
   "createdAt": "2026-01-01T12:24:15.045Z",
   "id": "8ymvtOFFghcnFjjP",
   "name": "AI Long Term Memory Agent",
@@ -385,7 +385,7 @@
   },
   "versionId": "d0e982d0-47fa-4e65-98a1-04dcd486ac94",
   "activeVersionId": "d0e982d0-47fa-4e65-98a1-04dcd486ac94",
-  "versionCounter": 118,
+  "versionCounter": 123,
   "triggerCount": 0,
   "shared": [
     {
@@ -997,6 +997,22 @@
       {
         "createdAt": "2026-01-12T08:06:12.037Z",
         "id": 522,
+        "workflowId": "8ymvtOFFghcnFjjP",
+        "versionId": "d0e982d0-47fa-4e65-98a1-04dcd486ac94",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:35.213Z",
+        "id": 576,
+        "workflowId": "8ymvtOFFghcnFjjP",
+        "versionId": "d0e982d0-47fa-4e65-98a1-04dcd486ac94",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:35.459Z",
+        "id": 577,
         "workflowId": "8ymvtOFFghcnFjjP",
         "versionId": "d0e982d0-47fa-4e65-98a1-04dcd486ac94",
         "event": "activated",

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:20.985Z",
+  "updatedAt": "2026-01-12T11:52:38.206Z",
   "createdAt": "2026-01-08T07:30:14.133Z",
   "id": "oj51dGKjapXRP91r",
   "name": "Machine Manager - Docker Control",
@@ -185,7 +185,7 @@
   "pinData": null,
   "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
   "activeVersionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
-  "versionCounter": 40,
+  "versionCounter": 45,
   "triggerCount": 0,
   "shared": [
     {
@@ -536,6 +536,22 @@
       {
         "createdAt": "2026-01-12T08:06:21.472Z",
         "id": 530,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:38.230Z",
+        "id": 584,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:38.466Z",
+        "id": 585,
         "workflowId": "oj51dGKjapXRP91r",
         "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
         "event": "activated",

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:15.462Z",
+  "updatedAt": "2026-01-12T11:52:36.709Z",
   "createdAt": "2025-12-17T07:56:42.083Z",
   "id": "anunjMp26km77JN7",
   "name": "gemini cli trigger",
@@ -84,7 +84,7 @@
   },
   "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
   "activeVersionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
-  "versionCounter": 76,
+  "versionCounter": 81,
   "triggerCount": 0,
   "shared": [
     {
@@ -404,6 +404,22 @@
       {
         "createdAt": "2026-01-12T08:06:16.327Z",
         "id": 526,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:36.736Z",
+        "id": 580,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:37.006Z",
+        "id": 581,
         "workflowId": "anunjMp26km77JN7",
         "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
         "event": "activated",

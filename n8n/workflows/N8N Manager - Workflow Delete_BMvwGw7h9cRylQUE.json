@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:46.476Z",
+  "updatedAt": "2026-01-12T11:52:47.326Z",
   "createdAt": "2026-01-07T20:13:44.391Z",
   "id": "BMvwGw7h9cRylQUE",
   "name": "N8N Manager - Workflow Delete",
@@ -216,7 +216,7 @@
   "pinData": null,
   "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
   "activeVersionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
-  "versionCounter": 50,
+  "versionCounter": 55,
   "triggerCount": 0,
   "shared": [
     {
@@ -630,6 +630,22 @@
       {
         "createdAt": "2026-01-12T08:06:47.307Z",
         "id": 554,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:47.351Z",
+        "id": 608,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:47.577Z",
+        "id": 609,
         "workflowId": "BMvwGw7h9cRylQUE",
         "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
         "event": "activated",

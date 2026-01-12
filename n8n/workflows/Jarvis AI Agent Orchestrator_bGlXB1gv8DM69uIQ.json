@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:18.941Z",
+  "updatedAt": "2026-01-12T11:52:37.474Z",
   "createdAt": "2025-12-28T16:45:20.366Z",
   "id": "bGlXB1gv8DM69uIQ",
   "name": "Jarvis AI Agent Orchestrator",
@@ -484,9 +484,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-  "activeVersionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-  "versionCounter": 148,
+  "versionId": "9aa1d4b2-6612-4868-8f38-57fa6680bb3d",
+  "activeVersionId": "9aa1d4b2-6612-4868-8f38-57fa6680bb3d",
+  "versionCounter": 171,
   "triggerCount": 1,
   "shared": [
     {
@@ -545,9 +545,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-09T12:58:56.000Z",
-    "createdAt": "2026-01-09T12:58:51.814Z",
-    "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+    "updatedAt": "2026-01-12T11:52:37.475Z",
+    "createdAt": "2026-01-12T11:52:37.475Z",
+    "versionId": "9aa1d4b2-6612-4868-8f38-57fa6680bb3d",
     "workflowId": "bGlXB1gv8DM69uIQ",
     "nodes": [
       {
@@ -1018,78 +1018,22 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": "Version 3d127f8f",
-    "description": "",
+    "name": null,
+    "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-09T12:58:56.850Z",
-        "id": 371,
+        "createdAt": "2026-01-12T11:52:37.505Z",
+        "id": 582,
         "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "versionId": "9aa1d4b2-6612-4868-8f38-57fa6680bb3d",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       },
       {
-        "createdAt": "2026-01-11T15:00:34.594Z",
-        "id": 380,
+        "createdAt": "2026-01-12T11:52:37.760Z",
+        "id": 583,
         "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-11T15:00:35.607Z",
-        "id": 381,
-        "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T07:58:41.541Z",
-        "id": 429,
-        "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T07:58:42.201Z",
-        "id": 430,
-        "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T08:04:03.016Z",
-        "id": 478,
-        "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T08:04:04.480Z",
-        "id": 479,
-        "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T08:06:18.975Z",
-        "id": 527,
-        "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-        "event": "activated",
-        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
-      },
-      {
-        "createdAt": "2026-01-12T08:06:19.993Z",
-        "id": 528,
-        "workflowId": "bGlXB1gv8DM69uIQ",
-        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "versionId": "9aa1d4b2-6612-4868-8f38-57fa6680bb3d",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

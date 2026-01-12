@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:29.819Z",
+  "updatedAt": "2026-01-12T11:52:41.265Z",
   "createdAt": "2026-01-08T07:30:15.997Z",
   "id": "7LHGwHNVnfFNR7Dz",
   "name": "Machine Manager - System Status",
@@ -118,7 +118,7 @@
   "pinData": null,
   "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
   "activeVersionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
-  "versionCounter": 40,
+  "versionCounter": 45,
   "triggerCount": 0,
   "shared": [
     {
@@ -402,6 +402,22 @@
       {
         "createdAt": "2026-01-12T08:06:30.447Z",
         "id": 538,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:41.289Z",
+        "id": 592,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:41.542Z",
+        "id": 593,
         "workflowId": "7LHGwHNVnfFNR7Dz",
         "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
         "event": "activated",

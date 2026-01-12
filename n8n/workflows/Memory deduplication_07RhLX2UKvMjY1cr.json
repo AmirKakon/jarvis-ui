@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T08:06:32.323Z",
+  "updatedAt": "2026-01-12T11:52:42.795Z",
   "createdAt": "2025-12-30T07:18:58.332Z",
   "id": "07RhLX2UKvMjY1cr",
   "name": "Memory deduplication",
@@ -152,7 +152,7 @@
   },
   "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
   "activeVersionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
-  "versionCounter": 86,
+  "versionCounter": 91,
   "triggerCount": 0,
   "shared": [
     {
@@ -531,6 +531,22 @@
       {
         "createdAt": "2026-01-12T08:06:32.913Z",
         "id": 542,
+        "workflowId": "07RhLX2UKvMjY1cr",
+        "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:42.822Z",
+        "id": 596,
+        "workflowId": "07RhLX2UKvMjY1cr",
+        "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T11:52:43.089Z",
+        "id": 597,
         "workflowId": "07RhLX2UKvMjY1cr",
         "versionId": "2c47404f-dcae-4e3c-ab9c-5ff053080567",
         "event": "activated",
