@@ -74,10 +74,18 @@ class LLMProvider(ABC):
 class OpenAIProvider(LLMProvider):
     """OpenAI/GPT implementation with streaming and tool calling."""
     
-    def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None):
+    def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None, verify_ssl: bool = True):
+        import httpx
         from openai import AsyncOpenAI
         self.model = model
-        self.client = AsyncOpenAI(api_key=api_key)
+        
+        # Create custom httpx client that can skip SSL verification if needed
+        # This is useful when behind corporate proxies with self-signed certs
+        if not verify_ssl:
+            http_client = httpx.AsyncClient(verify=False)
+            self.client = AsyncOpenAI(api_key=api_key, http_client=http_client)
+        else:
+            self.client = AsyncOpenAI(api_key=api_key)
     
     def _format_messages(
         self, 
@@ -690,6 +698,7 @@ def get_llm_provider(
     api_key: Optional[str] = None,
     webhook_url: Optional[str] = None,
     timeout: int = 120,
+    verify_ssl: bool = True,
 ) -> LLMProvider:
     """
     Get an LLM provider instance.
@@ -700,6 +709,7 @@ def get_llm_provider(
         api_key: API key for the provider
         webhook_url: Webhook URL for n8n provider
         timeout: Timeout for requests
+        verify_ssl: Whether to verify SSL certificates
         
     Returns:
         LLMProvider instance
@@ -708,6 +718,7 @@ def get_llm_provider(
         return OpenAIProvider(
             model=model or "gpt-4o",
             api_key=api_key,
+            verify_ssl=verify_ssl,
         )
     elif provider_type == "anthropic":
         return AnthropicProvider(
@@ -750,4 +761,5 @@ def create_provider_from_settings() -> LLMProvider:
         api_key=api_key,
         webhook_url=settings.n8n_webhook_url,
         timeout=settings.n8n_timeout_seconds,
+        verify_ssl=settings.verify_ssl,
     )

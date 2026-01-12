@@ -11,7 +11,7 @@ echo.
 echo Starting Backend Server in new window...
 start "Jarvis Backend" cmd /k "%SCRIPT_DIR%start-backend.bat"
 
-timeout /t 2 /nobreak >nul
+timeout /t 5 /nobreak >nul
 
 echo Starting Frontend Dev Server in new window...
 start "Jarvis Frontend" cmd /k "%SCRIPT_DIR%start-frontend.bat"

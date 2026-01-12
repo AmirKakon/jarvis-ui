@@ -40,7 +40,7 @@ The system uses a **backend-hosted LLM architecture** where the FastAPI backend 
 ┌────────▼────────┐     ┌─────────────────────┐
 │  n8n Tool       │     │  PostgreSQL+PGVector │
 │  Executor       │     │  - sessions          │
-│  (Port 20002)   │     │  - messages          │
+│  (Port 20003)   │     │  - messages          │
 └─────────────────┘     │  - long_term_memory  │
                         └─────────────────────┘
 ```
@@ -94,7 +94,7 @@ LLM_MODEL=gpt-4o
 OPENAI_API_KEY=sk-your-key-here
 
 # n8n Tool Executor webhook
-N8N_TOOL_EXECUTOR_URL=http://192.168.1.100:20002/webhook/tool-executor
+N8N_TOOL_EXECUTOR_URL=http://192.168.1.100:20003/webhook/tool-executor
 N8N_TIMEOUT_SECONDS=120
 ```
 
@@ -313,7 +313,7 @@ Connect to: `ws://localhost:20005/ws/{session_id}`
    - Ensure you have API credits
 
 3. **Tool execution fails**
-   - Verify n8n is running on port 20002
+   - Verify n8n is running on port 20003
    - Check the Tool Executor webhook is active
    - Check n8n execution logs
 

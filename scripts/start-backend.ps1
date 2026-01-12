@@ -20,8 +20,8 @@ Write-Host "======================================" -ForegroundColor Cyan
 Write-Host "  Jarvis UI - Backend Server" -ForegroundColor Cyan
 Write-Host "======================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Starting on http://localhost:20003" -ForegroundColor Green
-Write-Host "API Docs: http://localhost:20003/docs" -ForegroundColor Gray
+Write-Host "Starting on http://localhost:20005" -ForegroundColor Green
+Write-Host "API Docs: http://localhost:20005/docs" -ForegroundColor Gray
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Gray
 Write-Host ""
 

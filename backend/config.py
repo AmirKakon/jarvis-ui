@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # Streaming settings
     stream_enabled: bool = True
     
+    # SSL verification (disable if behind corporate proxy with self-signed certs)
+    verify_ssl: bool = True
+    
     @property
     def effective_memory_db_url(self) -> str:
         """Get the memory database URL, defaulting to main database."""

@@ -51,14 +51,15 @@ User Message → Backend → LLM (with tools) → Tool Call Decision
 
 ## 🌐 Port Mapping
 
-| Port  | Service           | Description                |
-|-------|-------------------|---------------------------|
-| 20000 | SSH               | Remote access              |
-| 20001 | Jellyfin          | Media server               |
-| 20002 | n8n               | Automation platform        |
-| 20004 | PostgreSQL        | Database (pgvector)        |
-| 20005 | Jarvis Backend    | FastAPI backend (LLM host) |
-| 20006 | Jarvis Frontend   | React frontend             |
+| Port  | Service          | Description                |
+|-------|------------------|---------------------------|
+| 20000 | SSH              | Remote access              |
+| 20001 | NGINX            | Reverse proxy              |
+| 20002 | Jellyfin         | Media server               |
+| 20003 | n8n              | Automation platform        |
+| 20004 | PostgreSQL       | Database (pgvector)        |
+| 20005 | Jarvis Backend   | FastAPI backend            |
+| 20006 | Jarvis Frontend  | React frontend             |  
 
 ---
 

@@ -44,7 +44,7 @@ python main.py
     Write-Host "  Backend started in new window" -ForegroundColor Green
     
     # Wait a moment for backend to start
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 5
 }
 
 # Start Frontend
@@ -91,7 +91,7 @@ Write-Host ""
 
 # Open browser
 if (-not $NoBrowser -and -not $Production) {
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 3
     Start-Process "http://localhost:20006"
 }
 

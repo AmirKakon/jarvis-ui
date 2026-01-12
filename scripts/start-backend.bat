@@ -17,8 +17,8 @@ echo ======================================
 echo   Jarvis UI - Backend Server
 echo ======================================
 echo.
-echo Starting on http://localhost:20003
-echo API Docs: http://localhost:20003/docs
+echo Starting on http://localhost:20005
+echo API Docs: http://localhost:20005/docs
 echo Press Ctrl+C to stop
 echo.
 

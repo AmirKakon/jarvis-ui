@@ -35,7 +35,7 @@
     {
       "parameters": {
         "method": "={{ $('When Executed by Another Workflow').item.json.requestMethod }}",
-        "url": "=http://localhost:20002/api/v1{{ $json.requestPath }}",
+        "url": "=http://localhost:20003/api/v1{{ $json.requestPath }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -225,7 +225,7 @@
       {
         "parameters": {
           "method": "={{ $('When Executed by Another Workflow').item.json.requestMethod }}",
-          "url": "=http://localhost:20002/api/v1{{ $json.requestPath }}",
+          "url": "=http://localhost:20003/api/v1{{ $json.requestPath }}",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [

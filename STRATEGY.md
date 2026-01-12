@@ -457,7 +457,7 @@ LLM_MODEL=gpt-4o
 OPENAI_API_KEY=sk-...
 
 # n8n Tool Executor
-N8N_TOOL_EXECUTOR_URL=http://192.168.1.100:20002/webhook/tool-executor
+N8N_TOOL_EXECUTOR_URL=http://192.168.1.100:20003/webhook/tool-executor
 N8N_TIMEOUT_SECONDS=120
 
 # Session
@@ -629,8 +629,9 @@ Frontend → Backend → LLM API (streaming)
 | Port  | Service          | Description                |
 |-------|------------------|---------------------------|
 | 20000 | SSH              | Remote access              |
-| 20001 | Jellyfin         | Media server               |
-| 20002 | n8n              | Automation platform        |
+| 20001 | NGINX            | Reverse proxy              |
+| 20002 | Jellyfin         | Media server               |
+| 20003 | n8n              | Automation platform        |
 | 20004 | PostgreSQL       | Database (pgvector)        |
 | 20005 | Jarvis Backend   | FastAPI backend            |
-| 20006 | Jarvis Frontend  | React frontend             |
+| 20006 | Jarvis Frontend  | React frontend             |  

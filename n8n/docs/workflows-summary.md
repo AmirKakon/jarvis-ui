@@ -440,7 +440,7 @@ Base API handler for all N8N Manager operations. Makes HTTP requests to the n8n 
 ### Base URL
 
 ```
-http://localhost:20002/api/v1
+http://localhost:20003/api/v1
 ```
 
 ---
@@ -611,11 +611,12 @@ These workflows may remain in n8n if called via the Tool Executor, or may be imp
 | Port  | Service          | Description                |
 |-------|------------------|---------------------------|
 | 20000 | SSH              | Remote access              |
-| 20001 | Jellyfin         | Media server               |
-| 20002 | n8n              | Automation platform        |
+| 20001 | NGINX            | Reverse proxy              |
+| 20002 | Jellyfin         | Media server               |
+| 20003 | n8n              | Automation platform        |
 | 20004 | PostgreSQL       | Database (pgvector)        |
-| 20005 | Jarvis Backend   | FastAPI backend (NEW)      |
-| 20006 | Jarvis Frontend  | React frontend             |
+| 20005 | Jarvis Backend   | FastAPI backend            |
+| 20006 | Jarvis Frontend  | React frontend             |  
 
 ---
 

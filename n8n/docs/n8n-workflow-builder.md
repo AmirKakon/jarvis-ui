@@ -65,7 +65,7 @@ n8n can programmatically create, update, and manage its own workflows through it
 
 - Generate API key in: **Settings → API → Create API Key**
 - Use header: `X-N8N-API-KEY: your-api-key`
-- Base URL: `http://localhost:20002/api/v1`
+- Base URL: `http://localhost:20003/api/v1`
 
 ---
 
@@ -366,7 +366,7 @@ Result returned to Backend
 
 ## 📝 Notes
 
-- API available at: `http://localhost:20002/api/v1/`
+- API available at: `http://localhost:20003/api/v1/`
 - API key stored in n8n credentials
 - Workflow IDs are returned on creation
 - Test workflows before activating in production
