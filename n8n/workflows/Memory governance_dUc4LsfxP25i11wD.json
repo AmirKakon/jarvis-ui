@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-08T08:04:05.060Z",
+  "updatedAt": "2026-01-12T08:06:34.171Z",
   "createdAt": "2025-12-29T18:50:25.303Z",
   "id": "dUc4LsfxP25i11wD",
   "name": "Memory governance",
@@ -242,7 +242,7 @@
   },
   "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
   "activeVersionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
-  "versionCounter": 92,
+  "versionCounter": 112,
   "triggerCount": 0,
   "shared": [
     {
@@ -266,7 +266,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-11T06:27:15.000Z",
+              "updatedAt": "2026-01-12T08:20:07.842Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -285,14 +285,13 @@
                 "userActivatedAt": 1766675621429,
                 "easyAIWorkflowOnboarded": true,
                 "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 2,
+                  "responded": true,
                   "lastShownAt": 1767600020939
                 }
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-11",
+              "lastActiveAt": "2026-01-12",
               "isPending": false
             }
           }
@@ -646,6 +645,70 @@
       {
         "createdAt": "2026-01-08T08:04:05.901Z",
         "id": 338,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:50.974Z",
+        "id": 396,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:51.319Z",
+        "id": 397,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:58:53.602Z",
+        "id": 445,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:58:53.909Z",
+        "id": 446,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:31.475Z",
+        "id": 494,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:32.187Z",
+        "id": 495,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:34.197Z",
+        "id": 543,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:35.207Z",
+        "id": 544,
         "workflowId": "dUc4LsfxP25i11wD",
         "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
         "event": "activated",

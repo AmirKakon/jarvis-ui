@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-08T08:04:15.096Z",
+  "updatedAt": "2026-01-12T08:06:46.476Z",
   "createdAt": "2026-01-07T20:13:44.391Z",
   "id": "BMvwGw7h9cRylQUE",
   "name": "N8N Manager - Workflow Delete",
@@ -216,7 +216,7 @@
   "pinData": null,
   "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
   "activeVersionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
-  "versionCounter": 30,
+  "versionCounter": 50,
   "triggerCount": 0,
   "shared": [
     {
@@ -240,7 +240,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-11T06:27:15.000Z",
+              "updatedAt": "2026-01-12T08:20:07.842Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -259,14 +259,13 @@
                 "userActivatedAt": 1766675621429,
                 "easyAIWorkflowOnboarded": true,
                 "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 2,
+                  "responded": true,
                   "lastShownAt": 1767600020939
                 }
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-11",
+              "lastActiveAt": "2026-01-12",
               "isPending": false
             }
           }
@@ -567,6 +566,70 @@
       {
         "createdAt": "2026-01-08T08:04:15.598Z",
         "id": 348,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:56.113Z",
+        "id": 406,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:56.457Z",
+        "id": 407,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:59:01.526Z",
+        "id": 455,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:59:01.776Z",
+        "id": 456,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:45.394Z",
+        "id": 504,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:46.216Z",
+        "id": 505,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:46.500Z",
+        "id": 553,
+        "workflowId": "BMvwGw7h9cRylQUE",
+        "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:47.307Z",
+        "id": 554,
         "workflowId": "BMvwGw7h9cRylQUE",
         "versionId": "b39bf495-1f07-4401-9533-d9a634e7a3ce",
         "event": "activated",

@@ -21,6 +21,10 @@ from datetime import datetime
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 
+# Fix Unicode output on Windows
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 # Load .env from n8n folder (same directory as this script)
 env_path = Path(__file__).parent / ".env"
 load_dotenv(env_path)

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-08T11:51:05.561Z",
+  "updatedAt": "2026-01-12T08:06:22.885Z",
   "createdAt": "2026-01-08T07:30:14.601Z",
   "id": "3P2iNI900z4nZIGc",
   "name": "Machine Manager - Health Monitor",
@@ -204,7 +204,7 @@
   "pinData": {},
   "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
   "activeVersionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
-  "versionCounter": 53,
+  "versionCounter": 73,
   "triggerCount": 1,
   "shared": [
     {
@@ -228,7 +228,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-11T06:27:15.000Z",
+              "updatedAt": "2026-01-12T08:20:07.842Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -247,14 +247,13 @@
                 "userActivatedAt": 1766675621429,
                 "easyAIWorkflowOnboarded": true,
                 "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 2,
+                  "responded": true,
                   "lastShownAt": 1767600020939
                 }
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-11",
+              "lastActiveAt": "2026-01-12",
               "isPending": false
             }
           }
@@ -454,6 +453,70 @@
       {
         "createdAt": "2026-01-08T11:32:29.941Z",
         "id": 369,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:40.216Z",
+        "id": 384,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:40.472Z",
+        "id": 385,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:58:45.424Z",
+        "id": 433,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:58:45.694Z",
+        "id": 434,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:09.679Z",
+        "id": 482,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:10.690Z",
+        "id": 483,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:22.913Z",
+        "id": 531,
+        "workflowId": "3P2iNI900z4nZIGc",
+        "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:24.331Z",
+        "id": 532,
         "workflowId": "3P2iNI900z4nZIGc",
         "versionId": "ae7d5bc2-4c3b-47a5-b57c-6a38d8250b9f",
         "event": "activated",

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-09T12:58:51.813Z",
+  "updatedAt": "2026-01-12T08:06:18.941Z",
   "createdAt": "2025-12-28T16:45:20.366Z",
   "id": "bGlXB1gv8DM69uIQ",
   "name": "Jarvis AI Agent Orchestrator",
@@ -486,7 +486,7 @@
   "pinData": {},
   "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
   "activeVersionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
-  "versionCounter": 128,
+  "versionCounter": 148,
   "triggerCount": 1,
   "shared": [
     {
@@ -510,7 +510,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-11T06:27:15.000Z",
+              "updatedAt": "2026-01-12T08:20:07.842Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -529,14 +529,13 @@
                 "userActivatedAt": 1766675621429,
                 "easyAIWorkflowOnboarded": true,
                 "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 2,
+                  "responded": true,
                   "lastShownAt": 1767600020939
                 }
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-11",
+              "lastActiveAt": "2026-01-12",
               "isPending": false
             }
           }
@@ -1025,6 +1024,70 @@
       {
         "createdAt": "2026-01-09T12:58:56.850Z",
         "id": 371,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:34.594Z",
+        "id": 380,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:35.607Z",
+        "id": 381,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:58:41.541Z",
+        "id": 429,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:58:42.201Z",
+        "id": 430,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:03.016Z",
+        "id": 478,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:04.480Z",
+        "id": 479,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:18.975Z",
+        "id": 527,
+        "workflowId": "bGlXB1gv8DM69uIQ",
+        "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:19.993Z",
+        "id": 528,
         "workflowId": "bGlXB1gv8DM69uIQ",
         "versionId": "3d127f8f-cf33-4822-bbdb-cce280a157a7",
         "event": "activated",

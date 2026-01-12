@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-08T08:04:23.912Z",
+  "updatedAt": "2026-01-12T08:06:58.632Z",
   "createdAt": "2025-12-28T17:28:14.114Z",
   "id": "TTqKNvyugLWoVF08",
   "name": "sudo ssh commands",
@@ -79,7 +79,7 @@
   },
   "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
   "activeVersionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
-  "versionCounter": 50,
+  "versionCounter": 70,
   "triggerCount": 0,
   "shared": [
     {
@@ -103,7 +103,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-11T06:27:15.000Z",
+              "updatedAt": "2026-01-12T08:20:07.842Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -122,14 +122,13 @@
                 "userActivatedAt": 1766675621429,
                 "easyAIWorkflowOnboarded": true,
                 "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 2,
+                  "responded": true,
                   "lastShownAt": 1767600020939
                 }
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-11",
+              "lastActiveAt": "2026-01-12",
               "isPending": false
             }
           }
@@ -323,6 +322,70 @@
       {
         "createdAt": "2026-01-08T08:04:24.537Z",
         "id": 358,
+        "workflowId": "TTqKNvyugLWoVF08",
+        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:01:07.919Z",
+        "id": 416,
+        "workflowId": "TTqKNvyugLWoVF08",
+        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:01:08.946Z",
+        "id": 417,
+        "workflowId": "TTqKNvyugLWoVF08",
+        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:59:13.751Z",
+        "id": 465,
+        "workflowId": "TTqKNvyugLWoVF08",
+        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:59:15.487Z",
+        "id": 466,
+        "workflowId": "TTqKNvyugLWoVF08",
+        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:05:03.953Z",
+        "id": 514,
+        "workflowId": "TTqKNvyugLWoVF08",
+        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:05:04.964Z",
+        "id": 515,
+        "workflowId": "TTqKNvyugLWoVF08",
+        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:58.653Z",
+        "id": 563,
+        "workflowId": "TTqKNvyugLWoVF08",
+        "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:59.543Z",
+        "id": 564,
         "workflowId": "TTqKNvyugLWoVF08",
         "versionId": "6f74a5ff-8185-4dc1-b06c-1c73116a8071",
         "event": "activated",

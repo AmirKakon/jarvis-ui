@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-08T08:17:20.324Z",
+  "updatedAt": "2026-01-12T08:06:20.985Z",
   "createdAt": "2026-01-08T07:30:14.133Z",
   "id": "oj51dGKjapXRP91r",
   "name": "Machine Manager - Docker Control",
@@ -185,7 +185,7 @@
   "pinData": null,
   "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
   "activeVersionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
-  "versionCounter": 20,
+  "versionCounter": 40,
   "triggerCount": 0,
   "shared": [
     {
@@ -209,7 +209,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-11T06:27:15.000Z",
+              "updatedAt": "2026-01-12T08:20:07.842Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -228,14 +228,13 @@
                 "userActivatedAt": 1766675621429,
                 "easyAIWorkflowOnboarded": true,
                 "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 2,
+                  "responded": true,
                   "lastShownAt": 1767600020939
                 }
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-11",
+              "lastActiveAt": "2026-01-12",
               "isPending": false
             }
           }
@@ -473,6 +472,70 @@
       {
         "createdAt": "2026-01-08T08:03:51.710Z",
         "id": 324,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:37.419Z",
+        "id": 382,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-11T15:00:37.680Z",
+        "id": 383,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:58:42.724Z",
+        "id": 431,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T07:58:43.261Z",
+        "id": 432,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:06.005Z",
+        "id": 480,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:04:07.224Z",
+        "id": 481,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:21.007Z",
+        "id": 529,
+        "workflowId": "oj51dGKjapXRP91r",
+        "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T08:06:21.472Z",
+        "id": 530,
         "workflowId": "oj51dGKjapXRP91r",
         "versionId": "311ea4b7-0ebe-453b-9767-91239a353e28",
         "event": "activated",
