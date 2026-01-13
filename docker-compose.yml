@@ -1,7 +1,5 @@
 # Jarvis UI Docker Compose Configuration
-# Run: docker-compose up -d
-
-version: '3.8'
+# Run: docker compose up -d
 
 services:
   # Backend API Server
