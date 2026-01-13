@@ -9,6 +9,7 @@ A modern web interface for Jarvis AI Assistant with native streaming support and
 - 🚀 **Real-time Streaming** - Native WebSocket streaming for instant token-by-token responses
 - 🔄 **Easy Model Swapping** - Switch between OpenAI, Anthropic, or local models via config
 - 💾 **Session Persistence** - Chat history saved across page reloads
+- 🧠 **Smart Memory** - Past conversations are summarized and recalled using semantic search
 - 🛠️ **Tool Execution** - AI can control your infrastructure via n8n tools
 - 🎨 **Modern UI** - Beautiful dark theme with smooth animations
 - 📱 **Responsive Design** - Works on desktop and mobile devices
@@ -29,6 +30,7 @@ The system uses a **backend-hosted LLM architecture** where the FastAPI backend 
 │  │  - Direct LLM API calls (streaming)          │ │
 │  │  - Tool/function calling                     │ │
 │  │  - Session & memory management               │ │
+│  │  - Semantic search for relevant context      │ │
 │  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
 │  │  Tool Registry                               │ │
@@ -37,12 +39,14 @@ The system uses a **backend-hosted LLM architecture** where the FastAPI backend 
 │  └──────────────────────────────────────────────┘ │
 └────────┬──────────────────────────────────────────┘
          │ HTTP (only for tool execution)
-┌────────▼────────┐     ┌─────────────────────┐
-│  n8n Tool       │     │  PostgreSQL+PGVector │
-│  Executor       │     │  (Port 20004)        │
-│  (Port 20003)   │     │  - sessions          │
-└─────────────────┘     │  - long_term_memory  │
-                        └─────────────────────┘
+┌────────▼────────┐     ┌─────────────────────────┐
+│  n8n Tool       │     │  PostgreSQL+PGVector    │
+│  Executor       │     │  (Port 20004)           │
+│  (Port 20003)   │     │  - sessions             │
+└─────────────────┘     │  - messages             │
+                        │  - chat_summaries (vec) │
+                        │  - long_term_memory     │
+                        └─────────────────────────┘
 ```
 
 ### Why This Architecture?
@@ -132,7 +136,8 @@ jarvis-ui/
 │   │   └── db.py            # Database connection
 │   ├── models/
 │   │   ├── session.py       # Session model
-│   │   └── message.py       # Message model
+│   │   ├── message.py       # Message model
+│   │   └── chat_summary.py  # Chat summary with embeddings
 │   ├── routers/
 │   │   ├── api.py           # REST API endpoints
 │   │   └── websocket.py     # WebSocket handler (streaming)
@@ -141,7 +146,9 @@ jarvis-ui/
 │   │   ├── tool_registry.py # Tool definitions
 │   │   ├── orchestrator.py  # AI orchestration
 │   │   ├── n8n_client.py    # n8n tool executor client
-│   │   └── session_manager.py
+│   │   ├── session_manager.py
+│   │   ├── session_cleanup.py  # Session summarization & cleanup
+│   │   └── embeddings.py    # Embedding generation for semantic search
 │   ├── prompts/
 │   │   └── jarvis.py        # Jarvis system prompt
 │   ├── alembic/             # Database migrations
@@ -155,7 +162,7 @@ jarvis-ui/
 │   │   ├── services/
 │   │   │   └── websocket.js # WebSocket with streaming
 │   │   └── utils/
-│   │       └── session.js
+│   │       └── session.js   # Session management with cleanup
 │   └── package.json
 ├── n8n/
 │   ├── workflows/           # n8n tool workflows
@@ -253,6 +260,9 @@ Response: {
 - `GET /api/health` - Health check
 - `GET /api/history/{session_id}` - Get chat history
 - `GET /api/session/{session_id}` - Check if session exists
+- `POST /api/session/cleanup` - Trigger session cleanup (summarize & delete old sessions)
+- `GET /api/summaries` - Get recent chat summaries
+- `GET /api/summaries/context` - Get formatted summaries for AI context
 
 ### WebSocket
 
@@ -328,6 +338,42 @@ Connect to: `ws://localhost:20005/ws/{session_id}`
 - **"Migration failed"**: Check `DATABASE_URL` and network connectivity
 - **"LLM provider not found"**: Check `LLM_PROVIDER` env var
 - **"Tool execution timeout"**: Increase `N8N_TIMEOUT_SECONDS`
+
+## Session Memory & Context
+
+Jarvis maintains intelligent context across sessions using semantic search:
+
+### How It Works
+
+1. **Session Cleanup**: When you start a new session, old sessions are automatically summarized
+2. **LLM Summarization**: Each session is condensed into a brief summary with key topics
+3. **Vector Embeddings**: Summaries are embedded using OpenAI's `text-embedding-3-small` model
+4. **Semantic Search**: When you ask a question, relevant past conversations are found via vector similarity
+5. **Smart Context**: Only summaries relevant to your current query are included (threshold: 0.3 similarity)
+
+### Benefits
+
+| Feature | Description |
+|---------|-------------|
+| **Efficient tokens** | Only relevant summaries included, not all history |
+| **Fast lookups** | pgvector HNSW index for sub-millisecond search |
+| **Continuity** | References past conversations when contextually relevant |
+| **Privacy** | Old session messages are deleted after summarization |
+
+### Database Tables
+
+```sql
+chat_summaries:
+  - id (SERIAL, PRIMARY KEY)
+  - session_id (UUID, UNIQUE)
+  - summary (TEXT)              -- LLM-generated summary
+  - topics (JSONB)              -- Key topics discussed
+  - embedding (vector(1536))    -- For semantic search
+  - message_count (INT)
+  - session_created_at (TIMESTAMPTZ)
+  - session_ended_at (TIMESTAMPTZ)
+  - created_at (TIMESTAMPTZ)
+```
 
 ## Future Roadmap
 

@@ -359,9 +359,23 @@ messages:
   - timestamp (TIMESTAMPTZ)
   - metadata (JSONB)
 
+chat_summaries:
+  - id (SERIAL, PRIMARY KEY)
+  - session_id (UUID, UNIQUE)
+  - user_id (TEXT, optional)
+  - summary (TEXT)                    -- LLM-generated summary
+  - topics (JSONB)                    -- Key topics discussed
+  - embedding (vector(1536))          -- For semantic search
+  - message_count (INT)
+  - session_created_at (TIMESTAMPTZ)
+  - session_ended_at (TIMESTAMPTZ)
+  - created_at (TIMESTAMPTZ)
+  - metadata (JSONB)
+
 CREATE INDEX idx_messages_session_id ON messages(session_id);
 CREATE INDEX idx_messages_timestamp ON messages(timestamp);
 CREATE INDEX idx_sessions_last_activity ON sessions(last_activity);
+CREATE INDEX idx_chat_summaries_embedding ON chat_summaries USING hnsw (embedding vector_cosine_ops);
 ```
 
 ---
@@ -390,7 +404,27 @@ CREATE INDEX idx_sessions_last_activity ON sessions(last_activity);
    - Backend executes tool (built-in or n8n)
    - Result fed back to LLM
    - Continue streaming response
+
+5. New Session (Cleanup):
+   - User clicks "New Session"
+   - Frontend generates new UUID, stores in localStorage
+   - POST /api/session/cleanup triggered (background)
+   - Backend summarizes old sessions using LLM
+   - Creates embeddings for semantic search
+   - Stores summaries in chat_summaries table
+   - Deletes original session and messages
 ```
+
+### Semantic Context Retrieval
+
+When processing a new message, the orchestrator:
+1. Creates embedding for user's query
+2. Searches chat_summaries using pgvector similarity
+3. Includes only relevant summaries (similarity > 0.3)
+4. Appends context to system prompt if relevant matches found
+
+This ensures the AI has context about past conversations without
+bloating every prompt with irrelevant history.
 
 ---
 
