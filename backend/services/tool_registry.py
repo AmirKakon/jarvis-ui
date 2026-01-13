@@ -433,9 +433,25 @@ class ToolRegistry:
             logger.error(f"Tool execution error ({tool_name}): {e}")
             return {"status": "error", "error": str(e)}
     
-    def get_schemas(self) -> list[dict]:
-        """Return OpenAI-compatible tool schemas."""
-        return self.tool_schemas
+    def get_schemas(self, tool_names: set[str] = None) -> list[dict]:
+        """
+        Return OpenAI-compatible tool schemas.
+        
+        Args:
+            tool_names: Optional set of tool names to filter.
+                       If None, returns all schemas.
+                       If empty set, returns empty list (no tools).
+        """
+        if tool_names is None:
+            return self.tool_schemas
+        
+        if not tool_names:
+            return []  # Empty set means no tools
+        
+        return [
+            schema for schema in self.tool_schemas
+            if schema.get("function", {}).get("name") in tool_names
+        ]
     
     def get_tool_names(self) -> list[str]:
         """Return list of available tool names."""

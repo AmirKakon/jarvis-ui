@@ -9,7 +9,8 @@ from services.llm_provider import (
     create_provider_from_settings,
 )
 from services.tool_registry import tool_registry
-from prompts.jarvis import JARVIS_SYSTEM_PROMPT
+from services.query_classifier import classify_query, get_tools_for_category, QueryCategory
+from prompts.jarvis import JARVIS_SYSTEM_PROMPT, JARVIS_SYSTEM_PROMPT_SHORT
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,11 @@ class Orchestrator:
     2. If LLM requests tool call, execute it and feed result back
     3. Continue until LLM produces final response
     4. Stream tokens to client throughout
+    
+    Performance optimization:
+    - Classifies queries to determine which tools are needed
+    - Uses shorter system prompt for simple queries
+    - Only loads relevant tools to reduce TTFT
     """
     
     def __init__(
@@ -41,11 +47,50 @@ class Orchestrator:
         llm_provider: Optional[LLMProvider] = None,
         system_prompt: str = JARVIS_SYSTEM_PROMPT,
         max_tool_iterations: int = 10,
+        smart_tools: bool = True,  # Enable smart tool loading
     ):
         self.llm_provider = llm_provider or create_provider_from_settings()
         self.system_prompt = system_prompt
+        self.system_prompt_short = JARVIS_SYSTEM_PROMPT_SHORT
         self.max_tool_iterations = max_tool_iterations
-        self.tools = tool_registry.get_schemas()
+        self.smart_tools = smart_tools
+    
+    def _get_tools_for_query(self, query: str) -> tuple[list[dict], str]:
+        """
+        Get appropriate tools and system prompt for a query.
+        
+        Strategy:
+        - Always use full system prompt (has "be concise" instruction)
+        - Filter tools only for specific categories to reduce cognitive load
+        - For simple/knowledge queries, include basic tools (the model
+          performs better with tools available to ignore than none at all)
+        
+        Returns:
+            Tuple of (tool_schemas, system_prompt)
+        """
+        if not self.smart_tools:
+            return tool_registry.get_schemas(), self.system_prompt
+        
+        category = classify_query(query)
+        logger.debug(f"Query classified as: {category.value}")
+        
+        # Always use full prompt - it has important conciseness instructions
+        prompt = self.system_prompt
+        
+        # For simple/knowledge queries, use minimal core tools
+        # (Model performs better with SOME tools than NONE)
+        if category in (QueryCategory.SIMPLE, QueryCategory.KNOWLEDGE):
+            core_tools = {"calculator", "get_current_time"}
+            tools = tool_registry.get_schemas(core_tools)
+        elif category == QueryCategory.FULL:
+            tools = tool_registry.get_schemas()  # All tools
+        else:
+            # Use category-specific tools
+            tool_names = get_tools_for_category(category)
+            tools = tool_registry.get_schemas(tool_names)
+        
+        logger.debug(f"Loading {len(tools)} tools for category {category.value}")
+        return tools, prompt
     
     async def process_message(
         self,
@@ -66,6 +111,9 @@ class Orchestrator:
         messages = conversation_history.copy() if conversation_history else []
         messages.append(ChatMessage(role="user", content=user_message))
         
+        # Get appropriate tools and prompt for this query
+        tools, system_prompt = self._get_tools_for_query(user_message)
+        
         yield OrchestratorEvent(type="start")
         
         full_response = ""
@@ -81,8 +129,8 @@ class Orchestrator:
                 # Stream response from LLM
                 async for event in self.llm_provider.chat_stream(
                     messages=messages,
-                    tools=self.tools if iteration == 1 or pending_tool_calls else self.tools,
-                    system_prompt=self.system_prompt,
+                    tools=tools if tools else None,
+                    system_prompt=system_prompt,
                 ):
                     if event.type == "token":
                         current_text += event.content
