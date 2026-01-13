@@ -15,6 +15,7 @@ from prompts.jarvis import JARVIS_SYSTEM_PROMPT, JARVIS_SYSTEM_PROMPT_SHORT
 logger = logging.getLogger(__name__)
 
 
+
 @dataclass
 class OrchestratorEvent:
     """Event emitted by the orchestrator during processing."""
@@ -40,6 +41,7 @@ class Orchestrator:
     - Classifies queries to determine which tools are needed
     - Uses shorter system prompt for simple queries
     - Only loads relevant tools to reduce TTFT
+    - Uses semantic search to include only relevant past session summaries
     """
     
     def __init__(
@@ -48,12 +50,75 @@ class Orchestrator:
         system_prompt: str = JARVIS_SYSTEM_PROMPT,
         max_tool_iterations: int = 10,
         smart_tools: bool = True,  # Enable smart tool loading
+        include_summaries: bool = True,  # Include past session summaries
     ):
         self.llm_provider = llm_provider or create_provider_from_settings()
         self.system_prompt = system_prompt
         self.system_prompt_short = JARVIS_SYSTEM_PROMPT_SHORT
         self.max_tool_iterations = max_tool_iterations
         self.smart_tools = smart_tools
+        self.include_summaries = include_summaries
+    
+    async def _search_relevant_summaries(self, query: str) -> str:
+        """
+        Search for summaries semantically relevant to the user's query.
+        
+        Uses vector similarity search to find only relevant past conversations,
+        avoiding the overhead of including all summaries in every prompt.
+        
+        Args:
+            query: The user's current message
+            
+        Returns:
+            Formatted context string with relevant summaries, or empty string
+        """
+        try:
+            from database.db import async_session_maker
+            from services.session_cleanup import session_cleanup_service
+            
+            async with async_session_maker() as db:
+                # Search for semantically relevant summaries
+                summaries_with_scores = await session_cleanup_service.search_relevant_summaries(
+                    db, 
+                    query_text=query,
+                    limit=3,  # Only include top 3 most relevant
+                    similarity_threshold=0.3,  # Minimum relevance
+                )
+                
+                if not summaries_with_scores:
+                    return ""
+                
+                context_parts = ["\n\n## Relevant Past Conversations\n"]
+                
+                for summary, score in summaries_with_scores:
+                    topics_str = ", ".join(summary.topics) if summary.topics else "General"
+                    date_str = summary.session_created_at.strftime('%Y-%m-%d')
+                    context_parts.append(
+                        f"- **{date_str}** ({topics_str}): {summary.summary}"
+                    )
+                
+                context_parts.append("\nUse this context if relevant to the user's question.\n")
+                
+                return "\n".join(context_parts)
+                
+        except Exception as e:
+            logger.warning(f"Failed to search chat summaries: {e}")
+            return ""
+    
+    async def _build_system_prompt(self, base_prompt: str, user_query: str) -> str:
+        """
+        Build the full system prompt, optionally including relevant summaries.
+        
+        Uses semantic search to only include summaries relevant to the query,
+        reducing token usage and improving response quality.
+        """
+        if not self.include_summaries:
+            return base_prompt
+        
+        summaries_context = await self._search_relevant_summaries(user_query)
+        if summaries_context:
+            return base_prompt + summaries_context
+        return base_prompt
     
     def _get_tools_for_query(self, query: str) -> tuple[list[dict], str]:
         """
@@ -111,8 +176,11 @@ class Orchestrator:
         messages = conversation_history.copy() if conversation_history else []
         messages.append(ChatMessage(role="user", content=user_message))
         
-        # Get appropriate tools and prompt for this query
-        tools, system_prompt = self._get_tools_for_query(user_message)
+        # Get appropriate tools and base prompt for this query
+        tools, base_prompt = self._get_tools_for_query(user_message)
+        
+        # Build full system prompt with relevant chat summaries (semantic search)
+        system_prompt = await self._build_system_prompt(base_prompt, user_message)
         
         yield OrchestratorEvent(type="start")
         
@@ -234,6 +302,16 @@ class Orchestrator:
 def create_orchestrator() -> Orchestrator:
     """Create an orchestrator instance with default settings."""
     return Orchestrator()
+
+
+def clear_summaries_cache():
+    """
+    Clear summaries cache (no-op with semantic search).
+    
+    Kept for backwards compatibility but no longer needed since
+    semantic search queries the database directly for each request.
+    """
+    pass
 
 
 # Global orchestrator instance (lazy initialization)
