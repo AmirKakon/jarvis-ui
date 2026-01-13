@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T11:52:36.709Z",
+  "updatedAt": "2026-01-13T09:38:15.864Z",
   "createdAt": "2025-12-17T07:56:42.083Z",
   "id": "anunjMp26km77JN7",
   "name": "gemini cli trigger",
@@ -84,7 +84,7 @@
   },
   "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
   "activeVersionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
-  "versionCounter": 81,
+  "versionCounter": 106,
   "triggerCount": 0,
   "shared": [
     {
@@ -108,7 +108,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-12T08:20:07.842Z",
+              "updatedAt": "2026-01-13T09:18:39.000Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -133,7 +133,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-12",
+              "lastActiveAt": "2026-01-13",
               "isPending": false
             }
           }
@@ -420,6 +420,86 @@
       {
         "createdAt": "2026-01-12T11:52:37.006Z",
         "id": 581,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T12:24:15.861Z",
+        "id": 633,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T12:24:16.101Z",
+        "id": 634,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:29:47.232Z",
+        "id": 682,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:29:47.476Z",
+        "id": 683,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:31:39.035Z",
+        "id": 731,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:31:39.286Z",
+        "id": 732,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:33:44.971Z",
+        "id": 781,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:33:45.220Z",
+        "id": 782,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:38:15.931Z",
+        "id": 830,
+        "workflowId": "anunjMp26km77JN7",
+        "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:38:16.217Z",
+        "id": 831,
         "workflowId": "anunjMp26km77JN7",
         "versionId": "f085c872-dd77-406e-bc3b-422c7c6d3f30",
         "event": "activated",

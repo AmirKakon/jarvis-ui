@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T11:52:41.265Z",
+  "updatedAt": "2026-01-13T09:38:20.618Z",
   "createdAt": "2026-01-08T07:30:15.997Z",
   "id": "7LHGwHNVnfFNR7Dz",
   "name": "Machine Manager - System Status",
@@ -118,7 +118,7 @@
   "pinData": null,
   "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
   "activeVersionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
-  "versionCounter": 45,
+  "versionCounter": 70,
   "triggerCount": 0,
   "shared": [
     {
@@ -142,7 +142,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-12T08:20:07.842Z",
+              "updatedAt": "2026-01-13T09:18:39.000Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -167,7 +167,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-12",
+              "lastActiveAt": "2026-01-13",
               "isPending": false
             }
           }
@@ -418,6 +418,86 @@
       {
         "createdAt": "2026-01-12T11:52:41.542Z",
         "id": 593,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T12:24:20.492Z",
+        "id": 645,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T12:24:20.743Z",
+        "id": 646,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:29:51.578Z",
+        "id": 694,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:29:51.813Z",
+        "id": 695,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:31:43.446Z",
+        "id": 744,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:31:43.751Z",
+        "id": 745,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:33:49.384Z",
+        "id": 793,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:33:49.610Z",
+        "id": 794,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:38:20.641Z",
+        "id": 842,
+        "workflowId": "7LHGwHNVnfFNR7Dz",
+        "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:38:20.873Z",
+        "id": 843,
         "workflowId": "7LHGwHNVnfFNR7Dz",
         "versionId": "2f90b762-b8a8-4803-a94c-dcf274c2a85d",
         "event": "activated",

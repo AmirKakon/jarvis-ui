@@ -1,6 +1,6 @@
 # n8n Workflows Summary
 
-> Last updated: January 11, 2026
+> Last updated: January 13, 2026
 
 This document provides an overview of all n8n workflows used in the JARVIS system.
 
@@ -51,14 +51,13 @@ This document provides an overview of all n8n workflows used in the JARVIS syste
 | 🟢 **Active** | Currently in use |
 | 🔄 **Transitioning** | Being migrated to new architecture |
 | ⚠️ **Deprecated** | Will be removed after migration |
-| 🆕 **New** | To be created for new architecture |
 
 ---
 
 ## Table of Contents
 
-### Tool Executor (NEW)
-1. [Tool Executor](#1-tool-executor-new) 🆕 - Single entry point for all tools
+### Tool Executor
+1. [Tool Executor](#1-tool-executor) 🟢 - Single entry point for all tools
 
 ### Infrastructure Tools
 2. [Machine Manager - System Status](#2-machine-manager---system-status) 🟢
@@ -96,18 +95,19 @@ This document provides an overview of all n8n workflows used in the JARVIS syste
 
 ---
 
-## 1. Tool Executor (NEW)
+## 1. Tool Executor
 
 | Property | Value |
 |----------|-------|
-| **ID** | `TBD` |
-| **Status** | 🆕 To Be Created |
+| **ID** | `uQwTAlAxsMiyM1Qj` |
+| **Status** | 🟢 Active |
 | **Trigger** | Webhook (POST) |
-| **Purpose** | Single entry point for all backend tool calls |
+| **Webhook URL** | `http://host:20003/webhook/tool-executor` |
+| **Updated** | January 13, 2026 |
 
 ### Purpose
 
-Central routing workflow that receives tool requests from the FastAPI backend and routes them to the appropriate tool workflow.
+Central routing workflow that receives tool requests from the FastAPI backend and routes them to the appropriate tool workflow using the Execute Workflow node.
 
 ### Input Schema
 
@@ -128,36 +128,54 @@ Central routing workflow that receives tool requests from the FastAPI backend an
   "status": "success",
   "tool": "docker_control",
   "result": { ... },
-  "timestamp": "2026-01-11T12:00:00Z"
+  "timestamp": "2026-01-13T12:00:00Z"
 }
 ```
 
 ### Routing Table
 
-| Tool Name | Routes To |
-|-----------|-----------|
-| `system_status` | Machine Manager - System Status |
-| `docker_control` | Machine Manager - Docker Control |
-| `service_control` | Machine Manager - Service Control |
-| `jellyfin_api` | Machine Manager - Jellyfin API |
-| `ssh_command` | sudo ssh commands |
-| `gemini_cli` | gemini cli trigger |
-| `n8n_workflow_list` | N8N Manager - Workflow List |
-| `n8n_workflow_get` | N8N Manager - Workflow Get |
-| `n8n_workflow_create` | N8N Manager - Workflow Create |
-| `n8n_workflow_update` | N8N Manager - Workflow Update |
-| `n8n_workflow_delete` | N8N Manager - Workflow Delete |
-| `n8n_workflow_activate` | N8N Manager - Workflow Activate |
-| `n8n_workflow_deactivate` | N8N Manager - Workflow Deactivate |
-| `n8n_workflow_execute` | N8N Manager - Workflow Execute |
+| Tool Name | Workflow ID | Routes To |
+|-----------|-------------|-----------|
+| `system_status` | `7LHGwHNVnfFNR7Dz` | Machine Manager - System Status |
+| `docker_control` | `oj51dGKjapXRP91r` | Machine Manager - Docker Control |
+| `service_control` | `EmRfZ7kbqyAIbz4m` | Machine Manager - Service Control |
+| `jellyfin_api` | `JlhBPAIfI8WHfCsj` | Machine Manager - Jellyfin API |
+| `ssh_command` | `TTqKNvyugLWoVF08` | sudo ssh commands |
+| `gemini_cli` | `anunjMp26km77JN7` | gemini cli trigger |
+| `add_memory` | `sCcmYT1ufy8hrHMA` | Add Memory |
+| `memory_governance` | `dUc4LsfxP25i11wD` | Memory governance |
+| `memory_deduplication` | `07RhLX2UKvMjY1cr` | Memory deduplication |
+| `n8n_workflow_list` | `Qa93D3eLsEyc8lP8` | N8N Manager - Workflow List |
+| `n8n_workflow_get` | `pnlb3Sp3BsBxRMwo` | N8N Manager - Workflow Get |
+| `n8n_workflow_create` | `rmHtxGxBYPtmotHz` | N8N Manager - Workflow Create |
+| `n8n_workflow_update` | `HGtPmkUCzYOy3lo1` | N8N Manager - Workflow Update |
+| `n8n_workflow_delete` | `BMvwGw7h9cRylQUE` | N8N Manager - Workflow Delete |
+| `n8n_workflow_activate` | `GKM344aryPP29f2O` | N8N Manager - Workflow Activate |
+| `n8n_workflow_deactivate` | `OMqZ93GtwiWTuXne` | N8N Manager - Workflow Deactivate |
+| `n8n_workflow_execute` | `eEtS2fTRa7FA8wAl` | N8N Manager - Workflow Execute |
 
-### Proposed Nodes
+### Workflow Nodes
 
-1. **Webhook** - POST `/webhook/tool-executor`
-2. **Switch Node** - Route by `tool` field
-3. **Execute Workflow Nodes** - Call appropriate sub-workflow
-4. **Merge Results** - Standardize output format
-5. **Respond to Webhook** - Return result
+1. **Webhook** - POST `/webhook/tool-executor` with `responseNode` mode
+2. **Extract Params** - Code node that parses tool/params and maps to workflow ID
+3. **Check Error** - If node to handle unknown tools
+4. **Execute Sub-Workflow** - Execute Workflow node with dynamic workflow ID
+5. **Format Response** - Code node to standardize output format
+6. **Respond** - Respond to Webhook node returns JSON result
+
+### Error Response
+
+If an unknown tool is requested:
+
+```json
+{
+  "status": "error",
+  "tool": "unknown_tool",
+  "error": "Unknown tool: unknown_tool",
+  "availableTools": ["system_status", "docker_control", ...],
+  "timestamp": "2026-01-13T12:00:00Z"
+}
+```
 
 ---
 
@@ -632,14 +650,24 @@ These workflows may remain in n8n if called via the Tool Executor, or may be imp
 | `jellyfin_api` | Machine Manager - Jellyfin API | `action`, `params` |
 | `ssh_command` | sudo ssh commands | `command` |
 | `gemini_cli` | gemini cli trigger | `prompt` |
-| `n8n_workflow_*` | N8N Manager suite | various |
+| `add_memory` | Add Memory | `document`, `dbTable` |
+| `memory_governance` | Memory governance | `document` |
+| `memory_deduplication` | Memory deduplication | various |
+| `n8n_workflow_list` | N8N Manager - Workflow List | none |
+| `n8n_workflow_get` | N8N Manager - Workflow Get | `workflowId` |
+| `n8n_workflow_create` | N8N Manager - Workflow Create | `name`, `nodes`, `connections` |
+| `n8n_workflow_update` | N8N Manager - Workflow Update | `workflowId`, `updates` |
+| `n8n_workflow_delete` | N8N Manager - Workflow Delete | `workflowId` |
+| `n8n_workflow_activate` | N8N Manager - Workflow Activate | `workflowId` |
+| `n8n_workflow_deactivate` | N8N Manager - Workflow Deactivate | `workflowId` |
+| `n8n_workflow_execute` | N8N Manager - Workflow Execute | `workflowId`, `inputData` |
 
 ### Tools Implemented in Backend (Python)
 
 | Tool | Description |
 |------|-------------|
 | `calculator` | Mathematical calculations |
-| `get_current_time` | Current date/time |
+| `get_current_time` | Current date/time (with timezone support) |
 | `search_memory` | Search long-term memory (PGVector) |
 | `store_memory` | Store to long-term memory |
 
@@ -659,15 +687,15 @@ These workflows may remain in n8n if called via the Tool Executor, or may be imp
 
 ## Notes
 
-1. **Architecture Transition**: The system is moving from n8n-hosted LLM to backend-hosted LLM for better streaming and performance.
+1. **Architecture Complete**: The system has transitioned to backend-hosted LLM with the Tool Executor workflow now active.
 
-2. **Tool Executor**: A new single-entry-point workflow will be created to route all tool calls from the backend.
+2. **Tool Executor**: The single-entry-point workflow (`uQwTAlAxsMiyM1Qj`) routes all tool calls from the backend to appropriate sub-workflows using the Execute Workflow node.
 
 3. **Streaming**: Native WebSocket streaming from the backend replaces broken webhook streaming.
 
-4. **Model Swapping**: LLM provider can now be changed via environment variable, not workflow edits.
+4. **Model Swapping**: LLM provider can be changed via environment variable (`LLM_PROVIDER`, `LLM_MODEL`). Recommended: `gpt-4o-mini` for best balance of speed/cost/capability.
 
-5. **Memory System**: May move entirely to backend or remain as n8n tools called via Tool Executor.
+5. **Memory System**: Memory workflows (Add Memory, governance, deduplication) are now callable via Tool Executor.
 
 6. **Health Monitor**: Continues to run independently on schedule with Telegram alerts.
 

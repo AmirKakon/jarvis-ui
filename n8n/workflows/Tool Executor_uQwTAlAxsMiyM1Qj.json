@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-01-12T11:54:04.918Z",
-  "createdAt": "2026-01-12T11:52:52.231Z",
-  "id": "9oj1iUe2YwzmkZMF",
+  "updatedAt": "2026-01-13T09:43:23.500Z",
+  "createdAt": "2026-01-13T09:33:59.973Z",
+  "id": "uQwTAlAxsMiyM1Qj",
   "name": "Tool Executor",
   "description": null,
   "active": true,
@@ -18,20 +18,21 @@
       "typeVersion": 2,
       "position": [
         0,
-        300
+        304
       ],
       "id": "webhook-1",
-      "name": "Webhook"
+      "name": "Webhook",
+      "webhookId": "58242dcc-7bb9-44ea-977e-3277dc591732"
     },
     {
       "parameters": {
-        "jsCode": "// Extract tool and params from request body\nconst body = $input.first().json.body || $input.first().json;\nconst tool = body.tool || '';\nconst params = body.params || {};\n\n// Map tool names to workflow IDs\nconst toolMap = {\n  'system_status': '7LHGwHNVnfFNR7Dz',\n  'docker_control': 'oj51dGKjapXRP91r',\n  'service_control': 'EmRfZ7kbqyAIbz4m',\n  'jellyfin_api': 'JlhBPAIfI8WHfCsj',\n  'ssh_command': 'TTqKNvyugLWoVF08',\n  'gemini_cli': 'anunjMp26km77JN7',\n  'add_memory': 'sCcmYT1ufy8hrHMA',\n  'memory_governance': 'dUc4LsfxP25i11wD',\n  'memory_deduplication': '07RhLX2UKvMjY1cr',\n  'n8n_workflow_list': 'Qa93D3eLsEyc8lP8',\n  'n8n_workflow_get': 'pnlb3Sp3BsBxRMwo',\n  'n8n_workflow_create': 'rmHtxGxBYPtmotHz',\n  'n8n_workflow_update': 'HGtPmkUCzYOy3lo1',\n  'n8n_workflow_delete': 'BMvwGw7h9cRylQUE',\n  'n8n_workflow_activate': 'GKM344aryPP29f2O',\n  'n8n_workflow_deactivate': 'OMqZ93GtwiWTuXne',\n  'n8n_workflow_execute': 'eEtS2fTRa7FA8wAl'\n};\n\nconst workflowId = toolMap[tool];\n\nif (!workflowId) {\n  return [{\n    json: {\n      status: 'error',\n      tool,\n      error: `Unknown tool: ${tool}`,\n      availableTools: Object.keys(toolMap),\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    tool,\n    workflowId,\n    params\n  }\n}];"
+        "jsCode": "// Extract tool and params from request body\nconst body = $input.first().json.body || $input.first().json;\nconst tool = body.tool || '';\nconst params = body.params || {};\n\n// Map tool names to workflow IDs\nconst toolMap = {\n  'system_status': '7LHGwHNVnfFNR7Dz',\n  'docker_control': 'oj51dGKjapXRP91r',\n  'service_control': 'EmRfZ7kbqyAIbz4m',\n  'jellyfin_api': 'JlhBPAIfI8WHfCsj',\n  'ssh_command': 'TTqKNvyugLWoVF08',\n  'gemini_cli': 'anunjMp26km77JN7',\n  'add_memory': 'sCcmYT1ufy8hrHMA',\n  'memory_governance': 'dUc4LsfxP25i11wD',\n  'memory_deduplication': '07RhLX2UKvMjY1cr',\n  'n8n_workflow_list': 'Qa93D3eLsEyc8lP8',\n  'n8n_workflow_get': 'pnlb3Sp3BsBxRMwo',\n  'n8n_workflow_create': 'rmHtxGxBYPtmotHz',\n  'n8n_workflow_update': 'HGtPmkUCzYOy3lo1',\n  'n8n_workflow_delete': 'BMvwGw7h9cRylQUE',\n  'n8n_workflow_activate': 'GKM344aryPP29f2O',\n  'n8n_workflow_deactivate': 'OMqZ93GtwiWTuXne',\n  'n8n_workflow_execute': 'eEtS2fTRa7FA8wAl'\n};\n\nconst workflowId = toolMap[tool];\n\nif (!workflowId) {\n  return [{\n    json: {\n      status: 'error',\n      tool,\n      error: `Unknown tool: ${tool}`,\n      availableTools: Object.keys(toolMap),\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Return flattened params with tool info for sub-workflow\nreturn [{\n  json: {\n    ...params,\n    _tool: tool,\n    _workflowId: workflowId\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        220,
-        300
+        224,
+        304
       ],
       "id": "extract-params",
       "name": "Extract Params"
@@ -62,43 +63,56 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        440,
-        300
+        448,
+        304
       ],
       "id": "check-error",
       "name": "Check Error"
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "=http://localhost:20003/api/v1/workflows/{{ $json.workflowId }}/run",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.params) }}",
+        "workflowId": {
+          "__rl": true,
+          "value": "={{ $json._workflowId }}",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [
+            "infoType"
+          ],
+          "schema": [
+            {
+              "id": "infoType",
+              "displayName": "infoType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
         "options": {
-          "timeout": 120000
+          "waitForSubWorkflow": true
         }
       },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
       "position": [
-        660,
+        672,
         400
       ],
       "id": "execute-workflow",
-      "name": "Execute Workflow",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "n8n-api",
-          "name": "n8n API Key"
-        }
-      }
+      "name": "Execute Sub-Workflow"
     },
     {
       "parameters": {
-        "jsCode": "// Format the response\nconst input = $input.first().json;\nconst tool = $('Extract Params').first().json.tool;\n\n// Extract result from the API response\nlet result = input;\nif (input.data && input.data.resultData) {\n  result = input.data.resultData.runData;\n} else if (input.executionId) {\n  result = input;\n}\n\nreturn [{\n  json: {\n    status: 'success',\n    tool,\n    result,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        "jsCode": "// Format the response from sub-workflow\nconst input = $input.first().json;\nconst extractParams = $('Extract Params').first().json;\nconst tool = extractParams._tool;\n\n// The sub-workflow output is already in the expected format\nlet result = input;\n\n// If the sub-workflow returned a status, use it as-is\nif (input.status) {\n  return [{ json: { ...input, tool } }];\n}\n\n// Otherwise wrap it in a success response\nreturn [{\n  json: {\n    status: 'success',\n    tool,\n    result,\n    timestamp: new Date().toISOString()\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -118,8 +132,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1100,
-        300
+        1104,
+        304
       ],
       "id": "respond-1",
       "name": "Respond"
@@ -159,14 +173,14 @@
         ],
         [
           {
-            "node": "Execute Workflow",
+            "node": "Execute Sub-Workflow",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Execute Workflow": {
+    "Execute Sub-Workflow": {
       "main": [
         [
           {
@@ -196,17 +210,17 @@
   },
   "staticData": null,
   "meta": null,
-  "pinData": null,
-  "versionId": "e50e389f-9d09-4d60-8ab1-04791c8af4c4",
-  "activeVersionId": "e50e389f-9d09-4d60-8ab1-04791c8af4c4",
-  "versionCounter": 4,
+  "pinData": {},
+  "versionId": "dd95e5a9-c2d3-4fc0-80af-614f2a66c98f",
+  "activeVersionId": "dd95e5a9-c2d3-4fc0-80af-614f2a66c98f",
+  "versionCounter": 14,
   "triggerCount": 1,
   "shared": [
     {
-      "updatedAt": "2026-01-12T11:52:52.233Z",
-      "createdAt": "2026-01-12T11:52:52.233Z",
+      "updatedAt": "2026-01-13T09:33:59.974Z",
+      "createdAt": "2026-01-13T09:33:59.974Z",
       "role": "workflow:owner",
-      "workflowId": "9oj1iUe2YwzmkZMF",
+      "workflowId": "uQwTAlAxsMiyM1Qj",
       "projectId": "cyBU0P25SZASl1ZF",
       "project": {
         "updatedAt": "2025-12-17T07:41:57.804Z",
@@ -223,7 +237,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-12T08:20:07.842Z",
+              "updatedAt": "2026-01-13T09:18:39.000Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -248,7 +262,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-12",
+              "lastActiveAt": "2026-01-13",
               "isPending": false
             }
           }
@@ -258,10 +272,10 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-01-12T11:52:52.235Z",
-    "createdAt": "2026-01-12T11:52:52.235Z",
-    "versionId": "e50e389f-9d09-4d60-8ab1-04791c8af4c4",
-    "workflowId": "9oj1iUe2YwzmkZMF",
+    "updatedAt": "2026-01-13T09:43:25.000Z",
+    "createdAt": "2026-01-13T09:43:23.501Z",
+    "versionId": "dd95e5a9-c2d3-4fc0-80af-614f2a66c98f",
+    "workflowId": "uQwTAlAxsMiyM1Qj",
     "nodes": [
       {
         "parameters": {
@@ -274,20 +288,21 @@
         "typeVersion": 2,
         "position": [
           0,
-          300
+          304
         ],
         "id": "webhook-1",
-        "name": "Webhook"
+        "name": "Webhook",
+        "webhookId": "58242dcc-7bb9-44ea-977e-3277dc591732"
       },
       {
         "parameters": {
-          "jsCode": "// Extract tool and params from request body\nconst body = $input.first().json.body || $input.first().json;\nconst tool = body.tool || '';\nconst params = body.params || {};\n\n// Map tool names to workflow IDs\nconst toolMap = {\n  'system_status': '7LHGwHNVnfFNR7Dz',\n  'docker_control': 'oj51dGKjapXRP91r',\n  'service_control': 'EmRfZ7kbqyAIbz4m',\n  'jellyfin_api': 'JlhBPAIfI8WHfCsj',\n  'ssh_command': 'TTqKNvyugLWoVF08',\n  'gemini_cli': 'anunjMp26km77JN7',\n  'add_memory': 'sCcmYT1ufy8hrHMA',\n  'memory_governance': 'dUc4LsfxP25i11wD',\n  'memory_deduplication': '07RhLX2UKvMjY1cr',\n  'n8n_workflow_list': 'Qa93D3eLsEyc8lP8',\n  'n8n_workflow_get': 'pnlb3Sp3BsBxRMwo',\n  'n8n_workflow_create': 'rmHtxGxBYPtmotHz',\n  'n8n_workflow_update': 'HGtPmkUCzYOy3lo1',\n  'n8n_workflow_delete': 'BMvwGw7h9cRylQUE',\n  'n8n_workflow_activate': 'GKM344aryPP29f2O',\n  'n8n_workflow_deactivate': 'OMqZ93GtwiWTuXne',\n  'n8n_workflow_execute': 'eEtS2fTRa7FA8wAl'\n};\n\nconst workflowId = toolMap[tool];\n\nif (!workflowId) {\n  return [{\n    json: {\n      status: 'error',\n      tool,\n      error: `Unknown tool: ${tool}`,\n      availableTools: Object.keys(toolMap),\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    tool,\n    workflowId,\n    params\n  }\n}];"
+          "jsCode": "// Extract tool and params from request body\nconst body = $input.first().json.body || $input.first().json;\nconst tool = body.tool || '';\nconst params = body.params || {};\n\n// Map tool names to workflow IDs\nconst toolMap = {\n  'system_status': '7LHGwHNVnfFNR7Dz',\n  'docker_control': 'oj51dGKjapXRP91r',\n  'service_control': 'EmRfZ7kbqyAIbz4m',\n  'jellyfin_api': 'JlhBPAIfI8WHfCsj',\n  'ssh_command': 'TTqKNvyugLWoVF08',\n  'gemini_cli': 'anunjMp26km77JN7',\n  'add_memory': 'sCcmYT1ufy8hrHMA',\n  'memory_governance': 'dUc4LsfxP25i11wD',\n  'memory_deduplication': '07RhLX2UKvMjY1cr',\n  'n8n_workflow_list': 'Qa93D3eLsEyc8lP8',\n  'n8n_workflow_get': 'pnlb3Sp3BsBxRMwo',\n  'n8n_workflow_create': 'rmHtxGxBYPtmotHz',\n  'n8n_workflow_update': 'HGtPmkUCzYOy3lo1',\n  'n8n_workflow_delete': 'BMvwGw7h9cRylQUE',\n  'n8n_workflow_activate': 'GKM344aryPP29f2O',\n  'n8n_workflow_deactivate': 'OMqZ93GtwiWTuXne',\n  'n8n_workflow_execute': 'eEtS2fTRa7FA8wAl'\n};\n\nconst workflowId = toolMap[tool];\n\nif (!workflowId) {\n  return [{\n    json: {\n      status: 'error',\n      tool,\n      error: `Unknown tool: ${tool}`,\n      availableTools: Object.keys(toolMap),\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Return flattened params with tool info for sub-workflow\nreturn [{\n  json: {\n    ...params,\n    _tool: tool,\n    _workflowId: workflowId\n  }\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          220,
-          300
+          224,
+          304
         ],
         "id": "extract-params",
         "name": "Extract Params"
@@ -318,43 +333,56 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          440,
-          300
+          448,
+          304
         ],
         "id": "check-error",
         "name": "Check Error"
       },
       {
         "parameters": {
-          "method": "POST",
-          "url": "=http://localhost:20003/api/v1/workflows/{{ $json.workflowId }}/run",
-          "authentication": "genericCredentialType",
-          "genericAuthType": "httpHeaderAuth",
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json.params) }}",
+          "workflowId": {
+            "__rl": true,
+            "value": "={{ $json._workflowId }}",
+            "mode": "id"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "value": {},
+            "matchingColumns": [
+              "infoType"
+            ],
+            "schema": [
+              {
+                "id": "infoType",
+                "displayName": "infoType",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "canBeUsedToMatch": true,
+                "type": "string",
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": true
+          },
           "options": {
-            "timeout": 120000
+            "waitForSubWorkflow": true
           }
         },
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.2,
         "position": [
-          660,
+          672,
           400
         ],
         "id": "execute-workflow",
-        "name": "Execute Workflow",
-        "credentials": {
-          "httpHeaderAuth": {
-            "id": "n8n-api",
-            "name": "n8n API Key"
-          }
-        }
+        "name": "Execute Sub-Workflow"
       },
       {
         "parameters": {
-          "jsCode": "// Format the response\nconst input = $input.first().json;\nconst tool = $('Extract Params').first().json.tool;\n\n// Extract result from the API response\nlet result = input;\nif (input.data && input.data.resultData) {\n  result = input.data.resultData.runData;\n} else if (input.executionId) {\n  result = input;\n}\n\nreturn [{\n  json: {\n    status: 'success',\n    tool,\n    result,\n    timestamp: new Date().toISOString()\n  }\n}];"
+          "jsCode": "// Format the response from sub-workflow\nconst input = $input.first().json;\nconst extractParams = $('Extract Params').first().json;\nconst tool = extractParams._tool;\n\n// The sub-workflow output is already in the expected format\nlet result = input;\n\n// If the sub-workflow returned a status, use it as-is\nif (input.status) {\n  return [{ json: { ...input, tool } }];\n}\n\n// Otherwise wrap it in a success response\nreturn [{\n  json: {\n    status: 'success',\n    tool,\n    result,\n    timestamp: new Date().toISOString()\n  }\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -374,8 +402,8 @@
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1.1,
         "position": [
-          1100,
-          300
+          1104,
+          304
         ],
         "id": "respond-1",
         "name": "Respond"
@@ -415,14 +443,14 @@
           ],
           [
             {
-              "node": "Execute Workflow",
+              "node": "Execute Sub-Workflow",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Execute Workflow": {
+      "Execute Sub-Workflow": {
         "main": [
           [
             {
@@ -446,14 +474,14 @@
       }
     },
     "authors": "Amir Kakon",
-    "name": null,
-    "description": null,
+    "name": "Version dd95e5a9",
+    "description": "",
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-12T11:52:52.490Z",
-        "id": 622,
-        "workflowId": "9oj1iUe2YwzmkZMF",
-        "versionId": "e50e389f-9d09-4d60-8ab1-04791c8af4c4",
+        "createdAt": "2026-01-13T09:43:25.385Z",
+        "id": 876,
+        "workflowId": "uQwTAlAxsMiyM1Qj",
+        "versionId": "dd95e5a9-c2d3-4fc0-80af-614f2a66c98f",
         "event": "activated",
         "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
       }

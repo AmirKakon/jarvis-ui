@@ -374,7 +374,39 @@ class ToolRegistry:
         timezone_name = params.get("timezone", "Asia/Jerusalem")
         
         try:
-            tz = ZoneInfo(timezone_name)
+            # Try to use zoneinfo (requires tzdata on Windows)
+            try:
+                tz = ZoneInfo(timezone_name)
+            except KeyError:
+                # If timezone not found, try common alternatives
+                tz_alternatives = {
+                    "Asia/Jerusalem": ["Israel", "Asia/Tel_Aviv"],
+                    "Asia/Israel": ["Israel", "Asia/Jerusalem", "Asia/Tel_Aviv"],
+                }
+                tz = None
+                for alt in tz_alternatives.get(timezone_name, []):
+                    try:
+                        tz = ZoneInfo(alt)
+                        timezone_name = alt
+                        break
+                    except KeyError:
+                        continue
+                
+                # Final fallback: use UTC and calculate offset manually for Jerusalem
+                if tz is None:
+                    # Fallback to local time with note
+                    from datetime import timezone as dt_timezone
+                    now = datetime.now()
+                    return {
+                        "status": "success",
+                        "datetime": now.isoformat(),
+                        "date": now.strftime("%Y-%m-%d"),
+                        "time": now.strftime("%H:%M:%S"),
+                        "day": now.strftime("%A"),
+                        "timezone": "local (fallback - tzdata may need installation)",
+                        "note": f"Requested timezone '{params.get('timezone', 'Asia/Jerusalem')}' not available. Using local time. Run: pip install tzdata"
+                    }
+            
             now = datetime.now(tz)
             return {
                 "status": "success",

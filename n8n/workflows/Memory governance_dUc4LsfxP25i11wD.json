@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-12T11:52:43.596Z",
+  "updatedAt": "2026-01-13T09:38:22.825Z",
   "createdAt": "2025-12-29T18:50:25.303Z",
   "id": "dUc4LsfxP25i11wD",
   "name": "Memory governance",
@@ -242,7 +242,7 @@
   },
   "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
   "activeVersionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
-  "versionCounter": 117,
+  "versionCounter": 142,
   "triggerCount": 0,
   "shared": [
     {
@@ -266,7 +266,7 @@
             "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
             "projectId": "cyBU0P25SZASl1ZF",
             "user": {
-              "updatedAt": "2026-01-12T08:20:07.842Z",
+              "updatedAt": "2026-01-13T09:18:39.000Z",
               "createdAt": "2025-12-17T07:35:20.329Z",
               "id": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd",
               "email": "pppchevy@gmail.com",
@@ -291,7 +291,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-01-12",
+              "lastActiveAt": "2026-01-13",
               "isPending": false
             }
           }
@@ -725,6 +725,86 @@
       {
         "createdAt": "2026-01-12T11:52:43.866Z",
         "id": 599,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T12:24:22.657Z",
+        "id": 651,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-12T12:24:22.888Z",
+        "id": 652,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:29:53.963Z",
+        "id": 700,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:29:54.195Z",
+        "id": 701,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:31:45.716Z",
+        "id": 750,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:31:45.974Z",
+        "id": 751,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:33:51.705Z",
+        "id": 799,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:33:52.026Z",
+        "id": 800,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:38:22.850Z",
+        "id": 848,
+        "workflowId": "dUc4LsfxP25i11wD",
+        "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
+        "event": "activated",
+        "userId": "045524f4-1d37-4cdf-9c9b-f566c48b5fbd"
+      },
+      {
+        "createdAt": "2026-01-13T09:38:23.082Z",
+        "id": 849,
         "workflowId": "dUc4LsfxP25i11wD",
         "versionId": "8fdf31b5-7522-45aa-85c9-b322fe1537b1",
         "event": "activated",

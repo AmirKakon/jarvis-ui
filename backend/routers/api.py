@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from database.db import get_db
 from services.session_manager import session_manager
+from config import get_settings
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -34,7 +35,12 @@ class SessionCheckResponse(BaseModel):
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy"}
+    settings = get_settings()
+    return {
+        "status": "healthy",
+        "llm_provider": settings.llm_provider,
+        "llm_model": settings.llm_model,
+    }
 
 
 @router.get("/history/{session_id}", response_model=HistoryResponse)
