@@ -1,0 +1,65 @@
+# Jarvis UI Docker Compose Configuration
+# Run: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # Backend API Server
+  jarvis-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jarvis-backend
+    restart: unless-stopped
+    ports:
+      - "20005:20005"
+    environment:
+      # Server settings
+      - HOST=0.0.0.0
+      - PORT=20005
+      # Database (update these with your actual values)
+      - DATABASE_URL=${DATABASE_URL}
+      - MEMORY_DATABASE_URL=${MEMORY_DATABASE_URL}
+      # LLM Provider
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # n8n settings
+      - N8N_API_URL=${N8N_API_URL}
+      - N8N_API_KEY=${N8N_API_KEY}
+      - N8N_TOOL_EXECUTOR_URL=${N8N_TOOL_EXECUTOR_URL}
+      - N8N_TIMEOUT_SECONDS=${N8N_TIMEOUT_SECONDS:-120}
+      # Other
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - VERIFY_SSL=${VERIFY_SSL:-false}
+      - SESSION_TTL_DAYS=${SESSION_TTL_DAYS:-30}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:20005/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - jarvis-network
+
+  # Frontend (Nginx serving built React app)
+  jarvis-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jarvis-frontend
+    restart: unless-stopped
+    ports:
+      - "20006:20006"
+    depends_on:
+      jarvis-backend:
+        condition: service_healthy
+    networks:
+      - jarvis-network
+
+networks:
+  jarvis-network:
+    driver: bridge
+
