@@ -1,9 +1,24 @@
 /**
  * Session management utilities.
- * Handles session ID generation and persistence in localStorage.
+ * Handles session ID generation and fetching from backend.
+ * Sessions are shared across devices - the latest session is always used.
  */
 
 const SESSION_KEY = 'jarvis_session_id';
+
+/**
+ * Get the API URL for backend requests.
+ * @returns {string} The API base URL
+ */
+function getApiUrl() {
+  // In production (built app), use relative path (nginx proxies to backend)
+  // In development, use the backend directly
+  if (import.meta.env.DEV) {
+    return 'http://localhost:20005';
+  }
+  // In production, requests go through nginx proxy
+  return '';
+}
 
 /**
  * Generate a new UUID v4.
@@ -24,18 +39,69 @@ export function generateSessionId() {
 }
 
 /**
- * Get the current session ID from localStorage, or generate a new one.
- * @returns {string} The session ID
+ * Fetch the latest session from the backend.
+ * This enables shared sessions across devices.
+ * @returns {Promise<string|null>} The latest session ID or null if none exists
  */
-export function getSessionId() {
-  let sessionId = localStorage.getItem(SESSION_KEY);
+export async function fetchLatestSession() {
+  try {
+    const apiUrl = getApiUrl();
+    const response = await fetch(`${apiUrl}/api/session/latest/get`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.warn('Failed to fetch latest session:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (data.session_id) {
+      console.log('Found latest session:', data.session_id);
+      // Store it locally for quick access
+      localStorage.setItem(SESSION_KEY, data.session_id);
+      return data.session_id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('Error fetching latest session:', error);
+    return null;
+  }
+}
+
+/**
+ * Get the current session ID.
+ * First tries to fetch the latest session from the backend.
+ * If no session exists, generates a new one.
+ * @returns {Promise<string>} The session ID
+ */
+export async function getSessionId() {
+  // Try to get the latest session from the backend
+  const latestSession = await fetchLatestSession();
   
-  if (!sessionId) {
-    sessionId = generateSessionId();
-    localStorage.setItem(SESSION_KEY, sessionId);
+  if (latestSession) {
+    return latestSession;
   }
   
-  return sessionId;
+  // No existing session, create a new one
+  const newSessionId = generateSessionId();
+  localStorage.setItem(SESSION_KEY, newSessionId);
+  console.log('Created new session:', newSessionId);
+  return newSessionId;
+}
+
+/**
+ * Get the cached session ID from localStorage (synchronous).
+ * Use this when you need immediate access and have already called getSessionId().
+ * @returns {string|null} The cached session ID or null
+ */
+export function getCachedSessionId() {
+  return localStorage.getItem(SESSION_KEY);
 }
 
 /**
@@ -47,18 +113,26 @@ export function setSessionId(sessionId) {
 }
 
 /**
- * Clear the current session and generate a new one.
+ * Create a new session (only when user clicks "New Session").
  * Also triggers cleanup of old sessions on the backend.
  * @returns {string} The new session ID
  */
-export function resetSession() {
+export function createNewSession() {
   const newSessionId = generateSessionId();
   localStorage.setItem(SESSION_KEY, newSessionId);
   
   // Trigger cleanup of old sessions in the background
   triggerSessionCleanup(newSessionId);
   
+  console.log('Created new session (user requested):', newSessionId);
   return newSessionId;
+}
+
+/**
+ * @deprecated Use createNewSession() instead
+ */
+export function resetSession() {
+  return createNewSession();
 }
 
 /**
@@ -68,7 +142,7 @@ export function resetSession() {
  */
 export async function triggerSessionCleanup(newSessionId) {
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:20005';
+    const apiUrl = getApiUrl();
     const response = await fetch(`${apiUrl}/api/session/cleanup`, {
       method: 'POST',
       headers: {
@@ -98,4 +172,3 @@ export async function triggerSessionCleanup(newSessionId) {
 export function hasSession() {
   return localStorage.getItem(SESSION_KEY) !== null;
 }
-

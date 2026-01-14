@@ -125,6 +125,45 @@ async def check_session(
     return SessionCheckResponse(exists=exists, session_id=session_id)
 
 
+class LatestSessionResponse(BaseModel):
+    """Latest session response model."""
+    session_id: str | None
+    created_at: str | None
+    last_activity: str | None
+    message_count: int
+
+
+@router.get("/session/latest/get", response_model=LatestSessionResponse)
+async def get_latest_session(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get the latest active session.
+    
+    This allows users to resume their conversation from any device.
+    Returns the most recently active session.
+    
+    Returns:
+        Latest session info or None if no sessions exist
+    """
+    latest = await session_manager.get_latest_session(db)
+    
+    if latest is None:
+        return LatestSessionResponse(
+            session_id=None,
+            created_at=None,
+            last_activity=None,
+            message_count=0,
+        )
+    
+    return LatestSessionResponse(
+        session_id=str(latest.session_id),
+        created_at=latest.created_at.isoformat(),
+        last_activity=latest.last_activity.isoformat(),
+        message_count=len(latest.messages) if latest.messages else 0,
+    )
+
+
 async def run_cleanup_in_background(new_session_id: str, min_messages: int = 2):
     """Background task to run session cleanup."""
     import logging

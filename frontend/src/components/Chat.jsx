@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { wsClient } from '../services/websocket'
-import { getSessionId, resetSession } from '../utils/session'
+import { getSessionId, createNewSession } from '../utils/session'
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
 import './Chat.css'
@@ -10,13 +10,33 @@ function Chat() {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
-  const [sessionId, setSessionId] = useState(getSessionId())
+  const [sessionId, setSessionId] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const reconnectTimeoutRef = useRef(null)
   const streamingMessageRef = useRef(null)
 
+  // Initialize session on mount - fetch latest from backend
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        setIsLoading(true)
+        const id = await getSessionId()
+        setSessionId(id)
+      } catch (err) {
+        console.error('Failed to initialize session:', err)
+        setError('Failed to load session')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    initSession()
+  }, [])
+
   // Connect to WebSocket
   const connect = useCallback(async () => {
+    if (!sessionId) return
+    
     try {
       setError(null)
       await wsClient.connect(sessionId)
@@ -27,9 +47,9 @@ function Chat() {
     }
   }, [sessionId])
 
-  // Handle new session
+  // Handle new session - only when user clicks the button
   const handleNewSession = useCallback(() => {
-    const newSessionId = resetSession()
+    const newSessionId = createNewSession()
     setSessionId(newSessionId)
     setMessages([])
     setIsStreaming(false)
@@ -149,8 +169,10 @@ function Chat() {
     wsClient.on('stream_chunk', handleStreamChunk)
     wsClient.on('stream_end', handleStreamEnd)
 
-    // Connect on mount
-    connect()
+    // Connect when session is ready
+    if (sessionId) {
+      connect()
+    }
 
     return () => {
       wsClient.off('connect', handleConnect)
@@ -167,7 +189,7 @@ function Chat() {
         clearTimeout(reconnectTimeoutRef.current)
       }
     }
-  }, [connect])
+  }, [connect, sessionId])
 
   // Reconnect when session changes
   useEffect(() => {
@@ -188,6 +210,18 @@ function Chat() {
     }
     wsClient.sendMessage(content)
   }, [isConnected, isStreaming])
+
+  // Show loading state while fetching session
+  if (isLoading) {
+    return (
+      <div className="chat">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Loading session...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="chat">

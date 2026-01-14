@@ -136,6 +136,28 @@ class SessionManager:
         )
         return result.scalar_one_or_none() is not None
 
+    async def get_latest_session(self, db: AsyncSession) -> Optional[Session]:
+        """
+        Get the most recently active session.
+        
+        This allows users to resume their conversation from any device.
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            The most recent Session or None if no sessions exist
+        """
+        from sqlalchemy.orm import selectinload
+        
+        result = await db.execute(
+            select(Session)
+            .options(selectinload(Session.messages))
+            .order_by(Session.last_activity.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
 
 # Global session manager instance
 session_manager = SessionManager()
