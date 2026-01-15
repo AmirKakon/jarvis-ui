@@ -4,16 +4,19 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Set production environment for build
+ENV NODE_ENV=production
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (including devDependencies for build)
+RUN npm ci --include=dev
 
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application with production base path
 RUN npm run build
 
 # Stage 2: Serve with nginx
@@ -36,4 +39,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:20006/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
-
