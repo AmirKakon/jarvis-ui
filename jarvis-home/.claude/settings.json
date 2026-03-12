@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker *)",
+      "Bash(docker compose *)",
+      "Bash(systemctl *)",
+      "Bash(journalctl *)",
+      "Bash(free *)",
+      "Bash(df *)",
+      "Bash(top *)",
+      "Bash(uptime *)",
+      "Bash(ip *)",
+      "Bash(curl *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(tail *)",
+      "Bash(head *)",
+      "Bash(ps *)",
+      "Bash(htop *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(mkfs *)",
+      "Bash(dd if=*)"
+    ]
+  }
+}
