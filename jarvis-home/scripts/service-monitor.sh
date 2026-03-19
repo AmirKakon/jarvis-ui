@@ -20,6 +20,14 @@ for SVC in $SYSTEM_SERVICES; do
     fi
 done
 
+# --- Check user-level systemd services ---
+USER_SERVICES="jarvis-telegram-bot"
+for SVC in $USER_SERVICES; do
+    if ! systemctl --user is-active --quiet "$SVC" 2>/dev/null; then
+        ALERTS="${ALERTS}\n🔴 User service <b>${SVC}</b> is not running"
+    fi
+done
+
 # --- Check port-based services (not managed by systemd) ---
 # Format: "name|port|check_method" (http = curl, tcp = port open check)
 PORT_SERVICES="n8n|20003|http PostgreSQL|20004|tcp Jarvis-Backend|20005|http Jarvis-Frontend|20006|http"
