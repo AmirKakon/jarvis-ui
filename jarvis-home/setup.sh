@@ -78,46 +78,19 @@ elif [ -f "$HOME/.zshrc" ]; then
 fi
 
 if [ -n "$SHELL_RC" ]; then
-    ALIASES_CHANGED=false
+    # Remove any existing jarvis aliases and their comment header
+    grep -v '^# Jarvis .* Claude Code' "$SHELL_RC" | grep -v '^alias jarvis=' | grep -v '^alias jarvis-update=' > "$SHELL_RC.tmp"
+    mv "$SHELL_RC.tmp" "$SHELL_RC"
 
-    # --- jarvis alias ---
-    if grep -q 'alias jarvis=' "$SHELL_RC" 2>/dev/null; then
-        EXISTING=$(grep 'alias jarvis=' "$SHELL_RC" | grep -v 'jarvis-update')
-        if [ "$EXISTING" = "$ALIAS_CMD" ]; then
-            echo -e "  'jarvis' alias already up to date"
-        else
-            sed -i "/^alias jarvis=/{ /jarvis-update/!s|.*|$ALIAS_CMD| }" "$SHELL_RC"
-            echo -e "  ${GREEN}'jarvis' alias updated${NC}"
-            ALIASES_CHANGED=true
-        fi
-    else
-        echo "" >> "$SHELL_RC"
-        echo "# Jarvis — Claude Code assistant" >> "$SHELL_RC"
-        echo "$ALIAS_CMD" >> "$SHELL_RC"
-        echo -e "  ${GREEN}'jarvis' alias added${NC}"
-        ALIASES_CHANGED=true
-    fi
+    # Add fresh aliases
+    echo '' >> "$SHELL_RC"
+    echo '# Jarvis — Claude Code assistant' >> "$SHELL_RC"
+    echo 'alias jarvis="cd ~/jarvis && claude --dangerously-skip-permissions"' >> "$SHELL_RC"
+    echo 'alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull origin feature/claude-code && cd jarvis-home && bash setup.sh"' >> "$SHELL_RC"
 
-    # --- jarvis-update alias ---
-    if grep -q 'alias jarvis-update=' "$SHELL_RC" 2>/dev/null; then
-        EXISTING_UPDATE=$(grep 'alias jarvis-update=' "$SHELL_RC")
-        if [ "$EXISTING_UPDATE" = "$UPDATE_CMD" ]; then
-            echo -e "  'jarvis-update' alias already up to date"
-        else
-            sed -i "s|^alias jarvis-update=.*|$UPDATE_CMD|" "$SHELL_RC"
-            echo -e "  ${GREEN}'jarvis-update' alias updated${NC}"
-            ALIASES_CHANGED=true
-        fi
-    else
-        echo "$UPDATE_CMD" >> "$SHELL_RC"
-        echo -e "  ${GREEN}'jarvis-update' alias added${NC}"
-        ALIASES_CHANGED=true
-    fi
-
-    if [ "$ALIASES_CHANGED" = true ]; then
-        echo ""
-        echo -e "  Run 'source $SHELL_RC' or open a new terminal to activate."
-    fi
+    echo -e "  ${GREEN}Aliases configured in $SHELL_RC${NC}"
+    echo ""
+    echo -e "  Run 'source $SHELL_RC' or open a new terminal to activate."
 else
     echo "  Could not detect shell config file. Add manually:"
     echo "    $ALIAS_CMD"
