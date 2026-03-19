@@ -9,6 +9,10 @@ LOG_FILE="$LOG_DIR/service-monitor.log"
 
 mkdir -p "$LOG_DIR"
 
+# Cron doesn't have the user session env vars needed by systemctl --user
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 ALERTS=""
 
