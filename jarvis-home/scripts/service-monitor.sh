@@ -12,19 +12,30 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 ALERTS=""
 
-# --- Check critical system services ---
-SYSTEM_SERVICES="docker smbd nginx postgresql"
+# --- Check systemd services ---
+SYSTEM_SERVICES="docker smbd nginx"
 for SVC in $SYSTEM_SERVICES; do
     if ! systemctl is-active --quiet "$SVC" 2>/dev/null; then
         ALERTS="${ALERTS}\n🔴 System service <b>${SVC}</b> is not running"
     fi
 done
 
-# --- Check user services ---
-USER_SERVICES="n8n"
-for SVC in $USER_SERVICES; do
-    if ! systemctl --user is-active --quiet "$SVC" 2>/dev/null; then
-        ALERTS="${ALERTS}\n🔴 User service <b>${SVC}</b> is not running"
+# --- Check port-based services (not managed by systemd) ---
+# Format: "name|port|check_method" (http = curl, tcp = port open check)
+PORT_SERVICES="n8n|20003|http PostgreSQL|20004|tcp Jarvis-Backend|20005|http Jarvis-Frontend|20006|http"
+for ENTRY in $PORT_SERVICES; do
+    NAME=$(echo "$ENTRY" | cut -d'|' -f1)
+    PORT=$(echo "$ENTRY" | cut -d'|' -f2)
+    METHOD=$(echo "$ENTRY" | cut -d'|' -f3)
+
+    if [ "$METHOD" = "http" ]; then
+        if ! curl -s --max-time 5 "http://localhost:${PORT}" > /dev/null 2>&1; then
+            ALERTS="${ALERTS}\n🔴 <b>${NAME}</b> (port ${PORT}) is not responding"
+        fi
+    else
+        if ! ss -tlnp | grep -q ":${PORT} " 2>/dev/null; then
+            ALERTS="${ALERTS}\n🔴 <b>${NAME}</b> (port ${PORT}) is not listening"
+        fi
     fi
 done
 
