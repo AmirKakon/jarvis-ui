@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { Telegraf } from 'telegraf';
+import { Telegraf, Markup } from 'telegraf';
 import { statusCommand } from './commands/status.js';
-import { dockerCommand } from './commands/docker.js';
+import { dockerCommand, dockerCallback } from './commands/docker.js';
 import { storageCommand } from './commands/storage.js';
 import { networkCommand } from './commands/network.js';
 import { servicesCommand } from './commands/services.js';
-import { haCommand } from './commands/ha.js';
+import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
 import { askClaude } from './claude.js';
 
@@ -86,6 +86,10 @@ bot.command('services', servicesCommand);
 bot.command('ha', haCommand);
 bot.command('n8n', n8nCommand);
 
+// --- Inline keyboard callbacks ---
+bot.action(/^d:(.+):(.+)$/, dockerCallback);
+bot.action(/^ha:(.+)$/, haCallback);
+
 // --- Free-text → Claude Code ---
 bot.on('text', askClaude);
 
@@ -99,5 +103,15 @@ process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 // --- Start ---
 bot.launch({ dropPendingUpdates: true }).then(() => {
+  bot.telegram.setMyCommands([
+    { command: 'status', description: 'System health summary' },
+    { command: 'docker', description: 'List / manage containers' },
+    { command: 'services', description: 'Systemd service status' },
+    { command: 'storage', description: 'Disk usage overview' },
+    { command: 'network', description: 'Network interfaces & ports' },
+    { command: 'ha', description: 'Home Assistant control' },
+    { command: 'n8n', description: 'n8n workflow management' },
+    { command: 'help', description: 'Show all commands' },
+  ]);
   console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);
 });

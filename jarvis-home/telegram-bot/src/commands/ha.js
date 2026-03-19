@@ -1,3 +1,4 @@
+import { Markup } from 'telegraf';
 import { run, bold, code, pre, sendLong, escapeHtml } from '../utils.js';
 
 function loadEnv() {
@@ -20,6 +21,84 @@ function curlHA(env, endpoint, method = 'GET', body = null) {
   );
 }
 
+async function handleStatus(ctx, env) {
+  const { ok, output } = await curlHA(env, '');
+  return ctx.replyWithHTML(ok ? '🟢 Home Assistant is reachable.' : `🔴 Unreachable:\n${pre(output)}`);
+}
+
+async function handleStates(ctx, env) {
+  const { ok, output } = await curlHA(env, 'states');
+  if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
+  try {
+    const states = JSON.parse(output);
+
+    const domains = {};
+    for (const s of states) {
+      const domain = s.entity_id.split('.')[0];
+      if (!domains[domain]) domains[domain] = [];
+      domains[domain].push(s);
+    }
+
+    const controllable = ['light', 'switch', 'fan', 'cover', 'climate', 'media_player', 'scene', 'script'];
+    const buttons = [];
+    for (const domain of controllable) {
+      if (!domains[domain]) continue;
+      for (const s of domains[domain]) {
+        const label = `${s.state === 'on' ? '🟢' : '⚪'} ${s.entity_id.split('.')[1].replace(/_/g, ' ')}`;
+        buttons.push([Markup.button.callback(label, `ha:toggle:${s.entity_id}`)]);
+      }
+    }
+
+    const summary = states
+      .slice(0, 40)
+      .map((s) => `${s.entity_id}: ${s.state}`)
+      .join('\n');
+
+    const keyboard = buttons.length > 0
+      ? Markup.inlineKeyboard(buttons.slice(0, 20))
+      : undefined;
+
+    return sendLong(ctx, `${bold('Entity States')}\n${pre(summary)}`, keyboard || {});
+  } catch {
+    return ctx.replyWithHTML('🔴 Failed to parse states.');
+  }
+}
+
+async function handleEntityState(ctx, env, entityId) {
+  const { ok, output } = await curlHA(env, `states/${entityId}`);
+  if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
+  try {
+    const s = JSON.parse(output);
+    const domain = s.entity_id.split('.')[0];
+    const isControllable = ['light', 'switch', 'fan', 'cover', 'climate', 'media_player'].includes(domain);
+    const buttons = isControllable
+      ? Markup.inlineKeyboard([
+          Markup.button.callback('🔄 Toggle', `ha:toggle:${s.entity_id}`),
+          Markup.button.callback('💡 Turn on', `ha:turn_on:${s.entity_id}`),
+          Markup.button.callback('🔌 Turn off', `ha:turn_off:${s.entity_id}`),
+        ])
+      : undefined;
+    return ctx.replyWithHTML(
+      `${bold(escapeHtml(s.entity_id))}\nState: ${code(s.state)}\nLast changed: ${code(s.last_changed)}`,
+      buttons || {}
+    );
+  } catch {
+    return ctx.replyWithHTML('🔴 Failed to parse state.');
+  }
+}
+
+async function handleService(ctx, env, service, entityId) {
+  const domain = entityId.split('.')[0];
+  const { ok, output } = await curlHA(
+    env,
+    `services/${domain}/${service}`,
+    'POST',
+    { entity_id: entityId }
+  );
+  if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
+  return ctx.replyWithHTML(`🟢 ${code(entityId)} — ${service} executed.`);
+}
+
 export async function haCommand(ctx) {
   const env = loadEnv();
   if (!env) {
@@ -34,67 +113,50 @@ export async function haCommand(ctx) {
 
   if (!sub || sub === 'help') {
     return ctx.replyWithHTML(
-      [
-        bold('Home Assistant'),
-        '',
-        '/ha status        — API health check',
-        '/ha states        — list entity states',
-        '/ha toggle &lt;id&gt;  — toggle an entity',
-        '/ha turn_on &lt;id&gt; — turn on entity',
-        '/ha turn_off &lt;id&gt; — turn off entity',
-        '/ha state &lt;id&gt;   — get entity state',
-      ].join('\n')
+      [bold('Home Assistant'), ''].join('\n'),
+      Markup.inlineKeyboard([
+        [Markup.button.callback('📡 Status', 'ha:status')],
+        [Markup.button.callback('📋 Entity States', 'ha:states')],
+      ])
     );
   }
 
-  if (sub === 'status') {
-    const { ok, output } = await curlHA(env, '');
-    return ctx.replyWithHTML(ok ? '🟢 Home Assistant is reachable.' : `🔴 Unreachable:\n${pre(output)}`);
-  }
-
-  if (sub === 'states') {
-    const { ok, output } = await curlHA(env, 'states');
-    if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
-    try {
-      const states = JSON.parse(output);
-      const summary = states
-        .slice(0, 40)
-        .map((s) => `${s.entity_id}: ${s.state}`)
-        .join('\n');
-      return sendLong(ctx, `${bold('Entity States')}\n${pre(summary)}`);
-    } catch {
-      return ctx.replyWithHTML(`🔴 Failed to parse states.`);
-    }
-  }
-
-  if (sub === 'state' && args[1]) {
-    const entityId = args[1];
-    const { ok, output } = await curlHA(env, `states/${entityId}`);
-    if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
-    try {
-      const s = JSON.parse(output);
-      return ctx.replyWithHTML(
-        `${bold(escapeHtml(s.entity_id))}\nState: ${code(s.state)}\nLast changed: ${code(s.last_changed)}`
-      );
-    } catch {
-      return ctx.replyWithHTML(`🔴 Failed to parse state.`);
-    }
-  }
+  if (sub === 'status') return handleStatus(ctx, env);
+  if (sub === 'states') return handleStates(ctx, env);
+  if (sub === 'state' && args[1]) return handleEntityState(ctx, env, args[1]);
 
   const serviceMap = { toggle: 'toggle', turn_on: 'turn_on', turn_off: 'turn_off' };
-  if (serviceMap[sub] && args[1]) {
-    const entityId = args[1];
-    const domain = entityId.split('.')[0];
-    const service = serviceMap[sub];
-    const { ok, output } = await curlHA(
-      env,
-      `services/${domain}/${service}`,
-      'POST',
-      { entity_id: entityId }
-    );
-    if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
-    return ctx.replyWithHTML(`🟢 ${code(entityId)} — ${service} executed.`);
+  if (serviceMap[sub] && args[1]) return handleService(ctx, env, serviceMap[sub], args[1]);
+
+  return ctx.replyWithHTML('Unknown sub-command. Try /ha help');
+}
+
+export async function haCallback(ctx) {
+  const env = loadEnv();
+  if (!env) {
+    await ctx.answerCbQuery('HA not configured');
+    return;
   }
 
-  return ctx.replyWithHTML(`Unknown sub-command. Try /ha help`);
+  const data = ctx.match[1];
+  const parts = data.split(':');
+  const action = parts[0];
+
+  if (action === 'status') {
+    await ctx.answerCbQuery('Checking HA...');
+    return handleStatus(ctx, env);
+  }
+
+  if (action === 'states') {
+    await ctx.answerCbQuery('Loading states...');
+    return handleStates(ctx, env);
+  }
+
+  if (['toggle', 'turn_on', 'turn_off'].includes(action) && parts[1]) {
+    const entityId = parts.slice(1).join(':');
+    await ctx.answerCbQuery(`${action}: ${entityId}`);
+    return handleService(ctx, env, action, entityId);
+  }
+
+  await ctx.answerCbQuery('Unknown action');
 }

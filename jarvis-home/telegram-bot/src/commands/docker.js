@@ -1,3 +1,4 @@
+import { Markup } from 'telegraf';
 import { run, bold, pre, code, sendLong, escapeHtml } from '../utils.js';
 
 const ALLOWED_ACTIONS = ['restart', 'stop', 'start', 'logs'];
@@ -18,13 +19,30 @@ export async function dockerCommand(ctx) {
     if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
 
     const lines = [bold('Docker Containers'), ''];
+    const buttons = [];
+
     for (const row of output.split('\n').filter(Boolean)) {
       const [name, status, ports] = row.split('|');
-      const icon = status?.toLowerCase().includes('up') ? '🟢' : '🔴';
+      const isUp = status?.toLowerCase().includes('up');
+      const icon = isUp ? '🟢' : '🔴';
       const portInfo = ports ? ` (${escapeHtml(ports)})` : '';
       lines.push(`${icon} ${code(name)} — ${escapeHtml(status)}${portInfo}`);
+
+      const rowButtons = [];
+      if (isUp) {
+        rowButtons.push(Markup.button.callback(`🔄 ${name}`, `d:restart:${name}`));
+        rowButtons.push(Markup.button.callback(`📋 logs`, `d:logs:${name}`));
+        rowButtons.push(Markup.button.callback(`⏹ stop`, `d:stop:${name}`));
+      } else {
+        rowButtons.push(Markup.button.callback(`▶️ start ${name}`, `d:start:${name}`));
+      }
+      buttons.push(rowButtons);
     }
-    return sendLong(ctx, lines.join('\n'));
+
+    return ctx.replyWithHTML(
+      lines.join('\n'),
+      Markup.inlineKeyboard(buttons)
+    );
   }
 
   if (!ALLOWED_ACTIONS.includes(action)) {
@@ -47,4 +65,19 @@ export async function dockerCommand(ctx) {
   const { ok, output } = await run(`docker ${action} ${target}`, { timeout: 30_000 });
   if (!ok) return ctx.replyWithHTML(`🔴 Failed:\n${pre(output)}`);
   return ctx.replyWithHTML(`🟢 ${code(target)} — ${action} completed.`);
+}
+
+export async function dockerCallback(ctx) {
+  const [action, name] = [ctx.match[1], sanitiseName(ctx.match[2])];
+  await ctx.answerCbQuery(`Running ${action} on ${name}...`);
+
+  if (action === 'logs') {
+    const { ok, output } = await run(`docker logs --tail 40 ${name}`, { timeout: 15_000 });
+    if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
+    return sendLong(ctx, `${bold(`Logs: ${name}`)}\n${pre(output)}`);
+  }
+
+  const { ok, output } = await run(`docker ${action} ${name}`, { timeout: 30_000 });
+  if (!ok) return ctx.replyWithHTML(`🔴 Failed:\n${pre(output)}`);
+  return ctx.replyWithHTML(`🟢 ${code(name)} — ${action} completed.`);
 }
