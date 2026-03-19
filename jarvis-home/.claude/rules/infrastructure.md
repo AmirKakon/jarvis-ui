@@ -13,9 +13,10 @@
 - 20006: Jarvis frontend (legacy React/nginx)
 
 ## External Drives
-- `~/shared-storage` — external drive 1
-- `~/shared-storage-2` — external drive 2 (movies, TV shows)
-- Shared via Samba to the local network
+- `~/shared-storage` — 1TB WD USB (exfat), movies, tv-shows, music, gopro, camera, programming
+- `~/shared-storage-2` — 5TB WD Elements USB (ntfs), movies, tv-shows, ha-backups
+- Both shared via Samba to the local network
+- shared-storage-2 may need manual mount after reboot: `sudo mount /dev/sdc1 ~/shared-storage-2`
 
 ## Docker
 - Docker Compose is used for multi-container services

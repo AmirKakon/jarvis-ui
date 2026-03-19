@@ -38,7 +38,8 @@ Check storage health and usage. Argument: $ARGUMENTS
 - Flag unmounted drives that are present in `lsblk` but not mounted
 
 ## Storage Paths
-- External drive 1: `/home/iot/shared-storage`
-- External drive 2: `/home/iot/shared-storage-2`
-- Movies: `/home/iot/shared-storage-2/movies`
-- TV Shows: `/home/iot/shared-storage-2/tv-shows`
+- **Internal SSD** (`/dev/sda`, 476G): Boot drive, OS, home directory
+- **External drive 1** (`/dev/sdb`, 931G, exfat): `~/shared-storage` — movies, tv-shows, music, gopro, camera, dji, google-data, programming, etc.
+- **External drive 2** (`/dev/sdc`, 4.5T, ntfs): `~/shared-storage-2` — movies, tv-shows, ha-backups (Home Assistant backups)
+- Both external drives are shared via Samba
+- Note: shared-storage-2 may not auto-mount on boot (fstab uses /dev/sdc1 which can be unreliable for USB drives — consider switching to UUID)
