@@ -16,7 +16,7 @@ Check storage health and usage. Argument: $ARGUMENTS
 
 - **"usage" or "space"**: Detailed space breakdown:
   1. `df -h` for all filesystems
-  2. `du -sh /home/iot/shared-storage-*` for media storage paths
+  2. `du -sh ~/shared-storage ~/shared-storage-2` for external drive usage
   3. Flag any filesystem above 85% usage
 
 - **"samba" or "shares"**: Samba file sharing status:
@@ -30,7 +30,7 @@ Check storage health and usage. Argument: $ARGUMENTS
   2. Check for any failed mounts in `dmesg | grep -i 'mount\|error' | tail -10`
 
 - **"top" or "largest"**: Find largest files/directories:
-  1. `du -sh /home/iot/shared-storage-*/*/ 2>/dev/null | sort -rh | head -20`
+  1. `du -sh ~/shared-storage/*/ ~/shared-storage-2/*/ 2>/dev/null | sort -rh | head -20`
 
 ## Warnings
 - Flag drives with SMART health != PASSED
@@ -38,4 +38,7 @@ Check storage health and usage. Argument: $ARGUMENTS
 - Flag unmounted drives that are present in `lsblk` but not mounted
 
 ## Storage Paths
-- Media storage: `/home/iot/shared-storage-2/movies`, `/home/iot/shared-storage-2/tv-shows`
+- External drive 1: `/home/iot/shared-storage`
+- External drive 2: `/home/iot/shared-storage-2`
+- Movies: `/home/iot/shared-storage-2/movies`
+- TV Shows: `/home/iot/shared-storage-2/tv-shows`

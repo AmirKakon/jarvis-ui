@@ -12,6 +12,11 @@
 - 20005: Jarvis backend (legacy FastAPI)
 - 20006: Jarvis frontend (legacy React/nginx)
 
+## External Drives
+- `~/shared-storage` — external drive 1
+- `~/shared-storage-2` — external drive 2 (movies, TV shows)
+- Shared via Samba to the local network
+
 ## Docker
 - Docker Compose is used for multi-container services
 - Use `docker compose` (v2 syntax, not `docker-compose`)
