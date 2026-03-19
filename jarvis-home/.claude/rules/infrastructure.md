@@ -37,3 +37,9 @@
 ## Jellyfin
 - Media server for movies, TV shows, music
 - Accessible on the local network
+
+## Home Assistant
+- Smart home control platform at http://192.168.68.113:8123
+- REST API with long-lived access token (stored in ~/jarvis/.env as HA_TOKEN)
+- Source `~/jarvis/.env` before making API calls
+- Manages lights, switches, sensors, climate, automations, and scenes
