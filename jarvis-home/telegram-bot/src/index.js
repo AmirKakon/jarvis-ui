@@ -87,8 +87,8 @@ bot.command('ha', haCommand);
 bot.command('n8n', n8nCommand);
 
 // --- Inline keyboard callbacks ---
-bot.action(/^d:(.+):(.+)$/, dockerCallback);
-bot.action(/^ha:(.+)$/, haCallback);
+bot.action(/^d:([rsSl]):(.+)$/, dockerCallback);
+bot.action(/^h:(.+)$/, haCallback);
 
 // --- Free-text → Claude Code ---
 bot.on('text', askClaude);

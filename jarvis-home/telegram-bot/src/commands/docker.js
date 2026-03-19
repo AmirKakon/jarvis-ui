@@ -1,7 +1,9 @@
 import { Markup } from 'telegraf';
-import { run, bold, pre, code, sendLong, escapeHtml } from '../utils.js';
+import { run, bold, pre, code, sendLong, escapeHtml, cbData } from '../utils.js';
 
 const ALLOWED_ACTIONS = ['restart', 'stop', 'start', 'logs'];
+const ACTION_SHORT = { restart: 'r', stop: 's', start: 'S', logs: 'l' };
+const SHORT_ACTION = { r: 'restart', s: 'stop', S: 'start', l: 'logs' };
 
 function sanitiseName(name) {
   return name.replace(/[^a-zA-Z0-9._-]/g, '');
@@ -30,19 +32,21 @@ export async function dockerCommand(ctx) {
 
       const rowButtons = [];
       if (isUp) {
-        rowButtons.push(Markup.button.callback(`🔄 ${name}`, `d:restart:${name}`));
-        rowButtons.push(Markup.button.callback(`📋 logs`, `d:logs:${name}`));
-        rowButtons.push(Markup.button.callback(`⏹ stop`, `d:stop:${name}`));
+        const r = cbData('d:r:', name);
+        const l = cbData('d:l:', name);
+        const s = cbData('d:s:', name);
+        if (r) rowButtons.push(Markup.button.callback(`🔄 ${name}`, r));
+        if (l) rowButtons.push(Markup.button.callback('📋 logs', l));
+        if (s) rowButtons.push(Markup.button.callback('⏹ stop', s));
       } else {
-        rowButtons.push(Markup.button.callback(`▶️ start ${name}`, `d:start:${name}`));
+        const S = cbData('d:S:', name);
+        if (S) rowButtons.push(Markup.button.callback(`▶️ start ${name}`, S));
       }
-      buttons.push(rowButtons);
+      if (rowButtons.length) buttons.push(rowButtons);
     }
 
-    return ctx.replyWithHTML(
-      lines.join('\n'),
-      Markup.inlineKeyboard(buttons)
-    );
+    const keyboard = buttons.length ? Markup.inlineKeyboard(buttons) : {};
+    return ctx.replyWithHTML(lines.join('\n'), keyboard);
   }
 
   if (!ALLOWED_ACTIONS.includes(action)) {
@@ -68,8 +72,11 @@ export async function dockerCommand(ctx) {
 }
 
 export async function dockerCallback(ctx) {
-  const [action, name] = [ctx.match[1], sanitiseName(ctx.match[2])];
-  await ctx.answerCbQuery(`Running ${action} on ${name}...`);
+  const shortAction = ctx.match[1];
+  const name = sanitiseName(ctx.match[2]);
+  const action = SHORT_ACTION[shortAction] || shortAction;
+
+  await ctx.answerCbQuery(`${action} ${name}...`);
 
   if (action === 'logs') {
     const { ok, output } = await run(`docker logs --tail 40 ${name}`, { timeout: 15_000 });

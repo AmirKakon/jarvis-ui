@@ -34,6 +34,25 @@ export function code(text) {
   return `<code>${escapeHtml(text)}</code>`;
 }
 
+const CB_MAX = 64;
+
+/**
+ * Build callback data string, safely truncating to Telegram's 64-byte limit.
+ * Returns null if the prefix alone exceeds the limit (skip the button).
+ */
+export function cbData(prefix, id) {
+  const full = `${prefix}${id}`;
+  if (Buffer.byteLength(full, 'utf-8') <= CB_MAX) return full;
+  const prefixLen = Buffer.byteLength(prefix, 'utf-8');
+  if (prefixLen >= CB_MAX) return null;
+  const available = CB_MAX - prefixLen;
+  let truncated = id;
+  while (Buffer.byteLength(truncated, 'utf-8') > available) {
+    truncated = truncated.slice(0, -1);
+  }
+  return `${prefix}${truncated}`;
+}
+
 export function truncate(text, max = TG_SAFE_LENGTH) {
   if (text.length <= max) return text;
   const suffix = '\n\n... (truncated)';

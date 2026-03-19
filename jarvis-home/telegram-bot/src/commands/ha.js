@@ -1,5 +1,5 @@
 import { Markup } from 'telegraf';
-import { run, bold, code, pre, sendLong, escapeHtml } from '../utils.js';
+import { run, bold, code, pre, sendLong, escapeHtml, cbData } from '../utils.js';
 
 function loadEnv() {
   const url = process.env.HA_URL;
@@ -32,21 +32,14 @@ async function handleStates(ctx, env) {
   try {
     const states = JSON.parse(output);
 
-    const domains = {};
-    for (const s of states) {
-      const domain = s.entity_id.split('.')[0];
-      if (!domains[domain]) domains[domain] = [];
-      domains[domain].push(s);
-    }
-
     const controllable = ['light', 'switch', 'fan', 'cover', 'climate', 'media_player', 'scene', 'script'];
     const buttons = [];
-    for (const domain of controllable) {
-      if (!domains[domain]) continue;
-      for (const s of domains[domain]) {
-        const label = `${s.state === 'on' ? '🟢' : '⚪'} ${s.entity_id.split('.')[1].replace(/_/g, ' ')}`;
-        buttons.push([Markup.button.callback(label, `ha:toggle:${s.entity_id}`)]);
-      }
+    for (const s of states) {
+      const domain = s.entity_id.split('.')[0];
+      if (!controllable.includes(domain)) continue;
+      const label = `${s.state === 'on' ? '🟢' : '⚪'} ${s.entity_id.split('.')[1].replace(/_/g, ' ')}`;
+      const data = cbData('h:t:', s.entity_id);
+      if (data) buttons.push([Markup.button.callback(label, data)]);
     }
 
     const summary = states
@@ -71,16 +64,21 @@ async function handleEntityState(ctx, env, entityId) {
     const s = JSON.parse(output);
     const domain = s.entity_id.split('.')[0];
     const isControllable = ['light', 'switch', 'fan', 'cover', 'climate', 'media_player'].includes(domain);
-    const buttons = isControllable
-      ? Markup.inlineKeyboard([
-          Markup.button.callback('🔄 Toggle', `ha:toggle:${s.entity_id}`),
-          Markup.button.callback('💡 Turn on', `ha:turn_on:${s.entity_id}`),
-          Markup.button.callback('🔌 Turn off', `ha:turn_off:${s.entity_id}`),
-        ])
-      : undefined;
+
+    const btnRow = [];
+    if (isControllable) {
+      const t = cbData('h:t:', s.entity_id);
+      const on = cbData('h:1:', s.entity_id);
+      const off = cbData('h:0:', s.entity_id);
+      if (t) btnRow.push(Markup.button.callback('🔄 Toggle', t));
+      if (on) btnRow.push(Markup.button.callback('💡 On', on));
+      if (off) btnRow.push(Markup.button.callback('🔌 Off', off));
+    }
+
+    const keyboard = btnRow.length ? Markup.inlineKeyboard([btnRow]) : {};
     return ctx.replyWithHTML(
       `${bold(escapeHtml(s.entity_id))}\nState: ${code(s.state)}\nLast changed: ${code(s.last_changed)}`,
-      buttons || {}
+      keyboard
     );
   } catch {
     return ctx.replyWithHTML('🔴 Failed to parse state.');
@@ -115,8 +113,8 @@ export async function haCommand(ctx) {
     return ctx.replyWithHTML(
       [bold('Home Assistant'), ''].join('\n'),
       Markup.inlineKeyboard([
-        [Markup.button.callback('📡 Status', 'ha:status')],
-        [Markup.button.callback('📋 Entity States', 'ha:states')],
+        [Markup.button.callback('📡 Status', 'h:s')],
+        [Markup.button.callback('📋 Entity States', 'h:l')],
       ])
     );
   }
@@ -131,6 +129,8 @@ export async function haCommand(ctx) {
   return ctx.replyWithHTML('Unknown sub-command. Try /ha help');
 }
 
+const ACTION_MAP = { t: 'toggle', 1: 'turn_on', 0: 'turn_off' };
+
 export async function haCallback(ctx) {
   const env = loadEnv();
   if (!env) {
@@ -139,23 +139,23 @@ export async function haCallback(ctx) {
   }
 
   const data = ctx.match[1];
-  const parts = data.split(':');
-  const action = parts[0];
 
-  if (action === 'status') {
+  if (data === 's') {
     await ctx.answerCbQuery('Checking HA...');
     return handleStatus(ctx, env);
   }
 
-  if (action === 'states') {
+  if (data === 'l') {
     await ctx.answerCbQuery('Loading states...');
     return handleStates(ctx, env);
   }
 
-  if (['toggle', 'turn_on', 'turn_off'].includes(action) && parts[1]) {
-    const entityId = parts.slice(1).join(':');
-    await ctx.answerCbQuery(`${action}: ${entityId}`);
-    return handleService(ctx, env, action, entityId);
+  const match = data.match(/^([t10]):(.+)$/);
+  if (match) {
+    const service = ACTION_MAP[match[1]];
+    const entityId = match[2];
+    await ctx.answerCbQuery(`${service}: ${entityId}`);
+    return handleService(ctx, env, service, entityId);
   }
 
   await ctx.answerCbQuery('Unknown action');
