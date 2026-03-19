@@ -27,45 +27,57 @@ if [ -d "$JARVIS_DIR/.claude" ]; then
 fi
 
 # --- Step 1: Global Claude config ---
-echo -e "${GREEN}[1/7]${NC} Setting up global Claude config (~/.claude/CLAUDE.md)..."
+echo -e "${GREEN}[1/9]${NC} Setting up global Claude config (~/.claude/CLAUDE.md)..."
 mkdir -p "$GLOBAL_CLAUDE_DIR"
 cp "$SCRIPT_DIR/global-claude/CLAUDE.md" "$GLOBAL_CLAUDE_DIR/CLAUDE.md"
 echo "  Done."
 
 # --- Step 2: Project CLAUDE.md ---
-echo -e "${GREEN}[2/7]${NC} Setting up Jarvis project directory ($JARVIS_DIR)..."
+echo -e "${GREEN}[2/9]${NC} Setting up Jarvis project directory ($JARVIS_DIR)..."
 mkdir -p "$JARVIS_DIR"
 cp "$SCRIPT_DIR/CLAUDE.md" "$JARVIS_DIR/CLAUDE.md"
 echo "  Done."
 
 # --- Step 3: Rules (clean sync) ---
-echo -e "${GREEN}[3/7]${NC} Syncing rules ($JARVIS_DIR/.claude/rules/)..."
+echo -e "${GREEN}[3/9]${NC} Syncing rules ($JARVIS_DIR/.claude/rules/)..."
 mkdir -p "$JARVIS_DIR/.claude/rules"
 rm -f "$JARVIS_DIR/.claude/rules/"*.md
 cp "$SCRIPT_DIR/.claude/rules/"*.md "$JARVIS_DIR/.claude/rules/"
 echo "  Done."
 
 # --- Step 4: Commands (clean sync) ---
-echo -e "${GREEN}[4/7]${NC} Syncing commands ($JARVIS_DIR/.claude/commands/)..."
+echo -e "${GREEN}[4/9]${NC} Syncing commands ($JARVIS_DIR/.claude/commands/)..."
 mkdir -p "$JARVIS_DIR/.claude/commands"
 rm -f "$JARVIS_DIR/.claude/commands/"*.md
 cp "$SCRIPT_DIR/.claude/commands/"*.md "$JARVIS_DIR/.claude/commands/"
 echo "  Done."
 
 # --- Step 5: Agents (clean sync) ---
-echo -e "${GREEN}[5/7]${NC} Syncing subagents ($JARVIS_DIR/.claude/agents/)..."
+echo -e "${GREEN}[5/9]${NC} Syncing subagents ($JARVIS_DIR/.claude/agents/)..."
 mkdir -p "$JARVIS_DIR/.claude/agents"
 rm -f "$JARVIS_DIR/.claude/agents/"*.md
 cp "$SCRIPT_DIR/.claude/agents/"*.md "$JARVIS_DIR/.claude/agents/"
 echo "  Done."
 
 # --- Step 6: Settings ---
-echo -e "${GREEN}[6/7]${NC} Setting up project settings ($JARVIS_DIR/.claude/settings.json)..."
+echo -e "${GREEN}[6/9]${NC} Setting up project settings ($JARVIS_DIR/.claude/settings.json)..."
 cp "$SCRIPT_DIR/.claude/settings.json" "$JARVIS_DIR/.claude/settings.json"
 echo "  Done."
 
-# --- Step 7: Environment file ---
-echo -e "${GREEN}[7/7]${NC} Setting up environment file ($JARVIS_DIR/.env)..."
+# --- Step 7: Monitoring scripts ---
+echo -e "${GREEN}[7/9]${NC} Syncing monitoring scripts ($JARVIS_DIR/scripts/)..."
+mkdir -p "$JARVIS_DIR/scripts"
+mkdir -p "$JARVIS_DIR/logs"
+cp "$SCRIPT_DIR/scripts/"*.sh "$JARVIS_DIR/scripts/"
+chmod +x "$JARVIS_DIR/scripts/"*.sh
+echo "  Done."
+
+# --- Step 8: Cron jobs ---
+echo -e "${GREEN}[8/9]${NC} Installing monitoring cron jobs..."
+bash "$JARVIS_DIR/scripts/install-cron.sh"
+
+# --- Step 9: Environment file ---
+echo -e "${GREEN}[9/9]${NC} Setting up environment file ($JARVIS_DIR/.env)..."
 if [ -f "$JARVIS_DIR/.env" ]; then
     echo "  .env already exists — skipping (won't overwrite your secrets)."
 else
@@ -120,7 +132,9 @@ echo "    ~/jarvis/.claude/rules/            (persona, safety, infrastructure)"
 echo "    ~/jarvis/.claude/commands/         (status, docker, services, jellyfin, homeassistant, n8n, storage, network)"
 echo "    ~/jarvis/.claude/agents/           (diagnostics, docker-ops, research)"
 echo "    ~/jarvis/.claude/settings.json     (permissions)"
-echo "    ~/jarvis/.env                      (secrets - HA token, etc.)"
+echo "    ~/jarvis/scripts/                  (monitoring: disk, SMART, services, backups)"
+echo "    ~/jarvis/logs/                     (monitoring logs)"
+echo "    ~/jarvis/.env                      (secrets - HA, n8n, Telegram tokens)"
 echo ""
 echo "  To start Jarvis:"
 echo ""
