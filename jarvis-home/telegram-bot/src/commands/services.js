@@ -1,6 +1,11 @@
-import { run, bold, pre, sendLong } from '../utils.js';
+import { Markup } from 'telegraf';
+import { run, bold, pre, editOrReply } from '../utils.js';
 
-export async function servicesCommand(ctx) {
+const REFRESH_BTN = Markup.inlineKeyboard([
+  Markup.button.callback('🔄 Refresh', 'x:services'),
+]);
+
+async function buildServices() {
   const [userUnits, sysUnits, failedUser, failedSys] = await Promise.all([
     run('systemctl --user list-units --type=service --state=running --no-pager --no-legend'),
     run('sudo systemctl list-units --type=service --state=running --no-pager --no-legend'),
@@ -33,9 +38,21 @@ export async function servicesCommand(ctx) {
       .split('\n')
       .map((l) => l.trim().split(/\s+/)[0])
       .filter(Boolean)
-      .slice(0, 30); // cap to avoid massive output
+      .slice(0, 30);
     lines.push(pre(names.join('\n')));
   }
 
-  await sendLong(ctx, lines.join('\n'));
+  return lines.join('\n');
+}
+
+export async function servicesCommand(ctx) {
+  const placeholder = await ctx.replyWithHTML('<i>Checking services...</i>');
+  const html = await buildServices();
+  await editOrReply(ctx, placeholder.message_id, html, REFRESH_BTN);
+}
+
+export async function servicesRefresh(ctx) {
+  await ctx.answerCbQuery('Refreshing...');
+  const html = await buildServices();
+  await editOrReply(ctx, ctx.callbackQuery.message.message_id, html, REFRESH_BTN);
 }

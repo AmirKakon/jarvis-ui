@@ -1,8 +1,11 @@
-import { run, bold, pre, sendLong } from '../utils.js';
+import { Markup } from 'telegraf';
+import { run, bold, pre, editOrReply } from '../utils.js';
 
-export async function statusCommand(ctx) {
-  await ctx.replyWithHTML(`${bold('Gathering system health...')}`);
+const REFRESH_BTN = Markup.inlineKeyboard([
+  Markup.button.callback('🔄 Refresh', 'x:status'),
+]);
 
+async function buildStatus() {
   const [uptime, mem, disk, docker, load] = await Promise.all([
     run('uptime -p'),
     run('free -h --si | head -3'),
@@ -42,5 +45,17 @@ export async function statusCommand(ctx) {
     lines.push(containers.join('\n'));
   }
 
-  await sendLong(ctx, lines.join('\n'));
+  return lines.join('\n');
+}
+
+export async function statusCommand(ctx) {
+  const placeholder = await ctx.replyWithHTML('<i>Gathering system health...</i>');
+  const html = await buildStatus();
+  await editOrReply(ctx, placeholder.message_id, html, REFRESH_BTN);
+}
+
+export async function statusRefresh(ctx) {
+  await ctx.answerCbQuery('Refreshing...');
+  const html = await buildStatus();
+  await editOrReply(ctx, ctx.callbackQuery.message.message_id, html, REFRESH_BTN);
 }

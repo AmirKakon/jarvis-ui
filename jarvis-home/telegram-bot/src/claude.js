@@ -1,5 +1,5 @@
 import { exec } from 'node:child_process';
-import { bold, truncate, escapeHtml } from './utils.js';
+import { truncate, escapeHtml, mdToHtml } from './utils.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 const CLAUDE_TIMEOUT = 120_000; // 2 minutes max
@@ -65,7 +65,7 @@ export async function askClaude(ctx) {
 
   let response;
   if (ok) {
-    response = truncate(escapeHtml(output), 3900) + `\n\n<i>(${left} Claude calls remaining this hour)</i>`;
+    response = truncate(mdToHtml(output), 3900) + `\n\n<i>(${left} Claude calls remaining this hour)</i>`;
   } else {
     response = `🔴 Claude error:\n<pre>${truncate(escapeHtml(output), 3800)}</pre>`;
   }

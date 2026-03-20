@@ -53,6 +53,70 @@ export function cbData(prefix, id) {
   return `${prefix}${truncated}`;
 }
 
+/**
+ * Convert Claude's markdown output to Telegram-compatible HTML.
+ * Handles fenced code blocks, inline code, bold, headers, and preserves lists.
+ */
+export function mdToHtml(text) {
+  const lines = text.split('\n');
+  const out = [];
+  let inCodeBlock = false;
+  let codeBuffer = [];
+
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      if (inCodeBlock) {
+        out.push(`<pre>${escapeHtml(codeBuffer.join('\n'))}</pre>`);
+        codeBuffer = [];
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBuffer.push(line);
+      continue;
+    }
+
+    let converted = escapeHtml(line);
+    converted = converted.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    converted = converted.replace(/__(.+?)__/g, '<b>$1</b>');
+    converted = converted.replace(/`([^`]+)`/g, '<code>$1</code>');
+    if (/^#{1,3}\s+/.test(line)) {
+      const heading = converted.replace(/^#{1,3}\s+/, '');
+      converted = `<b>${heading}</b>`;
+    }
+
+    out.push(converted);
+  }
+
+  if (codeBuffer.length) {
+    out.push(`<pre>${escapeHtml(codeBuffer.join('\n'))}</pre>`);
+  }
+
+  return out.join('\n');
+}
+
+/**
+ * Edit an existing message with new HTML content.
+ * Falls back to sending a new message if edit fails.
+ */
+export async function editOrReply(ctx, messageId, html, extra = {}) {
+  try {
+    await ctx.telegram.editMessageText(
+      ctx.chat.id,
+      messageId,
+      undefined,
+      html,
+      { parse_mode: 'HTML', ...extra }
+    );
+  } catch {
+    await ctx.replyWithHTML(html, extra);
+  }
+}
+
 export function truncate(text, max = TG_SAFE_LENGTH) {
   if (text.length <= max) return text;
   const suffix = '\n\n... (truncated)';

@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { Telegraf, Markup } from 'telegraf';
-import { statusCommand } from './commands/status.js';
-import { dockerCommand, dockerCallback } from './commands/docker.js';
-import { storageCommand } from './commands/storage.js';
-import { networkCommand } from './commands/network.js';
-import { servicesCommand } from './commands/services.js';
+import { statusCommand, statusRefresh } from './commands/status.js';
+import { dockerCommand, dockerCallback, dockerRefresh } from './commands/docker.js';
+import { storageCommand, storageRefresh } from './commands/storage.js';
+import { networkCommand, networkRefresh } from './commands/network.js';
+import { servicesCommand, servicesRefresh } from './commands/services.js';
 import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
 import { askClaude } from './claude.js';
@@ -51,6 +51,14 @@ bot.use((ctx, next) => {
   return next();
 });
 
+// --- Typing indicator middleware ---
+bot.use((ctx, next) => {
+  if (ctx.message?.text) {
+    ctx.sendChatAction('typing').catch(() => {});
+  }
+  return next();
+});
+
 // --- Error handler ---
 bot.catch((err, ctx) => {
   console.error(`Bot error for ${ctx.updateType}:`, err.message);
@@ -89,6 +97,22 @@ bot.command('n8n', n8nCommand);
 // --- Inline keyboard callbacks ---
 bot.action(/^d:([rsSl]):(.+)$/, dockerCallback);
 bot.action(/^h:(.+)$/, haCallback);
+
+// --- Refresh callbacks ---
+const refreshHandlers = {
+  status: statusRefresh,
+  docker: dockerRefresh,
+  storage: storageRefresh,
+  network: networkRefresh,
+  services: servicesRefresh,
+};
+
+bot.action(/^x:(.+)$/, (ctx) => {
+  const cmd = ctx.match[1];
+  const handler = refreshHandlers[cmd];
+  if (handler) return handler(ctx);
+  return ctx.answerCbQuery('Unknown refresh target');
+});
 
 // --- Free-text → Claude Code ---
 bot.on('text', askClaude);
