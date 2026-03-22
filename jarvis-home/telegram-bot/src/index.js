@@ -8,6 +8,7 @@ import { servicesCommand, servicesRefresh } from './commands/services.js';
 import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
 import { askClaude } from './claude.js';
+import { cronRerun } from './commands/cron-rerun.js';
 
 // --- Load environment from ~/jarvis/.env ---
 const ENV_PATH = (process.env.HOME || '/home/iot') + '/jarvis/.env';
@@ -113,6 +114,9 @@ bot.action(/^x:(.+)$/, (ctx) => {
   if (handler) return handler(ctx);
   return ctx.answerCbQuery('Unknown refresh target');
 });
+
+// --- Cron rerun callbacks ---
+bot.action(/^j:(.+)$/, cronRerun);
 
 // --- Free-text → Claude Code ---
 bot.on('text', askClaude);

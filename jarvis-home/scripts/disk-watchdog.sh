@@ -36,7 +36,7 @@ echo "[$TIMESTAMP] Disk check complete." >> "$LOG_FILE"
 if [ -n "$ALERTS" ]; then
     MESSAGE="<b>Jarvis Disk Alert</b>\n<i>${TIMESTAMP}</i>\n${ALERTS}"
     echo "[$TIMESTAMP] Alerts found:$ALERTS" >> "$LOG_FILE"
-    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")"
+    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")" "disk-watchdog"
 else
     echo "[$TIMESTAMP] All filesystems OK (below ${WARN_THRESHOLD}%)." >> "$LOG_FILE"
 fi

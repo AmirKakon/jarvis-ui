@@ -28,6 +28,9 @@ cat >> /tmp/jarvis-cron-clean << EOF
 
 # jarvis-monitor: backup freshness check (daily at 08:00)
 0 8 * * * $SCRIPTS_DIR/backup-checker.sh
+
+# jarvis-monitor: HA auto-update (weekly Sunday 03:00)
+0 3 * * 0 $SCRIPTS_DIR/ha-update.sh
 EOF
 
 crontab /tmp/jarvis-cron-clean
@@ -39,6 +42,7 @@ echo "    Every 15 min  — service-monitor.sh  (Docker + systemd health)"
 echo "    Every 6 hours — disk-watchdog.sh    (filesystem usage)"
 echo "    Daily 06:00   — smart-monitor.sh    (drive SMART health)"
 echo "    Daily 08:00   — backup-checker.sh   (HA backup freshness)"
+echo "    Sunday 03:00  — ha-update.sh        (HA auto-update)"
 echo ""
 echo -e "  Verify with: ${YELLOW}crontab -l${NC}"
 echo -e "  Logs in:     ${YELLOW}~/jarvis/logs/${NC}"

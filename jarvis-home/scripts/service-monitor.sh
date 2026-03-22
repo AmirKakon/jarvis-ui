@@ -82,7 +82,7 @@ echo "[$TIMESTAMP] Service check complete." >> "$LOG_FILE"
 if [ -n "$ALERTS" ]; then
     MESSAGE="<b>Jarvis Service Alert</b>\n<i>${TIMESTAMP}</i>\n${ALERTS}"
     echo "[$TIMESTAMP] Alerts found:$ALERTS" >> "$LOG_FILE"
-    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")"
+    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")" "service-monitor"
 else
     echo "[$TIMESTAMP] All services and containers OK." >> "$LOG_FILE"
 fi

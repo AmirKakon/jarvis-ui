@@ -57,7 +57,7 @@ echo "[$TIMESTAMP] SMART check complete." >> "$LOG_FILE"
 if [ -n "$ALERTS" ]; then
     MESSAGE="<b>Jarvis Drive Health Alert</b>\n<i>${TIMESTAMP}</i>\n${ALERTS}"
     echo "[$TIMESTAMP] Alerts found:$ALERTS" >> "$LOG_FILE"
-    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")"
+    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")" "smart-monitor"
 else
     echo "[$TIMESTAMP] All drives healthy." >> "$LOG_FILE"
 fi
