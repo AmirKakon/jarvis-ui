@@ -51,6 +51,13 @@ systemctl --user daemon-reload
 systemctl --user enable glances.service 2>/dev/null
 systemctl --user restart glances.service 2>/dev/null
 
+# Ensure user services start at boot without requiring a login session
+if ! loginctl show-user "$(whoami)" -p Linger 2>/dev/null | grep -q "yes"; then
+    echo "  Enabling lingering for $(whoami) (allows services to start at boot)..."
+    sudo loginctl enable-linger "$(whoami)" 2>/dev/null || \
+        loginctl enable-linger "$(whoami)" 2>/dev/null || true
+fi
+
 sleep 2
 
 if systemctl --user is-active --quiet glances.service; then
