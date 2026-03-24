@@ -1,8 +1,14 @@
-import { readFileSync, unlinkSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
 import { Markup } from 'telegraf';
 import { run, bold, code, pre, escapeHtml, sendLong, editOrReply } from '../utils.js';
 
-const PENDING_DIR = (process.env.HOME || '/home/iot') + '/jarvis/downloads/pending';
+const HOME = process.env.HOME || '/home/iot';
+const PENDING_DIR = HOME + '/jarvis/downloads/pending';
+const PROCESSED_FILE = HOME + '/jarvis/downloads/processed.json';
+const DOWNLOADS_HOST = HOME + '/shared-storage-2/downloads';
+const MOVIES_HOST = HOME + '/shared-storage-2/movies';
+const TV_HOST = HOME + '/shared-storage-2/tv-shows';
 const QBT_URL = () => process.env.QBT_URL || 'http://localhost:20008';
 const QBT_USER = () => process.env.QBT_USERNAME || 'admin';
 const QBT_PASS = () => process.env.QBT_PASSWORD || '';
@@ -203,16 +209,21 @@ async function handleOrganizeConfirm(ctx, shortHash) {
     return;
   }
 
-  await ctx.answerCbQuery('Moving file...');
+  await ctx.answerCbQuery('Moving...');
 
   const dest = meta.destination;
-  const destDir = dest.replace(/\/[^/]+$/, '');
   const src = meta.source_file;
+  const isDir = meta.is_dir === true || meta.is_dir === 'true';
 
-  const { ok, output } = await run(
-    `mkdir -p "${destDir}" && mv "${src}" "${dest}"`,
-    { timeout: 30_000 }
-  );
+  let moveCmd;
+  if (isDir) {
+    moveCmd = `mkdir -p "$(dirname "${dest}")" && mv "${src}" "${dest}"`;
+  } else {
+    const destDir = dest.replace(/\/[^/]+$/, '');
+    moveCmd = `mkdir -p "${destDir}" && mv "${src}" "${dest}"`;
+  }
+
+  const { ok, output } = await run(moveCmd, { timeout: 30_000 });
 
   if (!ok) {
     return ctx.replyWithHTML(`🔴 Move failed:\n${pre(output)}`);
@@ -266,6 +277,197 @@ async function handleOrganizeSkip(ctx, shortHash) {
     ctx.callbackQuery?.message?.message_id,
     '⏭ <b>Skipped</b> — file left in downloads folder.'
   );
+}
+
+// --- Completion watcher ---
+
+function titleCase(str) {
+  return str.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function containerToHostPath(containerPath) {
+  return containerPath.replace(/^\/downloads/, DOWNLOADS_HOST);
+}
+
+function parseTorrentName(name, containerContentPath) {
+  const hostPath = containerToHostPath(containerContentPath);
+  const isDir = existsSync(hostPath) && statSync(hostPath).isDirectory();
+  const contentName = basename(hostPath);
+
+  const qualityMatch = name.match(/\d{3,4}p/i);
+  const quality = qualityMatch ? qualityMatch[0] : 'unknown';
+
+  // TV show: match SxxExx
+  const tvMatch = name.match(/[.\s_-][Ss](\d{1,2})[Ee](\d{1,2})/);
+  if (tvMatch) {
+    const show = titleCase(name.replace(/[.\s_-]*[Ss]\d+[Ee]\d+.*/i, '').replace(/[._]/g, ' ').trim());
+    const season = parseInt(tvMatch[1]);
+    const episode = parseInt(tvMatch[2]);
+    const dest = `${TV_HOST}/${show}/Season ${season}/${contentName}`;
+    return { type: 'tv', title: show, season, episode, quality, is_dir: isDir, source_file: hostPath, destination: dest };
+  }
+
+  // Movie: match year (1920-2029)
+  const movieMatch = name.match(/[.\s_-]((?:19[2-9]|20[0-2])\d)[.\s_-]/);
+  if (movieMatch) {
+    const title = titleCase(name.replace(/[.\s_-]*(?:19[2-9]|20[0-2])\d.*/i, '').replace(/[._]/g, ' ').trim());
+    const year = parseInt(movieMatch[1]);
+    const dest = isDir
+      ? `${MOVIES_HOST}/${title} (${year})`
+      : `${MOVIES_HOST}/${title} (${year})/${contentName}`;
+    return { type: 'movie', title, year, quality, is_dir: isDir, source_file: hostPath, destination: dest };
+  }
+
+  return null;
+}
+
+async function claudeParseFallback(torrentName, containerContentPath) {
+  const hostPath = containerToHostPath(containerContentPath);
+  const isDir = existsSync(hostPath) && statSync(hostPath).isDirectory();
+  const contentName = basename(hostPath);
+
+  const prompt = `Parse this torrent filename and return ONLY a JSON object (no markdown, no explanation):
+"${torrentName}"
+
+Return exactly this JSON structure:
+{
+  "type": "movie" or "tv",
+  "title": "Clean Title Name",
+  "year": 2024,
+  "season": 1,
+  "episode": 5,
+  "quality": "720p",
+  "is_dir": ${isDir},
+  "source_file": "${hostPath}",
+  "destination": "(fill: for movies use ${MOVIES_HOST}/<Title> (<Year>)${isDir ? '' : '/<filename>'}; for tv use ${TV_HOST}/<Title>/Season <N>/${contentName})"
+}
+
+Omit year for TV, omit season/episode for movies.`;
+
+  const escaped = prompt.replace(/'/g, "'\\''");
+  const { ok, output } = await run(
+    `cd ${HOME}/jarvis && claude --dangerously-skip-permissions --model claude-haiku-4-20250514 -p '${escaped}' 2>/dev/null`,
+    { timeout: 60_000 }
+  );
+
+  if (!ok) return null;
+
+  const jsonMatch = output.match(/\{[\s\S]*?\}/);
+  if (!jsonMatch) return null;
+
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    return null;
+  }
+}
+
+function loadProcessed() {
+  try {
+    return new Set(JSON.parse(readFileSync(PROCESSED_FILE, 'utf-8')));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveProcessed(processed) {
+  try {
+    writeFileSync(PROCESSED_FILE, JSON.stringify([...processed]));
+  } catch (err) {
+    console.error(`Failed to save processed hashes: ${err.message}`);
+  }
+}
+
+const COMPLETED_STATES = new Set(['uploading', 'stalledUP', 'pausedUP', 'queuedUP', 'checkingUP', 'forcedUP']);
+let watcherInterval = null;
+
+export function startCompletionWatcher(bot, chatId) {
+  const processed = loadProcessed();
+  console.log(`Download watcher started (${processed.size} previously processed torrents)`);
+
+  watcherInterval = setInterval(async () => {
+    try {
+      const { ok, output } = await qbtApi('torrents/info');
+      if (!ok) return;
+
+      let torrents;
+      try { torrents = JSON.parse(output); } catch { return; }
+
+      for (const t of torrents) {
+        if (!COMPLETED_STATES.has(t.state)) continue;
+        if (processed.has(t.hash)) continue;
+
+        processed.add(t.hash);
+        saveProcessed(processed);
+
+        const shortHash = t.hash.slice(0, 8);
+
+        let meta = parseTorrentName(t.name, t.content_path);
+
+        if (!meta) {
+          meta = await claudeParseFallback(t.name, t.content_path);
+        }
+
+        if (!meta) {
+          const hostPath = containerToHostPath(t.content_path);
+          const isDir = existsSync(hostPath) && statSync(hostPath).isDirectory();
+          meta = {
+            type: 'unknown',
+            title: t.name,
+            quality: 'unknown',
+            is_dir: isDir,
+            source_file: hostPath,
+            destination: `${DOWNLOADS_HOST}/${basename(hostPath)}`,
+          };
+        }
+
+        try {
+          writeFileSync(`${PENDING_DIR}/${shortHash}.json`, JSON.stringify(meta, null, 2));
+        } catch (err) {
+          console.error(`Failed to write pending file: ${err.message}`);
+          continue;
+        }
+
+        const icon = meta.type === 'tv' ? '📺' : meta.type === 'movie' ? '🎬' : '❓';
+        const shortDest = meta.destination.replace(new RegExp(`^${HOME}/`), '');
+        const msg = [
+          `<b>${icon} Download Complete</b>`,
+          '',
+          `<b>Title:</b> ${escapeHtml(meta.title)}`,
+          `<b>Type:</b> ${meta.type}`,
+          `<b>Quality:</b> ${meta.quality || 'unknown'}`,
+          '',
+          `<b>Move to:</b>`,
+          `<code>${escapeHtml(shortDest)}</code>`,
+          '',
+          'Tap below to confirm or edit.',
+        ].join('\n');
+
+        const keyboard = {
+          inline_keyboard: [[
+            { text: '✅ Confirm', callback_data: `dl:c:${shortHash}` },
+            { text: '✏️ Edit', callback_data: `dl:e:${shortHash}` },
+            { text: '⏭ Skip', callback_data: `dl:s:${shortHash}` },
+          ]],
+        };
+
+        try {
+          await bot.telegram.sendMessage(chatId, msg, { parse_mode: 'HTML', reply_markup: keyboard });
+        } catch (err) {
+          console.error(`Failed to send completion notification: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      console.error(`Watcher error: ${err.message}`);
+    }
+  }, 60_000);
+}
+
+export function stopCompletionWatcher() {
+  if (watcherInterval) {
+    clearInterval(watcherInterval);
+    watcherInterval = null;
+  }
 }
 
 export async function downloadCommand(ctx) {

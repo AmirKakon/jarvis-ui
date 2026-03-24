@@ -1,11 +1,11 @@
 #!/bin/bash
-# Post-download handler for qBittorrent.
-# Parses torrent filenames, proposes folder structure, and sends
-# a Telegram confirmation before moving files.
+# Post-download handler — for MANUAL / HOST-SIDE use only.
+# The Telegram bot now handles completion detection automatically via API polling.
+# Do NOT configure this as a qBittorrent "Run after completion" hook inside Docker,
+# since it needs host tools (claude, .env, Telegram API) that don't exist in the container.
 #
-# Called by qBittorrent "Run after completion" with:
-#   post-download.sh "%N" "%L" "%F" "%I"
-#   %N = torrent name, %L = category, %F = content path, %I = info hash
+# Manual usage (from the host):
+#   post-download.sh "<torrent-name>" "<category>" "<content-path>" "<info-hash>"
 
 set -euo pipefail
 
@@ -36,6 +36,13 @@ log() {
 
 log "Download complete: $TORRENT_NAME (hash=$INFO_HASH, category=$CATEGORY)"
 
+IS_DIR="false"
+if [ -d "$CONTENT_PATH" ]; then
+    IS_DIR="true"
+    log "Folder torrent detected: $CONTENT_PATH"
+fi
+CONTENT_BASENAME=$(basename "$CONTENT_PATH")
+
 # --- Step 1: Try regex parsing ---
 parse_filename() {
     local name="$1"
@@ -51,6 +58,12 @@ parse_filename() {
         if [ -n "$show" ] && [ -n "$season" ] && [ -n "$episode" ]; then
             # Title case the show name
             show=$(echo "$show" | sed 's/\b\(.\)/\u\1/g')
+            local dest_path
+            if [ "$IS_DIR" = "true" ]; then
+                dest_path="$HOME/shared-storage-2/tv-shows/$show/Season $season/$CONTENT_BASENAME"
+            else
+                dest_path="$HOME/shared-storage-2/tv-shows/$show/Season $season/$CONTENT_BASENAME"
+            fi
             cat <<EOJSON
 {
   "type": "tv",
@@ -58,8 +71,9 @@ parse_filename() {
   "season": $season,
   "episode": $episode,
   "quality": "${quality:-unknown}",
+  "is_dir": $IS_DIR,
   "source_file": "$CONTENT_PATH",
-  "destination": "$HOME/shared-storage-2/tv-shows/$show/Season $season/$(basename "$CONTENT_PATH")"
+  "destination": "$dest_path"
 }
 EOJSON
             return 0
@@ -75,14 +89,21 @@ EOJSON
 
         if [ -n "$title" ] && [ -n "$year" ]; then
             title=$(echo "$title" | sed 's/\b\(.\)/\u\1/g')
+            local dest_path
+            if [ "$IS_DIR" = "true" ]; then
+                dest_path="$HOME/shared-storage-2/movies/$title ($year)"
+            else
+                dest_path="$HOME/shared-storage-2/movies/$title ($year)/$CONTENT_BASENAME"
+            fi
             cat <<EOJSON
 {
   "type": "movie",
   "title": "$title",
   "year": $year,
   "quality": "${quality:-unknown}",
+  "is_dir": $IS_DIR,
   "source_file": "$CONTENT_PATH",
-  "destination": "$HOME/shared-storage-2/movies/$title ($year)/$(basename "$CONTENT_PATH")"
+  "destination": "$dest_path"
 }
 EOJSON
             return 0
@@ -110,12 +131,14 @@ Return exactly this JSON structure:
   \"season\": 1 (for TV, omit for movies),
   \"episode\": 5 (for TV, omit for movies),
   \"quality\": \"720p\",
+  \"is_dir\": $IS_DIR,
   \"source_file\": \"$CONTENT_PATH\",
-  \"destination\": \"(fill based on type: movies/<Title> (<Year>)/<filename> or tv-shows/<Title>/Season <N>/<filename>)\"
+  \"destination\": \"(fill based on type: for folders use movies/<Title> (<Year>) or tv-shows/<Title>/Season <N>; for files include the filename)\"
 }
 
 Base path for destination: $HOME/shared-storage-2
-Filename for destination: $(basename "$CONTENT_PATH")"
+Content name: $CONTENT_BASENAME
+Is directory: $IS_DIR"
 
     ESCAPED_PROMPT=$(echo "$CLAUDE_PROMPT" | sed "s/'/'\\\\''/g")
     PARSE_RESULT=$(cd "$HOME/jarvis" && claude --dangerously-skip-permissions --model claude-haiku-4-20250514 -p "$ESCAPED_PROMPT" 2>/dev/null | grep -Pzo '\{[^}]*\}' | tr '\0' '\n' | head -1) || true
@@ -127,8 +150,9 @@ Filename for destination: $(basename "$CONTENT_PATH")"
   "type": "unknown",
   "title": "$TORRENT_NAME",
   "quality": "unknown",
+  "is_dir": $IS_DIR,
   "source_file": "$CONTENT_PATH",
-  "destination": "$HOME/shared-storage-2/downloads/$(basename "$CONTENT_PATH")"
+  "destination": "$HOME/shared-storage-2/downloads/$CONTENT_BASENAME"
 }
 EOJSON
 )
