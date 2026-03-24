@@ -231,6 +231,11 @@ async function handleOrganizeConfirm(ctx, shortHash) {
 
   try { unlinkSync(pendingFile); } catch { /* ignore */ }
 
+  // Remove torrent from qBittorrent (files already moved)
+  if (meta.hash) {
+    await qbtApi(`torrents/delete?hashes=${meta.hash}&deleteFiles=false`, 'POST');
+  }
+
   // Trigger Jellyfin library scan if configured
   await run(
     'curl -sf -X POST "http://localhost:20001/Library/Refresh" ' +
@@ -420,6 +425,8 @@ export function startCompletionWatcher(bot, chatId) {
             destination: `${DOWNLOADS_HOST}/${basename(hostPath)}`,
           };
         }
+
+        meta.hash = t.hash;
 
         try {
           writeFileSync(`${PENDING_DIR}/${shortHash}.json`, JSON.stringify(meta, null, 2));
