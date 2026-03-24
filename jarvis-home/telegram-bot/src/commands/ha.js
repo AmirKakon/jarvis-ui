@@ -1,5 +1,6 @@
 import { Markup } from 'telegraf';
 import { run, bold, code, pre, sendLong, escapeHtml, cbData, editOrReply } from '../utils.js';
+import { sendToClaude } from '../claude.js';
 
 function loadEnv() {
   const url = process.env.HA_URL;
@@ -210,21 +211,100 @@ async function handleService(ctx, env, service, entityId) {
   return ctx.replyWithHTML(`🟢 ${code(entityId)} — ${service} executed.`);
 }
 
+async function handleAutomate(ctx, description) {
+  const prompt = [
+    'Create a Home Assistant automation based on this description:',
+    `"${description}"`,
+    '',
+    'Instructions:',
+    '1. Source ~/jarvis/.env to get HA_URL and HA_TOKEN',
+    '2. Generate the automation config as JSON (HA REST API format, not YAML)',
+    '3. Push it to Home Assistant via POST /api/config/automation/config/{id}',
+    '   - Generate a slug id from the description (e.g., "lights_off_when_away_after_11pm")',
+    '   - The body should include: alias, description, trigger, condition, action, mode',
+    '4. Verify the automation was created by checking GET /api/states/automation.{id}',
+    '5. Report the result: automation name, entity_id, triggers, conditions, and actions',
+    '',
+    'Use curl with $HA_URL and $HA_TOKEN. Keep the automation simple and correct.',
+    'If the description is ambiguous, make reasonable assumptions and note them.',
+  ].join('\n');
+
+  return sendToClaude(ctx, prompt, '🏠 <i>Designing automation...</i>');
+}
+
+async function handleScene(ctx, description) {
+  const prompt = [
+    'Create a Home Assistant scene based on this description:',
+    `"${description}"`,
+    '',
+    'Instructions:',
+    '1. Source ~/jarvis/.env to get HA_URL and HA_TOKEN',
+    '2. First, list relevant entities by querying GET /api/states to find the right entity_ids',
+    '3. Generate the scene config as JSON',
+    '4. Push it to Home Assistant via POST /api/config/scene/config/{id}',
+    '   - Generate a slug id from the description (e.g., "movie_night")',
+    '   - The body should include: name, entities (dict of entity_id → state/attributes)',
+    '5. Verify the scene was created by checking GET /api/states/scene.{id}',
+    '6. Report the result: scene name, entity_id, and which entities/states are included',
+    '',
+    'Use curl with $HA_URL and $HA_TOKEN.',
+    'If the description is ambiguous, list available entities from relevant domains and make reasonable choices.',
+  ].join('\n');
+
+  return sendToClaude(ctx, prompt, '🎬 <i>Designing scene...</i>');
+}
+
 export async function haCommand(ctx) {
   const env = loadEnv();
+  const text = (ctx.message.text || '').replace(/^\/ha\s*/, '').trim();
+  const args = text.split(/\s+/);
+  const sub = args[0]?.toLowerCase();
+
+  if (sub === 'automate' || sub === 'automation') {
+    const description = args.slice(1).join(' ').trim();
+    if (!description) {
+      return ctx.replyWithHTML(
+        '💡 Usage: <code>/ha automate &lt;description&gt;</code>\n\n' +
+        'Example: <code>/ha automate turn off lights when nobody is home after 11pm</code>\n\n' +
+        '<i>⚡ This uses Claude (AI cost) to generate and push an HA automation.</i>'
+      );
+    }
+    return handleAutomate(ctx, description);
+  }
+
+  if (sub === 'scene') {
+    const description = args.slice(1).join(' ').trim();
+    if (!description) {
+      return ctx.replyWithHTML(
+        '💡 Usage: <code>/ha scene &lt;description&gt;</code>\n\n' +
+        'Example: <code>/ha scene movie night — dim lights, turn on TV</code>\n\n' +
+        '<i>⚡ This uses Claude (AI cost) to generate and push an HA scene.</i>'
+      );
+    }
+    return handleScene(ctx, description);
+  }
+
   if (!env) {
     return ctx.replyWithHTML(
       '🔴 Home Assistant not configured. Set <code>HA_URL</code> and <code>HA_TOKEN</code> in ~/jarvis/.env'
     );
   }
 
-  const text = (ctx.message.text || '').replace(/^\/ha\s*/, '').trim();
-  const args = text.split(/\s+/);
-  const sub = args[0]?.toLowerCase();
-
   if (!sub || sub === 'help') {
     return ctx.replyWithHTML(
-      [bold('Home Assistant'), ''].join('\n'),
+      [
+        bold('Home Assistant'),
+        '',
+        bold('Free commands:'),
+        '/ha status — full diagnostic',
+        '/ha states — entity controls',
+        '/ha state &lt;id&gt; — single entity',
+        '/ha toggle|turn_on|turn_off &lt;id&gt;',
+        '',
+        bold('AI-powered (uses Claude):'),
+        '/ha automate &lt;description&gt; — create automation',
+        '/ha scene &lt;description&gt; — create scene',
+      ].join('\n'),
       Markup.inlineKeyboard([
         [Markup.button.callback('📡 Full Diagnostic', 'h:s')],
         [Markup.button.callback('📋 Entity Controls', 'h:l')],

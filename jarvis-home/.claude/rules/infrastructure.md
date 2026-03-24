@@ -49,3 +49,5 @@
 - REST API with long-lived access token (stored in ~/jarvis/.env as HA_TOKEN)
 - Source `~/jarvis/.env` before making API calls
 - Manages lights, switches, sensors, climate, automations, and scenes
+- Automations: POST /api/config/automation/config/{id} to create/update
+- Scenes: POST /api/config/scene/config/{id} to create/update

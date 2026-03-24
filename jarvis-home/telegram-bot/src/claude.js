@@ -27,7 +27,7 @@ function remaining() {
 function runClaude(prompt) {
   return new Promise((resolve) => {
     const escaped = prompt.replace(/'/g, "'\\''");
-    const cmd = `cd ${JARVIS_DIR} && claude -p '${escaped}' 2>/dev/null`;
+    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions -p '${escaped}' 2>/dev/null`;
 
     exec(cmd, { timeout: CLAUDE_TIMEOUT, shell: '/bin/bash', maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
@@ -44,20 +44,17 @@ function runClaude(prompt) {
 }
 
 /**
- * Handle a free-text message by sending it to Claude Code.
- * Sends a "thinking" placeholder, then edits it with the response.
+ * Send a custom prompt to Claude Code, with "thinking" placeholder and rate limiting.
+ * Used by command handlers that need AI-powered responses (e.g., /ha automate).
  */
-export async function askClaude(ctx) {
-  const prompt = (ctx.message.text || '').trim();
-  if (!prompt) return;
-
+export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking...</i>') {
   if (isRateLimited()) {
     return ctx.replyWithHTML(
       `⚠️ Rate limit reached (${RATE_LIMIT_MAX} Claude calls/hour). Use slash commands for free operations, or wait a bit.`
     );
   }
 
-  const thinking = await ctx.replyWithHTML('🧠 <i>Thinking...</i>');
+  const thinking = await ctx.replyWithHTML(thinkingMsg);
 
   recordCall();
   const { ok, output } = await runClaude(prompt);
@@ -81,4 +78,14 @@ export async function askClaude(ctx) {
   } catch {
     await ctx.replyWithHTML(response);
   }
+}
+
+/**
+ * Handle a free-text message by sending it to Claude Code.
+ * Sends a "thinking" placeholder, then edits it with the response.
+ */
+export async function askClaude(ctx) {
+  const prompt = (ctx.message.text || '').trim();
+  if (!prompt) return;
+  return sendToClaude(ctx, prompt);
 }

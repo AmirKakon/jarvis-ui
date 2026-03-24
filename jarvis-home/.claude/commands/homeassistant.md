@@ -30,3 +30,8 @@ curl -s -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json"
 - When the user says "turn on the lights" without a specific entity, list available lights and ask which one
 - For bulk operations (e.g., "turn off all lights"), get all light entities first, then confirm before executing
 - Parse JSON responses with `python3 -m json.tool` or `jq` for readability
+
+## Related Commands
+
+- `/ha-automate` — create and push an HA automation via REST API (see ha-automate.md)
+- `/ha-scene` — create and push an HA scene via REST API (see ha-scene.md)

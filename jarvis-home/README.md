@@ -65,7 +65,7 @@ jarvis
 
 ## Telegram Bot
 
-The bot provides mobile access with two tiers:
+The bot provides mobile access with three tiers:
 
 **Free commands** (no AI cost):
 - `/status` — system health
@@ -73,8 +73,12 @@ The bot provides mobile access with two tiers:
 - `/storage` — disk usage
 - `/network` — interfaces and ports
 - `/services` — systemd status
-- `/ha` — Home Assistant control
+- `/ha` — Home Assistant control (status, states, toggle, turn_on, turn_off)
 - `/n8n` — workflow management
+
+**Hybrid commands** (AI designs once, HA runs forever):
+- `/ha automate <description>` — Claude generates an HA automation and pushes it via REST API
+- `/ha scene <description>` — Claude generates an HA scene definition and pushes it
 
 **AI-powered** (uses Claude Code):
 - Send any free-text message to get a Claude-powered response
@@ -89,6 +93,15 @@ systemctl --user status jarvis-telegram-bot
 systemctl --user restart jarvis-telegram-bot
 journalctl --user -u jarvis-telegram-bot -f
 ```
+
+## Smart Home (Phase 4)
+
+Two-tier integration with Home Assistant:
+
+| Tier | What | Cost |
+|------|------|------|
+| **Free** | HA-native automations (presence, time, sensors) — run on HA 24/7 | $0 |
+| **Hybrid** | `/ha automate` and `/ha scene` — Claude designs once, HA runs forever | One-time AI call |
 
 ## Monitoring (Cron)
 
@@ -108,7 +121,7 @@ All monitoring runs via cron with Telegram alerts — zero AI cost:
 ├── CLAUDE.md                    # Project context for Claude Code
 ├── .claude/
 │   ├── rules/                   # Persona, safety, infrastructure rules
-│   ├── commands/                # /status, /docker, /services, etc.
+│   ├── commands/                # /status, /docker, /services, /ha-automate, /ha-scene, etc.
 │   ├── agents/                  # Diagnostics, docker-ops, research subagents
 │   └── settings.json            # Allowed/denied commands
 ├── scripts/                     # Monitoring cron scripts
