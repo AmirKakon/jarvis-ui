@@ -73,31 +73,42 @@ function formatSize(bytes) {
 
 async function handleAdd(ctx, input, category) {
   const isMagnet = input.startsWith('magnet:');
-  let magnetUri;
+  let hash;
 
   if (isMagnet) {
-    magnetUri = input;
+    hash = extractHash(input);
   } else {
-    const hash = extractHash(input);
-    if (!hash) {
-      return ctx.replyWithHTML(
-        '🔴 Could not extract info hash.\n\n' +
-        'Accepted formats:\n' +
-        '• Info hash: <code>c4f64729...</code> (40 hex chars)\n' +
-        '• Stremio URL: <code>http://127.0.0.1:11470/HASH/file.mp4</code>\n' +
-        '• Magnet link: <code>magnet:?xt=urn:btih:...</code>'
-      );
-    }
-    magnetUri = buildMagnet(hash);
+    hash = extractHash(input);
   }
 
+  if (!hash) {
+    return ctx.replyWithHTML(
+      '🔴 Could not extract info hash.\n\n' +
+      'Accepted formats:\n' +
+      '• Info hash: <code>c4f64729...</code> (40 hex chars)\n' +
+      '• Stremio URL: <code>http://127.0.0.1:11470/HASH/file.mp4</code>\n' +
+      '• Magnet link: <code>magnet:?xt=urn:btih:...</code>'
+    );
+  }
+
+  const magnetUri = isMagnet ? input : buildMagnet(hash);
   const placeholder = await ctx.replyWithHTML('<i>Adding torrent...</i>');
 
-  let body = `urls=${encodeURIComponent(magnetUri)}`;
-  if (category) body += `&category=${encodeURIComponent(category)}`;
-  body += '&savepath=/downloads';
+  if (!sid) await qbtLogin();
 
-  const { ok, output } = await qbtApi('torrents/add', 'POST', body);
+  let cmd = `curl -sf -X POST -b "SID=${sid}" ` +
+    `--data-urlencode "urls=${magnetUri}" ` +
+    `--data-urlencode "savepath=/downloads" `;
+  if (category) cmd += `--data-urlencode "category=${category}" `;
+  cmd += `"${QBT_URL()}/api/v2/torrents/add"`;
+
+  let { ok, output } = await run(cmd, { timeout: 15_000 });
+
+  if (!ok && (output.includes('403') || output.includes('Forbidden'))) {
+    await qbtLogin();
+    cmd = cmd.replace(/SID=[^"]*/, `SID=${sid}`);
+    ({ ok, output } = await run(cmd, { timeout: 15_000 }));
+  }
 
   if (!ok) {
     return editOrReply(ctx, placeholder.message_id,
@@ -105,7 +116,6 @@ async function handleAdd(ctx, input, category) {
     );
   }
 
-  const hash = extractHash(input) || 'unknown';
   const catInfo = category ? ` (${category})` : '';
   return editOrReply(ctx, placeholder.message_id,
     `🟢 Torrent added${catInfo}\n\nHash: ${code(hash)}\n\nUse /download list to check progress.`
