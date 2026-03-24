@@ -3,7 +3,7 @@ import { Markup } from 'telegraf';
 import { run, bold, code, pre, escapeHtml, sendLong, editOrReply } from '../utils.js';
 
 const PENDING_DIR = (process.env.HOME || '/home/iot') + '/jarvis/downloads/pending';
-const QBT_URL = () => process.env.QBT_URL || 'http://localhost:20007';
+const QBT_URL = () => process.env.QBT_URL || 'http://localhost:20008';
 const QBT_USER = () => process.env.QBT_USERNAME || 'admin';
 const QBT_PASS = () => process.env.QBT_PASSWORD || '';
 

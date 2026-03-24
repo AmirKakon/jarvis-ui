@@ -4,14 +4,14 @@ services:
     container_name: qbittorrent
     restart: unless-stopped
     ports:
-      - "20007:20007"
+      - "20008:20008"
       - "6881:6881"
       - "6881:6881/udp"
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Asia/Jerusalem
-      - WEBUI_PORT=20007
+      - WEBUI_PORT=20008
     volumes:
       - ${HOME}/jarvis/qbittorrent-config:/config
       - ${HOME}/shared-storage-2/downloads:/downloads

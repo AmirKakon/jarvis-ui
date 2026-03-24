@@ -55,7 +55,7 @@ N8N_URL=http://localhost:20003
 N8N_API_KEY=your-key
 TG_BOT_TOKEN=your-bot-token
 TG_CHAT_ID=your-chat-id
-QBT_URL=http://localhost:20007
+QBT_URL=http://localhost:20008
 QBT_USERNAME=admin
 QBT_PASSWORD=your-password
 ```
@@ -134,7 +134,7 @@ When the filename is hard to parse (no `SxxExx` or year pattern), Claude is used
 ```bash
 cd ~/jarvis && docker compose up -d
 docker logs qbittorrent    # get initial password
-# Set your password in qBittorrent web UI at http://kamuri-mini-pc:20007
+# Set your password in qBittorrent web UI at http://kamuri-mini-pc:20008
 # Update ~/jarvis/.env with QBT_PASSWORD
 # In qBittorrent Settings > Downloads > "Run external program on torrent finished":
 #   bash /home/iot/jarvis/scripts/post-download.sh "%N" "%L" "%F" "%I"
