@@ -488,19 +488,18 @@ export async function downloadCommand(ctx) {
         bold('Media Downloads'),
         '',
         bold('Add torrent:'),
-        '/download &lt;hash|url|magnet&gt;',
-        '/download &lt;hash&gt; movie',
-        '/download &lt;hash&gt; tv',
-        '',
-        bold('Manage:'),
-        '/download list — active downloads',
-        '/download status — qBittorrent health',
+        'Send a hash, Stremio URL, or magnet link.',
+        'Append <code>movie</code> or <code>tv</code> for category.',
         '',
         bold('Input formats:'),
         '• 40-char info hash',
         '• Stremio streaming URL',
         '• Magnet link',
-      ].join('\n')
+      ].join('\n'),
+      Markup.inlineKeyboard([
+        [Markup.button.callback('📋 Active Downloads', 'dl:cmd:list'),
+         Markup.button.callback('📡 qBT Status', 'dl:cmd:status')],
+      ])
     );
   }
 
@@ -516,6 +515,16 @@ export async function downloadCommand(ctx) {
 
 export async function downloadCallback(ctx) {
   const data = ctx.match[1];
+
+  // Sub-command buttons from /download help
+  const cmdMatch = data.match(/^cmd:(.+)$/);
+  if (cmdMatch) {
+    await ctx.answerCbQuery();
+    if (cmdMatch[1] === 'list') return handleList(ctx);
+    if (cmdMatch[1] === 'status') return handleStatus(ctx);
+    return;
+  }
+
   const match = data.match(/^([ces]):(.+)$/);
   if (!match) {
     await ctx.answerCbQuery('Unknown action');
