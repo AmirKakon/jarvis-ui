@@ -11,7 +11,7 @@ let sid = '';
 
 async function qbtLogin() {
   const { ok, output } = await run(
-    `curl -sf -c - -X POST "${QBT_URL()}/api/v2/auth/login" ` +
+    `curl -s -c - -X POST "${QBT_URL()}/api/v2/auth/login" ` +
     `-d "username=${QBT_USER()}&password=${QBT_PASS()}"`,
     { timeout: 10_000 }
   );
@@ -20,6 +20,7 @@ async function qbtLogin() {
     if (match) sid = match[1];
     return true;
   }
+  console.error(`qBT login failed: ok=${ok} output=${output}`);
   return false;
 }
 
@@ -171,7 +172,14 @@ async function handleList(ctx) {
 async function handleStatus(ctx) {
   const { ok, output } = await qbtApi('app/version');
   if (!ok) {
-    return ctx.replyWithHTML('🔴 qBittorrent is unreachable.');
+    const pingResult = await run(`curl -s -o /dev/null -w "%{http_code}" "${QBT_URL()}/api/v2/app/version"`, { timeout: 5_000 });
+    const httpCode = pingResult.ok ? pingResult.output : 'unreachable';
+    return ctx.replyWithHTML(
+      `🔴 qBittorrent is unreachable.\n\n` +
+      `<b>URL:</b> <code>${escapeHtml(QBT_URL())}</code>\n` +
+      `<b>HTTP:</b> <code>${httpCode}</code>\n` +
+      `<b>Login SID:</b> <code>${sid ? 'set' : 'none'}</code>`
+    );
   }
   const version = output.trim();
   const { ok: ok2, output: info } = await qbtApi('transfer/info');
