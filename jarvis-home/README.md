@@ -127,7 +127,15 @@ Torrent-based media downloads with smart file organization:
 
 **Input formats:** info hash, Stremio streaming URL, or magnet link.
 
-When the filename is hard to parse (no `SxxExx` or year pattern), Claude is used to determine the correct title and folder structure.
+When the filename is hard to parse (no `SxxExx` or year pattern), Claude Haiku is used to determine the correct title and folder structure.
+
+**Claude model assignments:**
+
+| Usage | Model | Rationale |
+|-------|-------|-----------|
+| Free-text chat (`askClaude`) | Opus | Deep reasoning for open-ended conversations |
+| `/ha automate`, `/ha scene` | Sonnet | Balanced quality for structured tool-use tasks |
+| Filename parsing (post-download) | Haiku | Fast, cheap extraction — ideal for simple JSON output |
 
 ### qBittorrent setup (first time)
 

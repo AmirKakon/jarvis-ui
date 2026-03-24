@@ -24,10 +24,17 @@ function remaining() {
   return RATE_LIMIT_MAX - callLog.length;
 }
 
-function runClaude(prompt) {
+const MODELS = {
+  opus: 'claude-opus-4-20250514',
+  sonnet: 'claude-sonnet-4-20250514',
+  haiku: 'claude-haiku-4-20250514',
+};
+
+function runClaude(prompt, model = 'sonnet') {
   return new Promise((resolve) => {
     const escaped = prompt.replace(/'/g, "'\\''");
-    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions -p '${escaped}' 2>/dev/null`;
+    const modelFlag = MODELS[model] ? `--model ${MODELS[model]}` : '';
+    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions ${modelFlag} -p '${escaped}' 2>/dev/null`;
 
     exec(cmd, { timeout: CLAUDE_TIMEOUT, shell: '/bin/bash', maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
@@ -45,9 +52,9 @@ function runClaude(prompt) {
 
 /**
  * Send a custom prompt to Claude Code, with "thinking" placeholder and rate limiting.
- * Used by command handlers that need AI-powered responses (e.g., /ha automate).
+ * Models: 'opus' (deep reasoning), 'sonnet' (balanced), 'haiku' (fast/cheap).
  */
-export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking...</i>') {
+export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking...</i>', model = 'sonnet') {
   if (isRateLimited()) {
     return ctx.replyWithHTML(
       `⚠️ Rate limit reached (${RATE_LIMIT_MAX} Claude calls/hour). Use slash commands for free operations, or wait a bit.`
@@ -57,7 +64,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
   const thinking = await ctx.replyWithHTML(thinkingMsg);
 
   recordCall();
-  const { ok, output } = await runClaude(prompt);
+  const { ok, output } = await runClaude(prompt, model);
   const left = remaining();
 
   let response;
@@ -82,10 +89,10 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 /**
  * Handle a free-text message by sending it to Claude Code.
- * Sends a "thinking" placeholder, then edits it with the response.
+ * Uses Opus for rich interactive conversations.
  */
 export async function askClaude(ctx) {
   const prompt = (ctx.message.text || '').trim();
   if (!prompt) return;
-  return sendToClaude(ctx, prompt);
+  return sendToClaude(ctx, prompt, '🧠 <i>Thinking...</i>', 'opus');
 }

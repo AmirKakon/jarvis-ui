@@ -229,7 +229,7 @@ async function handleAutomate(ctx, description) {
     'If the description is ambiguous, make reasonable assumptions and note them.',
   ].join('\n');
 
-  return sendToClaude(ctx, prompt, '🏠 <i>Designing automation...</i>');
+  return sendToClaude(ctx, prompt, '🏠 <i>Designing automation...</i>', 'sonnet');
 }
 
 async function handleScene(ctx, description) {
@@ -251,7 +251,7 @@ async function handleScene(ctx, description) {
     'If the description is ambiguous, list available entities from relevant domains and make reasonable choices.',
   ].join('\n');
 
-  return sendToClaude(ctx, prompt, '🎬 <i>Designing scene...</i>');
+  return sendToClaude(ctx, prompt, '🎬 <i>Designing scene...</i>', 'sonnet');
 }
 
 export async function haCommand(ctx) {
