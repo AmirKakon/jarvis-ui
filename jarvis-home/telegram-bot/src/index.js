@@ -7,6 +7,7 @@ import { networkCommand, networkRefresh } from './commands/network.js';
 import { servicesCommand, servicesRefresh } from './commands/services.js';
 import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
+import { downloadCommand, downloadCallback, downloadRefresh } from './commands/download.js';
 import { askClaude } from './claude.js';
 import { cronRerun } from './commands/cron-rerun.js';
 
@@ -78,6 +79,7 @@ const HELP_TEXT = [
   '/network   — network interfaces & ports',
   '/ha        — Home Assistant control',
   '/n8n       — n8n workflow management',
+  '/download  — torrent downloads',
   '/help      — this message',
   '',
   '<b>Smart Home (AI designs, HA runs):</b>',
@@ -98,10 +100,12 @@ bot.command('network', networkCommand);
 bot.command('services', servicesCommand);
 bot.command('ha', haCommand);
 bot.command('n8n', n8nCommand);
+bot.command('download', downloadCommand);
 
 // --- Inline keyboard callbacks ---
 bot.action(/^d:([rsSl]):(.+)$/, dockerCallback);
 bot.action(/^h:(.+)$/, haCallback);
+bot.action(/^dl:(.+)$/, downloadCallback);
 
 // --- Refresh callbacks ---
 const refreshHandlers = {
@@ -110,6 +114,7 @@ const refreshHandlers = {
   storage: storageRefresh,
   network: networkRefresh,
   services: servicesRefresh,
+  download: downloadRefresh,
 };
 
 bot.action(/^x:(.+)$/, (ctx) => {
@@ -143,6 +148,7 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'network', description: 'Network interfaces & ports' },
     { command: 'ha', description: 'Home Assistant control' },
     { command: 'n8n', description: 'n8n workflow management' },
+    { command: 'download', description: 'Torrent downloads' },
     { command: 'help', description: 'Show all commands' },
   ]);
   console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);

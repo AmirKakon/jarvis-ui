@@ -29,6 +29,9 @@ cat >> /tmp/jarvis-cron-clean << EOF
 # jarvis-monitor: backup freshness check (daily at 08:00)
 0 8 * * * $SCRIPTS_DIR/backup-checker.sh
 
+# jarvis-monitor: Samba share health (every 15 min)
+*/15 * * * * $SCRIPTS_DIR/samba-monitor.sh
+
 # jarvis-monitor: HA auto-update (weekly Sunday 03:00)
 0 3 * * 0 $SCRIPTS_DIR/ha-update.sh
 EOF
@@ -39,6 +42,7 @@ rm -f /tmp/jarvis-cron-clean
 echo "  Cron jobs installed:"
 echo ""
 echo "    Every 15 min  — service-monitor.sh  (Docker + systemd health)"
+echo "    Every 15 min  — samba-monitor.sh   (Samba share health)"
 echo "    Every 6 hours — disk-watchdog.sh    (filesystem usage)"
 echo "    Daily 06:00   — smart-monitor.sh    (drive SMART health)"
 echo "    Daily 08:00   — backup-checker.sh   (HA backup freshness)"

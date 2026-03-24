@@ -7,6 +7,7 @@ const ALLOWED_SCRIPTS = new Set([
   'disk-watchdog',
   'smart-monitor',
   'backup-checker',
+  'samba-monitor',
   'ha-update',
 ]);
 
