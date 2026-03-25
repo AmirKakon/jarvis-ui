@@ -318,9 +318,9 @@ function parseTorrentName(name, containerContentPath) {
     return { type: 'tv', title: show, season, episode, quality, is_dir: isDir, source_file: hostPath, destination: dest };
   }
 
-  const movieMatch = name.match(/[.\s_-]((?:19[2-9]|20[0-2])\d)[.\s_-]/);
+  const movieMatch = name.match(/[.\s_(-]((?:19[2-9]|20[0-2])\d)[.\s_)-]/);
   if (movieMatch) {
-    const title = titleCase(name.replace(/[.\s_-]*(?:19[2-9]|20[0-2])\d.*/i, '').replace(/[._]/g, ' ').trim());
+    const title = titleCase(name.replace(/[\s._(-]*(?:19[2-9]|20[0-2])\d.*/i, '').replace(/[._]/g, ' ').trim());
     const year = parseInt(movieMatch[1]);
     const dest = isDir
       ? `${MOVIES_HOST}/${title} (${year})`
