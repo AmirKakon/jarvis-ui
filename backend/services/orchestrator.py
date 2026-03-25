@@ -1,4 +1,5 @@
 """AI Orchestrator service with streaming and tool execution."""
+import asyncio
 import json
 import logging
 from typing import AsyncGenerator, Optional
@@ -63,26 +64,21 @@ class Orchestrator:
         """
         Search for summaries semantically relevant to the user's query.
         
-        Uses vector similarity search to find only relevant past conversations,
-        avoiding the overhead of including all summaries in every prompt.
-        
-        Args:
-            query: The user's current message
-            
-        Returns:
-            Formatted context string with relevant summaries, or empty string
+        Uses vector similarity search with recency-weighted decay to find
+        relevant past conversations. Recent memories are weighted higher.
+        Retrieved summaries have last_accessed_at refreshed (spaced repetition).
         """
         try:
             from database.db import async_session_maker
             from services.session_cleanup import session_cleanup_service
             
             async with async_session_maker() as db:
-                # Search for semantically relevant summaries
                 summaries_with_scores = await session_cleanup_service.search_relevant_summaries(
                     db, 
                     query_text=query,
-                    limit=3,  # Only include top 3 most relevant
-                    similarity_threshold=0.3,  # Minimum relevance
+                    limit=3,
+                    similarity_threshold=0.25,
+                    use_recency_decay=True,
                 )
                 
                 if not summaries_with_scores:
@@ -104,21 +100,50 @@ class Orchestrator:
         except Exception as e:
             logger.warning(f"Failed to search chat summaries: {e}")
             return ""
+
+    async def _get_durable_facts(self) -> str:
+        """Fetch all durable facts from memory_facts table."""
+        try:
+            from database.db import async_session_maker
+            from sqlalchemy import select
+            from models.memory_fact import MemoryFact
+
+            async with async_session_maker() as db:
+                result = await db.execute(
+                    select(MemoryFact).order_by(MemoryFact.created_at)
+                )
+                facts = list(result.scalars().all())
+
+                if not facts:
+                    return ""
+
+                lines = ["\n\n## Permanent Facts\n"]
+                for f in facts:
+                    lines.append(f"- {f.content}")
+                lines.append("")
+                return "\n".join(lines)
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch durable facts: {e}")
+            return ""
     
     async def _build_system_prompt(self, base_prompt: str, user_query: str) -> str:
         """
-        Build the full system prompt, optionally including relevant summaries.
+        Build the full system prompt with durable facts and relevant summaries.
         
-        Uses semantic search to only include summaries relevant to the query,
-        reducing token usage and improving response quality.
+        Two-tier memory injection:
+          1. Durable facts — always included, never decay
+          2. Session summaries — recency-weighted semantic search
         """
         if not self.include_summaries:
             return base_prompt
         
-        summaries_context = await self._search_relevant_summaries(user_query)
-        if summaries_context:
-            return base_prompt + summaries_context
-        return base_prompt
+        facts_context, summaries_context = await asyncio.gather(
+            self._get_durable_facts(),
+            self._search_relevant_summaries(user_query),
+        )
+        
+        return base_prompt + facts_context + summaries_context
     
     def _get_tools_for_query(self, query: str) -> tuple[list[dict], str]:
         """

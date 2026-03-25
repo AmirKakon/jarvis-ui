@@ -382,49 +382,56 @@ class SessionCleanupService:
         query_text: str,
         limit: int = 3,
         similarity_threshold: float = SIMILARITY_THRESHOLD,
+        use_recency_decay: bool = True,
     ) -> List[tuple[ChatSummary, float]]:
         """
         Search for summaries semantically relevant to the query.
         
-        Uses vector similarity search with pgvector to find summaries
-        that are contextually related to the user's query.
+        When use_recency_decay=True, applies temporal decay:
+          final_score = similarity * e^(-λ * age_days)
+        where λ = 0.023 gives a 30-day half-life.
         
-        Args:
-            db: Database session
-            query_text: The user's query to find relevant summaries for
-            limit: Maximum number of summaries to return
-            similarity_threshold: Minimum similarity score (0-1)
-            
-        Returns:
-            List of (ChatSummary, similarity_score) tuples, ordered by relevance
+        Retrieved summaries have last_accessed_at refreshed (spaced repetition).
         """
-        # Generate embedding for the query
         query_embedding = await embedding_service.create_embedding(query_text)
         
         if not query_embedding:
             logger.warning("Could not create embedding for query, falling back to recent summaries")
-            # Fallback to recent summaries without semantic filtering
             summaries = await self.get_recent_summaries(db, limit=limit)
-            return [(s, 0.5) for s in summaries]  # Default similarity
+            return [(s, 0.5) for s in summaries]
         
-        # Use pgvector's cosine distance operator for similarity search
-        # Note: pgvector uses distance (lower is better), we convert to similarity
-        # cosine_distance = 1 - cosine_similarity, so similarity = 1 - distance
-        
-        # Build the query using raw SQL for pgvector operations
         embedding_str = f"[{','.join(str(x) for x in query_embedding)}]"
         
-        sql = text(f"""
-            SELECT 
-                id, session_id, user_id, summary, topics, message_count,
-                session_created_at, session_ended_at, created_at, metadata,
-                1 - (embedding <=> :embedding::vector) as similarity
-            FROM chat_summaries
-            WHERE embedding IS NOT NULL
-            AND 1 - (embedding <=> :embedding::vector) >= :threshold
-            ORDER BY embedding <=> :embedding::vector
-            LIMIT :limit
-        """)
+        if use_recency_decay:
+            sql = text("""
+                SELECT 
+                    id, session_id, user_id, summary, topics, message_count,
+                    session_created_at, session_ended_at, created_at, metadata,
+                    last_accessed_at, source,
+                    1 - (embedding <=> :embedding::vector) as similarity,
+                    (1 - (embedding <=> :embedding::vector))
+                      * EXP(-0.023 * EXTRACT(EPOCH FROM (NOW() - COALESCE(last_accessed_at, session_ended_at))) / 86400.0)
+                      AS final_score
+                FROM chat_summaries
+                WHERE embedding IS NOT NULL
+                AND 1 - (embedding <=> :embedding::vector) >= :threshold
+                ORDER BY final_score DESC
+                LIMIT :limit
+            """)
+        else:
+            sql = text("""
+                SELECT 
+                    id, session_id, user_id, summary, topics, message_count,
+                    session_created_at, session_ended_at, created_at, metadata,
+                    last_accessed_at, source,
+                    1 - (embedding <=> :embedding::vector) as similarity,
+                    1 - (embedding <=> :embedding::vector) as final_score
+                FROM chat_summaries
+                WHERE embedding IS NOT NULL
+                AND 1 - (embedding <=> :embedding::vector) >= :threshold
+                ORDER BY embedding <=> :embedding::vector
+                LIMIT :limit
+            """)
         
         result = await db.execute(
             sql,
@@ -438,8 +445,8 @@ class SessionCleanupService:
         rows = result.fetchall()
         
         summaries_with_scores = []
+        ids_to_refresh = []
         for row in rows:
-            # Reconstruct ChatSummary from row data
             summary = ChatSummary(
                 id=row.id,
                 session_id=row.session_id,
@@ -450,11 +457,23 @@ class SessionCleanupService:
                 session_created_at=row.session_created_at,
                 session_ended_at=row.session_ended_at,
                 created_at=row.created_at,
+                last_accessed_at=row.last_accessed_at,
+                source=row.source,
                 metadata_=row.metadata,
             )
-            summaries_with_scores.append((summary, row.similarity))
+            summaries_with_scores.append((summary, row.final_score))
+            ids_to_refresh.append(row.id)
         
-        logger.debug(f"Found {len(summaries_with_scores)} relevant summaries for query")
+        # Refresh last_accessed_at for retrieved summaries (spaced repetition)
+        if ids_to_refresh:
+            from datetime import datetime, timezone
+            await db.execute(
+                text("UPDATE chat_summaries SET last_accessed_at = :now WHERE id = ANY(:ids)"),
+                {"now": datetime.now(timezone.utc), "ids": ids_to_refresh},
+            )
+            await db.commit()
+        
+        logger.debug(f"Found {len(summaries_with_scores)} relevant summaries for query (recency_decay={use_recency_decay})")
         return summaries_with_scores
 
 

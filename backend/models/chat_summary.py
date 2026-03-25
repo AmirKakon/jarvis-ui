@@ -49,6 +49,8 @@ class ChatSummary(Base):
         nullable=False,
         index=True,
     )
+    last_accessed_at = Column(DateTime(timezone=True), nullable=True)
+    source = Column(String(50), nullable=True)  # "telegram" or "web"
     metadata_ = Column("metadata", JSONB, default=dict)  # Additional context
     
     def __repr__(self):
@@ -66,6 +68,8 @@ class ChatSummary(Base):
             "session_created_at": self.session_created_at.isoformat(),
             "session_ended_at": self.session_ended_at.isoformat(),
             "created_at": self.created_at.isoformat(),
+            "last_accessed_at": self.last_accessed_at.isoformat() if self.last_accessed_at else None,
+            "source": self.source,
             "metadata": self.metadata_ or {},
         }
 

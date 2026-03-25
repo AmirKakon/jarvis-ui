@@ -1,10 +1,15 @@
 import { exec } from 'node:child_process';
+import crypto from 'node:crypto';
 import { truncate, escapeHtml, mdToHtml } from './utils.js';
+import {
+  ensureSession, storeMessage, summarizeSession,
+  buildMemoryContext, closePool,
+} from './memory.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
 const RATE_LIMIT_MAX = Number(process.env.CLAUDE_RATE_LIMIT) || 20;
-const MAX_HISTORY = 5;
+const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
 
 const TIMEOUTS = {
   opus: 240_000,   // 4 minutes for interactive chat
@@ -12,8 +17,55 @@ const TIMEOUTS = {
   haiku: 60_000,   // 1 minute for simple extraction
 };
 
+const MODELS = {
+  opus: 'claude-opus-4-20250514',
+  sonnet: 'claude-sonnet-4-20250514',
+  haiku: 'claude-haiku-4-20250514',
+};
+
 const callLog = [];
-const chatHistory = new Map();
+
+// --- Session boundary tracking ---
+// chatId -> { sessionId, lastMessageTime }
+const activeSessions = new Map();
+
+function getOrRotateSession(chatId) {
+  const entry = activeSessions.get(chatId);
+  const now = Date.now();
+
+  if (!entry || (now - entry.lastMessageTime) > SESSION_GAP_MS) {
+    // Gap detected — close old session (summarization runs in background)
+    if (entry) {
+      summarizeSession(entry.sessionId, 'telegram').catch((err) =>
+        console.error('Session summarization failed:', err.message)
+      );
+    }
+    const sessionId = crypto.randomUUID();
+    activeSessions.set(chatId, { sessionId, lastMessageTime: now });
+    return { sessionId, isNew: true };
+  }
+
+  entry.lastMessageTime = now;
+  return { sessionId: entry.sessionId, isNew: false };
+}
+
+/**
+ * Explicitly close the current session (for /new command).
+ * Returns summary info or null.
+ */
+export async function forceNewSession(chatId) {
+  const entry = activeSessions.get(chatId);
+  let result = null;
+  if (entry) {
+    result = await summarizeSession(entry.sessionId, 'telegram');
+    activeSessions.delete(chatId);
+  }
+  return result;
+}
+
+export { closePool };
+
+// --- Rate limiting ---
 
 function isRateLimited() {
   const cutoff = Date.now() - RATE_LIMIT_WINDOW;
@@ -31,43 +83,7 @@ function remaining() {
   return RATE_LIMIT_MAX - callLog.length;
 }
 
-const MODELS = {
-  opus: 'claude-opus-4-20250514',
-  sonnet: 'claude-sonnet-4-20250514',
-  haiku: 'claude-haiku-4-20250514',
-};
-
-function getHistory(chatId) {
-  if (!chatHistory.has(chatId)) chatHistory.set(chatId, []);
-  return chatHistory.get(chatId);
-}
-
-function addToHistory(chatId, role, text) {
-  const history = getHistory(chatId);
-  history.push({ role, text: text.slice(0, 500) });
-  if (history.length > MAX_HISTORY * 2) {
-    history.splice(0, history.length - MAX_HISTORY * 2);
-  }
-}
-
-function buildContextPrompt(chatId, currentPrompt) {
-  const history = getHistory(chatId);
-  if (!history.length) return currentPrompt;
-
-  const contextLines = history.map(h =>
-    h.role === 'user' ? `User: ${h.text}` : `Jarvis: ${h.text}`
-  );
-
-  return [
-    'Recent conversation context (for continuity):',
-    '---',
-    ...contextLines,
-    '---',
-    '',
-    'Current message from user:',
-    currentPrompt,
-  ].join('\n');
-}
+// --- Claude CLI execution ---
 
 function runClaude(prompt, model = 'sonnet') {
   const timeout = TIMEOUTS[model] || TIMEOUTS.sonnet;
@@ -130,16 +146,23 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 /**
  * Handle a free-text message by sending it to Claude Code.
- * Uses Opus with conversation history for continuity.
+ * Uses Opus with PostgreSQL-backed long-term memory and session management.
  */
 export async function askClaude(ctx) {
   const prompt = (ctx.message.text || '').trim();
   if (!prompt) return;
 
   const chatId = String(ctx.chat?.id || 'default');
-  addToHistory(chatId, 'user', prompt);
 
-  const contextPrompt = buildContextPrompt(chatId, prompt);
+  // Session boundary detection (30-min gap triggers summarization of old session)
+  const { sessionId } = getOrRotateSession(chatId);
+  await ensureSession(sessionId, 'telegram');
+
+  // Store user message in PostgreSQL
+  await storeMessage(sessionId, 'user', prompt);
+
+  // Build context: durable facts + relevant past summaries + current session history
+  const contextPrompt = await buildMemoryContext(prompt, sessionId);
 
   if (isRateLimited()) {
     return ctx.replyWithHTML(
@@ -153,8 +176,9 @@ export async function askClaude(ctx) {
   const { ok, output } = await runClaude(contextPrompt, 'opus');
   const left = remaining();
 
+  // Store assistant response in PostgreSQL
   if (ok) {
-    addToHistory(chatId, 'assistant', output);
+    await storeMessage(sessionId, 'assistant', output);
   }
 
   let response;

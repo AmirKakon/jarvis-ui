@@ -8,7 +8,8 @@ import { servicesCommand, servicesRefresh } from './commands/services.js';
 import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
 import { downloadCommand, downloadCallback, downloadRefresh } from './commands/download.js';
-import { askClaude } from './claude.js';
+import { askClaude, closePool } from './claude.js';
+import { memoryCommand } from './commands/memory.js';
 import { cronRerun } from './commands/cron-rerun.js';
 
 // --- Load environment from ~/jarvis/.env ---
@@ -82,13 +83,19 @@ const HELP_TEXT = [
   '/download  — torrent downloads',
   '/help      — this message',
   '',
+  '<b>Memory (persistent across sessions):</b>',
+  '/remember &lt;fact&gt;  — store a permanent fact',
+  '/recall &lt;query&gt;   — search past conversations',
+  '/memory            — memory stats',
+  '/new               — end session &amp; start fresh',
+  '',
   '<b>Smart Home (AI designs, HA runs):</b>',
   '/ha automate &lt;desc&gt; — create HA automation',
   '/ha scene &lt;desc&gt;    — create HA scene',
   '',
   '<b>AI-powered (uses Claude):</b>',
   'Send any free-text message to ask Claude.',
-  'Rate-limited to prevent runaway costs.',
+  'Conversations are saved and summarized automatically.',
 ].join('\n');
 
 bot.command('start', (ctx) => ctx.replyWithHTML(HELP_TEXT));
@@ -101,6 +108,10 @@ bot.command('services', servicesCommand);
 bot.command('ha', haCommand);
 bot.command('n8n', n8nCommand);
 bot.command('download', downloadCommand);
+bot.command('remember', memoryCommand('remember'));
+bot.command('recall', memoryCommand('recall'));
+bot.command('memory', memoryCommand('memory'));
+bot.command('new', memoryCommand('new'));
 
 // --- Inline keyboard callbacks ---
 bot.action(/^d:([rsSl]):(.+)$/, dockerCallback);
@@ -131,9 +142,10 @@ bot.action(/^j:(.+)$/, cronRerun);
 bot.on('text', askClaude);
 
 // --- Graceful shutdown ---
-function shutdown(signal) {
+async function shutdown(signal) {
   console.log(`Received ${signal}, shutting down...`);
   bot.stop(signal);
+  await closePool();
 }
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
@@ -149,6 +161,10 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'ha', description: 'Home Assistant control' },
     { command: 'n8n', description: 'n8n workflow management' },
     { command: 'download', description: 'Torrent downloads' },
+    { command: 'remember', description: 'Store a permanent fact' },
+    { command: 'recall', description: 'Search past conversations' },
+    { command: 'memory', description: 'Memory stats' },
+    { command: 'new', description: 'End session & start fresh' },
     { command: 'help', description: 'Show all commands' },
   ]);
   console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);

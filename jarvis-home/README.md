@@ -79,6 +79,12 @@ The bot provides mobile access with three tiers:
 - `/ha` — Home Assistant control (status, states, toggle, turn_on, turn_off)
 - `/n8n` — workflow management
 - `/download` — torrent downloads (add, list, status)
+- `/memory` — memory stats (fact count, summaries, topics)
+- `/recall <query>` — search past conversations and facts
+
+**Memory commands** (free + small embedding cost):
+- `/remember <fact>` — store a permanent fact
+- `/new` — end current session, summarize, start fresh
 
 **Hybrid commands** (AI designs once, HA runs forever):
 - `/ha automate <description>` — Claude generates an HA automation and pushes it via REST API
@@ -86,6 +92,7 @@ The bot provides mobile access with three tiers:
 
 **AI-powered** (uses Claude Code):
 - Send any free-text message to get a Claude-powered response
+- Conversations are persisted and summarized automatically
 - Rate-limited (default 20 calls/hour) to control costs
 
 The bot runs as a systemd user service (`jarvis-telegram-bot`) and auto-starts on boot.
@@ -136,6 +143,7 @@ When the filename is hard to parse (no `SxxExx` or year pattern), Claude Haiku i
 | Free-text chat (`askClaude`) | Opus | Deep reasoning for open-ended conversations |
 | `/ha automate`, `/ha scene` | Sonnet | Balanced quality for structured tool-use tasks |
 | Filename parsing (post-download) | Haiku | Fast, cheap extraction — ideal for simple JSON output |
+| Session summarization (memory) | Haiku | Cheap, fast — run automatically on session close |
 
 ### qBittorrent setup (first time)
 
@@ -146,6 +154,75 @@ docker logs qbittorrent    # get initial password
 # Update ~/jarvis/.env with QBT_PASSWORD
 # In qBittorrent Settings > Downloads > "Run external program on torrent finished":
 #   bash /home/iot/jarvis/scripts/post-download.sh "%N" "%L" "%F" "%I"
+```
+
+## Long-Term Memory (Phase 6)
+
+Two-tier memory system with recency-weighted retrieval, inspired by OpenClaw's memory architecture.
+
+```
+User message → Session boundary check (30-min gap?)
+                    ↓ yes                    ↓ no
+            Summarize old session    Continue current session
+            (Claude Haiku CLI)
+            Store in chat_summaries
+            (PGVector embedding)
+                    ↓
+            Build context for Claude:
+            1. Durable facts (always included, never decay)
+            2. Relevant past summaries (recency-weighted search)
+            3. Current session history (last 10 messages)
+                    ↓
+            Claude Opus processes message with full memory context
+```
+
+### Memory tiers
+
+| Tier | Table | Decay | Stored via |
+|------|-------|-------|-----------|
+| **Durable facts** | `memory_facts` | Never | `/remember` command or auto-extracted from summaries |
+| **Session summaries** | `chat_summaries` | 30-day half-life | Auto-created when sessions close (30-min gap) |
+
+### Recency-weighted retrieval
+
+```
+final_score = cosine_similarity × e^(-0.023 × age_days)
+```
+
+- Today: 100% weight
+- 7 days ago: 85%
+- 30 days ago: 50%
+- 90 days ago: 12.5%
+
+Summaries that keep getting retrieved have their `last_accessed_at` refreshed (spaced repetition effect).
+
+### Memory commands
+
+| Command | Cost | Purpose |
+|---------|------|---------|
+| `/remember <fact>` | Free + 1 embedding | Store a permanent fact |
+| `/recall <query>` | Free + 1 embedding | Search past conversations |
+| `/memory` | Free | Show memory stats |
+| `/new` | Haiku + 1 embedding | End session, summarize, start fresh |
+
+### Maintenance
+
+Weekly cron job (`memory-maintenance.sh`) runs deduplication and pruning:
+- Remove duplicate facts (embedding similarity > 92%)
+- Prune summaries older than 180 days that were never accessed
+- Send stats report via Telegram
+
+### Prerequisites
+
+Add to `~/jarvis/.env`:
+```
+DATABASE_URL=postgresql://jarvis:password@localhost:20004/jarvis
+OPENAI_API_KEY=sk-...
+```
+
+Run the Alembic migration (from the backend directory):
+```bash
+cd ~/repos/jarvis-ui/backend && alembic upgrade head
 ```
 
 ## Monitoring (Cron)
@@ -179,7 +256,8 @@ All monitoring runs via cron with Telegram alerts — zero AI cost:
 │   ├── src/
 │   │   ├── index.js             # Bot entry point
 │   │   ├── commands/            # Slash command handlers
-│   │   ├── claude.js            # Claude Code CLI integration
+│   │   ├── claude.js            # Claude CLI + session management
+│   │   ├── memory.js            # PostgreSQL + PGVector memory module
 │   │   └── utils.js             # Helpers
 │   └── package.json
 └── .env                         # Secrets (not in git)
