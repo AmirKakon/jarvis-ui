@@ -240,7 +240,7 @@ async function handleOrganizeConfirm(ctx, shortHash) {
 
   // Remove torrent from qBittorrent (files already moved)
   if (meta.hash) {
-    await qbtApi(`torrents/delete?hashes=${meta.hash}&deleteFiles=false`, 'POST');
+    await qbtApi('torrents/delete', 'POST', `hashes=${meta.hash}&deleteFiles=false`);
   }
 
   // Trigger Jellyfin library scan if configured
