@@ -301,14 +301,16 @@ function containerToHostPath(containerPath) {
   return containerPath.replace(/^\/downloads/, DOWNLOADS_HOST);
 }
 
-function parseTorrentName(name, containerContentPath) {
+function parseTorrentName(name, containerContentPath, category = '') {
   const hostPath = containerToHostPath(containerContentPath);
   const isDir = existsSync(hostPath) && statSync(hostPath).isDirectory();
   const contentName = basename(hostPath);
 
   const qualityMatch = name.match(/\d{3,4}p/i);
   const quality = qualityMatch ? qualityMatch[0] : 'unknown';
+  const cleanName = name.replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
 
+  // TV show: match SxxExx pattern or category hint
   const tvMatch = name.match(/[.\s_-][Ss](\d{1,2})[Ee](\d{1,2})/);
   if (tvMatch) {
     const show = titleCase(name.replace(/[.\s_-]*[Ss]\d+[Ee]\d+.*/i, '').replace(/[._]/g, ' ').trim());
@@ -318,6 +320,7 @@ function parseTorrentName(name, containerContentPath) {
     return { type: 'tv', title: show, season, episode, quality, is_dir: isDir, source_file: hostPath, destination: dest };
   }
 
+  // Movie: match year pattern or use category hint
   const movieMatch = name.match(/[.\s_(-]((?:19[2-9]|20[0-2])\d)[.\s_)-]/);
   if (movieMatch) {
     const title = titleCase(name.replace(/[\s._(-]*(?:19[2-9]|20[0-2])\d.*/i, '').replace(/[._]/g, ' ').trim());
@@ -326,6 +329,20 @@ function parseTorrentName(name, containerContentPath) {
       ? `${MOVIES_HOST}/${title} (${year})`
       : `${MOVIES_HOST}/${title} (${year})/${contentName}`;
     return { type: 'movie', title, year, quality, is_dir: isDir, source_file: hostPath, destination: dest };
+  }
+
+  // No regex match but category was provided -- use it as a hint
+  if (category === 'movie') {
+    const title = titleCase(cleanName.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim());
+    const dest = isDir
+      ? `${MOVIES_HOST}/${title}`
+      : `${MOVIES_HOST}/${title}/${contentName}`;
+    return { type: 'movie', title, quality, is_dir: isDir, source_file: hostPath, destination: dest };
+  }
+  if (category === 'tv') {
+    const title = titleCase(cleanName.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim());
+    const dest = `${TV_HOST}/${title}/${contentName}`;
+    return { type: 'tv', title, quality, is_dir: isDir, source_file: hostPath, destination: dest };
   }
 
   return null;
@@ -404,7 +421,7 @@ async function handleOrganize(ctx) {
   for (const t of completed) {
     const shortHash = t.hash.slice(0, 8);
 
-    let meta = parseTorrentName(t.name, t.content_path);
+    let meta = parseTorrentName(t.name, t.content_path, t.category);
     if (!meta) meta = await claudeParseFallback(t.name, t.content_path);
 
     if (!meta) {
