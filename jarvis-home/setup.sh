@@ -122,7 +122,9 @@ fi
 echo -e "${GREEN}[13/14]${NC} Setting up Docker Compose for media services..."
 if [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
     cp "$SCRIPT_DIR/docker-compose.yml" "$JARVIS_DIR/docker-compose.yml"
-    mkdir -p "$JARVIS_DIR/qbittorrent-config"
+    mkdir -p "$JARVIS_DIR/qbittorrent-config" "$JARVIS_DIR/qbittorrent-init"
+    cp "$SCRIPT_DIR"/qbittorrent-init/*.sh "$JARVIS_DIR/qbittorrent-init/" 2>/dev/null
+    chmod +x "$JARVIS_DIR"/qbittorrent-init/*.sh 2>/dev/null
     if command -v docker &>/dev/null; then
         (cd "$JARVIS_DIR" && docker compose up -d --quiet-pull 2>&1 | tail -1)
         echo "  Done. qBittorrent container is running."

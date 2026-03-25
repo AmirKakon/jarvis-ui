@@ -5,7 +5,6 @@ import { run, bold, code, pre, escapeHtml, sendLong, editOrReply } from '../util
 
 const HOME = process.env.HOME || '/home/iot';
 const PENDING_DIR = HOME + '/jarvis/downloads/pending';
-const PROCESSED_FILE = HOME + '/jarvis/downloads/processed.json';
 const DOWNLOADS_HOST = HOME + '/shared-storage-2/downloads';
 const MOVIES_HOST = HOME + '/shared-storage-2/movies';
 const TV_HOST = HOME + '/shared-storage-2/tv-shows';
@@ -14,8 +13,12 @@ const QBT_USER = () => process.env.QBT_USERNAME || 'admin';
 const QBT_PASS = () => process.env.QBT_PASSWORD || '';
 
 let sid = '';
+let loginCooldownUntil = 0;
 
 async function qbtLogin() {
+  if (Date.now() < loginCooldownUntil) {
+    return false;
+  }
   const { ok, output } = await run(
     `curl -s -c - -X POST "${QBT_URL()}/api/v2/auth/login" ` +
     `-d "username=${QBT_USER()}&password=${QBT_PASS()}"`,
@@ -24,14 +27,18 @@ async function qbtLogin() {
   if (ok && output.includes('SID')) {
     const match = output.match(/SID\s+(\S+)/);
     if (match) sid = match[1];
+    loginCooldownUntil = 0;
     return true;
   }
   console.error(`qBT login failed: ok=${ok} output=${output}`);
+  loginCooldownUntil = Date.now() + 60_000;
   return false;
 }
 
 async function qbtApi(endpoint, method = 'GET', body = null) {
-  if (!sid) await qbtLogin();
+  if (!sid) {
+    if (!await qbtLogin()) return { ok: false, output: 'Login failed (cooldown active or bad credentials)' };
+  }
   const bodyFlag = body ? `-d '${body}'` : '';
   const { ok, output } = await run(
     `curl -sf -X ${method} -b "SID=${sid}" ` +
@@ -39,7 +46,7 @@ async function qbtApi(endpoint, method = 'GET', body = null) {
     { timeout: 15_000 }
   );
   if (!ok && output.includes('403')) {
-    await qbtLogin();
+    if (!await qbtLogin()) return { ok: false, output: 'Re-login failed' };
     const retry = await run(
       `curl -sf -X ${method} -b "SID=${sid}" ` +
       `${bodyFlag} "${QBT_URL()}/api/v2/${endpoint}"`,
@@ -284,7 +291,7 @@ async function handleOrganizeSkip(ctx, shortHash) {
   );
 }
 
-// --- Completion watcher ---
+// --- Organize helpers ---
 
 function titleCase(str) {
   return str.replace(/\b\w/g, c => c.toUpperCase());
@@ -302,7 +309,6 @@ function parseTorrentName(name, containerContentPath) {
   const qualityMatch = name.match(/\d{3,4}p/i);
   const quality = qualityMatch ? qualityMatch[0] : 'unknown';
 
-  // TV show: match SxxExx
   const tvMatch = name.match(/[.\s_-][Ss](\d{1,2})[Ee](\d{1,2})/);
   if (tvMatch) {
     const show = titleCase(name.replace(/[.\s_-]*[Ss]\d+[Ee]\d+.*/i, '').replace(/[._]/g, ' ').trim());
@@ -312,7 +318,6 @@ function parseTorrentName(name, containerContentPath) {
     return { type: 'tv', title: show, season, episode, quality, is_dir: isDir, source_file: hostPath, destination: dest };
   }
 
-  // Movie: match year (1920-2029)
   const movieMatch = name.match(/[.\s_-]((?:19[2-9]|20[0-2])\d)[.\s_-]/);
   if (movieMatch) {
     const title = titleCase(name.replace(/[.\s_-]*(?:19[2-9]|20[0-2])\d.*/i, '').replace(/[._]/g, ' ').trim());
@@ -367,113 +372,77 @@ Omit year for TV, omit season/episode for movies.`;
   }
 }
 
-function loadProcessed() {
-  try {
-    return new Set(JSON.parse(readFileSync(PROCESSED_FILE, 'utf-8')));
-  } catch {
-    return new Set();
-  }
-}
-
-function saveProcessed(processed) {
-  try {
-    writeFileSync(PROCESSED_FILE, JSON.stringify([...processed]));
-  } catch (err) {
-    console.error(`Failed to save processed hashes: ${err.message}`);
-  }
-}
-
 const COMPLETED_STATES = new Set(['uploading', 'stalledUP', 'pausedUP', 'queuedUP', 'checkingUP', 'forcedUP']);
-let watcherInterval = null;
 
-export function startCompletionWatcher(bot, chatId) {
-  const processed = loadProcessed();
-  console.log(`Download watcher started (${processed.size} previously processed torrents)`);
+async function handleOrganize(ctx) {
+  const placeholder = await ctx.replyWithHTML('<i>Scanning for completed downloads...</i>');
+  const { ok, output } = await qbtApi('torrents/info');
 
-  watcherInterval = setInterval(async () => {
-    try {
-      const { ok, output } = await qbtApi('torrents/info');
-      if (!ok) return;
+  if (!ok) {
+    return editOrReply(ctx, placeholder.message_id,
+      `🔴 qBittorrent unreachable.\n\n<i>Try: <code>cd ~/jarvis && docker compose restart qbittorrent</code></i>`
+    );
+  }
 
-      let torrents;
-      try { torrents = JSON.parse(output); } catch { return; }
+  let torrents;
+  try { torrents = JSON.parse(output); } catch {
+    return editOrReply(ctx, placeholder.message_id, '🔴 Failed to parse qBT response.');
+  }
 
-      for (const t of torrents) {
-        if (!COMPLETED_STATES.has(t.state)) continue;
-        if (processed.has(t.hash)) continue;
+  const completed = torrents.filter(t => COMPLETED_STATES.has(t.state));
+  if (!completed.length) {
+    return editOrReply(ctx, placeholder.message_id, 'No completed downloads to organize.');
+  }
 
-        processed.add(t.hash);
-        saveProcessed(processed);
+  await editOrReply(ctx, placeholder.message_id,
+    `Found <b>${completed.length}</b> completed download(s). Processing...`
+  );
 
-        const shortHash = t.hash.slice(0, 8);
+  for (const t of completed) {
+    const shortHash = t.hash.slice(0, 8);
 
-        let meta = parseTorrentName(t.name, t.content_path);
+    let meta = parseTorrentName(t.name, t.content_path);
+    if (!meta) meta = await claudeParseFallback(t.name, t.content_path);
 
-        if (!meta) {
-          meta = await claudeParseFallback(t.name, t.content_path);
-        }
-
-        if (!meta) {
-          const hostPath = containerToHostPath(t.content_path);
-          const isDir = existsSync(hostPath) && statSync(hostPath).isDirectory();
-          meta = {
-            type: 'unknown',
-            title: t.name,
-            quality: 'unknown',
-            is_dir: isDir,
-            source_file: hostPath,
-            destination: `${DOWNLOADS_HOST}/${basename(hostPath)}`,
-          };
-        }
-
-        meta.hash = t.hash;
-
-        try {
-          writeFileSync(`${PENDING_DIR}/${shortHash}.json`, JSON.stringify(meta, null, 2));
-        } catch (err) {
-          console.error(`Failed to write pending file: ${err.message}`);
-          continue;
-        }
-
-        const icon = meta.type === 'tv' ? '📺' : meta.type === 'movie' ? '🎬' : '❓';
-        const shortDest = meta.destination.replace(new RegExp(`^${HOME}/`), '');
-        const msg = [
-          `<b>${icon} Download Complete</b>`,
-          '',
-          `<b>Title:</b> ${escapeHtml(meta.title)}`,
-          `<b>Type:</b> ${meta.type}`,
-          `<b>Quality:</b> ${meta.quality || 'unknown'}`,
-          '',
-          `<b>Move to:</b>`,
-          `<code>${escapeHtml(shortDest)}</code>`,
-          '',
-          'Tap below to confirm or edit.',
-        ].join('\n');
-
-        const keyboard = {
-          inline_keyboard: [[
-            { text: '✅ Confirm', callback_data: `dl:c:${shortHash}` },
-            { text: '✏️ Edit', callback_data: `dl:e:${shortHash}` },
-            { text: '⏭ Skip', callback_data: `dl:s:${shortHash}` },
-          ]],
-        };
-
-        try {
-          await bot.telegram.sendMessage(chatId, msg, { parse_mode: 'HTML', reply_markup: keyboard });
-        } catch (err) {
-          console.error(`Failed to send completion notification: ${err.message}`);
-        }
-      }
-    } catch (err) {
-      console.error(`Watcher error: ${err.message}`);
+    if (!meta) {
+      const hostPath = containerToHostPath(t.content_path);
+      const isDir = existsSync(hostPath) && statSync(hostPath).isDirectory();
+      meta = {
+        type: 'unknown',
+        title: t.name,
+        quality: 'unknown',
+        is_dir: isDir,
+        source_file: hostPath,
+        destination: `${DOWNLOADS_HOST}/${basename(hostPath)}`,
+      };
     }
-  }, 60_000);
-}
 
-export function stopCompletionWatcher() {
-  if (watcherInterval) {
-    clearInterval(watcherInterval);
-    watcherInterval = null;
+    meta.hash = t.hash;
+
+    try {
+      writeFileSync(`${PENDING_DIR}/${shortHash}.json`, JSON.stringify(meta, null, 2));
+    } catch (err) {
+      await ctx.replyWithHTML(`🔴 Failed to write pending file for ${escapeHtml(t.name)}: ${escapeHtml(err.message)}`);
+      continue;
+    }
+
+    const icon = meta.type === 'tv' ? '📺' : meta.type === 'movie' ? '🎬' : '❓';
+    const shortDest = meta.destination.replace(new RegExp(`^${HOME}/`), '');
+
+    await ctx.replyWithHTML(
+      [
+        `<b>${icon} ${escapeHtml(meta.title)}</b>`,
+        `Type: ${meta.type} | Quality: ${meta.quality || 'unknown'}`,
+        '',
+        `<b>Move to:</b>`,
+        `<code>${escapeHtml(shortDest)}</code>`,
+      ].join('\n'),
+      Markup.inlineKeyboard([[
+        Markup.button.callback('✅ Confirm', `dl:c:${shortHash}`),
+        Markup.button.callback('✏️ Edit', `dl:e:${shortHash}`),
+        Markup.button.callback('⏭ Skip', `dl:s:${shortHash}`),
+      ]])
+    );
   }
 }
 
@@ -497,14 +466,16 @@ export async function downloadCommand(ctx) {
         '• Magnet link',
       ].join('\n'),
       Markup.inlineKeyboard([
-        [Markup.button.callback('📋 Active Downloads', 'dl:cmd:list'),
-         Markup.button.callback('📡 qBT Status', 'dl:cmd:status')],
+        [Markup.button.callback('📋 Downloads', 'dl:cmd:list'),
+         Markup.button.callback('📡 Status', 'dl:cmd:status')],
+        [Markup.button.callback('📂 Organize Completed', 'dl:cmd:organize')],
       ])
     );
   }
 
   if (sub === 'list' || sub === 'ls') return handleList(ctx);
   if (sub === 'status') return handleStatus(ctx);
+  if (sub === 'organize' || sub === 'org') return handleOrganize(ctx);
 
   // Treat everything else as a torrent to add
   const input = args[0];
@@ -522,6 +493,7 @@ export async function downloadCallback(ctx) {
     await ctx.answerCbQuery();
     if (cmdMatch[1] === 'list') return handleList(ctx);
     if (cmdMatch[1] === 'status') return handleStatus(ctx);
+    if (cmdMatch[1] === 'organize') return handleOrganize(ctx);
     return;
   }
 

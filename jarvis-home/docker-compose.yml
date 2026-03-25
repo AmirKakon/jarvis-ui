@@ -18,3 +18,4 @@ services:
       - ${HOME}/shared-storage-2/movies:/media/movies
       - ${HOME}/shared-storage-2/tv-shows:/media/tv-shows
       - ${HOME}/jarvis/scripts:/scripts:ro
+      - ${HOME}/jarvis/qbittorrent-init:/custom-cont-init.d:ro

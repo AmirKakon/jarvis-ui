@@ -7,7 +7,7 @@ import { networkCommand, networkRefresh } from './commands/network.js';
 import { servicesCommand, servicesRefresh } from './commands/services.js';
 import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
-import { downloadCommand, downloadCallback, downloadRefresh, startCompletionWatcher, stopCompletionWatcher } from './commands/download.js';
+import { downloadCommand, downloadCallback, downloadRefresh } from './commands/download.js';
 import { askClaude } from './claude.js';
 import { cronRerun } from './commands/cron-rerun.js';
 
@@ -133,7 +133,6 @@ bot.on('text', askClaude);
 // --- Graceful shutdown ---
 function shutdown(signal) {
   console.log(`Received ${signal}, shutting down...`);
-  stopCompletionWatcher();
   bot.stop(signal);
 }
 process.once('SIGINT', () => shutdown('SIGINT'));
@@ -152,6 +151,5 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'download', description: 'Torrent downloads' },
     { command: 'help', description: 'Show all commands' },
   ]);
-  startCompletionWatcher(bot, CHAT_ID);
   console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);
 });
