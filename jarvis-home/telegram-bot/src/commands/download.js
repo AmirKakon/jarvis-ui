@@ -372,7 +372,10 @@ Omit year for TV, omit season/episode for movies.`;
   }
 }
 
-const COMPLETED_STATES = new Set(['uploading', 'stalledUP', 'pausedUP', 'queuedUP', 'checkingUP', 'forcedUP']);
+const COMPLETED_STATES = new Set([
+  'uploading', 'stalledUP', 'pausedUP', 'queuedUP', 'checkingUP', 'forcedUP',
+  'stoppedUP',  // qBittorrent v5+ renamed pausedUP to stoppedUP
+]);
 
 async function handleOrganize(ctx) {
   const placeholder = await ctx.replyWithHTML('<i>Scanning for completed downloads...</i>');
