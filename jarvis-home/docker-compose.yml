@@ -1,4 +1,17 @@
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: jarvis-postgres
+    restart: unless-stopped
+    ports:
+      - "20004:5432"
+    environment:
+      - POSTGRES_USER=jarvis
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-jarvis123}
+      - POSTGRES_DB=jarvis
+    volumes:
+      - ${HOME}/jarvis/postgres-data:/var/lib/postgresql/data
+
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
