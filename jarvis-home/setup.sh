@@ -71,6 +71,9 @@ mkdir -p "$JARVIS_DIR/logs"
 mkdir -p "$JARVIS_DIR/downloads/pending"
 cp "$SCRIPT_DIR/scripts/"*.sh "$JARVIS_DIR/scripts/"
 chmod +x "$JARVIS_DIR/scripts/"*.sh
+if [ -f "$SCRIPT_DIR/known-devices-labels.conf" ]; then
+    cp "$SCRIPT_DIR/known-devices-labels.conf" "$JARVIS_DIR/known-devices-labels.conf"
+fi
 echo "  Done."
 
 # --- Step 8: Cron jobs ---
@@ -213,6 +216,7 @@ echo "    ~/jarvis/logs/                     (monitoring logs)"
 echo "    ~/jarvis/telegram-bot/             (Telegram bot for mobile access)"
 echo "    ~/jarvis/docker-compose.yml        (qBittorrent media service)"
 echo "    ~/jarvis/downloads/pending/        (download organize queue)"
+    echo "    ~/jarvis/known-devices-labels.conf (network device labels)"
     echo "    ~/jarvis/.env                      (secrets - HA, n8n, Telegram, qBittorrent)"
     echo "    /etc/systemd/system/wifi-powersave-off.service (WiFi driver fix)"
 echo ""
