@@ -1,9 +1,11 @@
 import { exec } from 'node:child_process';
 import crypto from 'node:crypto';
+import { Markup } from 'telegraf';
 import { truncate, escapeHtml, mdToHtml } from './utils.js';
 import {
   ensureSession, storeMessage, summarizeSession,
   buildMemoryContext, closePool,
+  extractFactsFromExchange, storePendingBatch,
 } from './memory.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
@@ -201,4 +203,29 @@ export async function askClaude(ctx, textOverride = null) {
   } catch {
     await ctx.replyWithHTML(response);
   }
+
+  // Background: extract facts and offer to save
+  if (ok && prompt.length > 10) {
+    offerFactExtraction(ctx, prompt, output).catch((err) =>
+      console.error('Fact extraction failed:', err.message)
+    );
+  }
+}
+
+async function offerFactExtraction(ctx, userMessage, assistantResponse) {
+  const facts = await extractFactsFromExchange(userMessage, assistantResponse);
+  if (!facts.length) return;
+
+  const batchId = storePendingBatch(facts);
+  const lines = ['💾 <b>Should I remember?</b>', ''];
+  for (const f of facts) {
+    lines.push(`• <i>${escapeHtml(f)}</i>`);
+  }
+
+  await ctx.replyWithHTML(lines.join('\n'), Markup.inlineKeyboard([
+    [
+      Markup.button.callback('✅ Save', `mem:y:${batchId}`),
+      Markup.button.callback('❌ Skip', `mem:n:${batchId}`),
+    ],
+  ]));
 }

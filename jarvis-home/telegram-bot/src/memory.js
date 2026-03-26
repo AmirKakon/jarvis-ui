@@ -33,13 +33,28 @@ const JARVIS_DIR = process.env.HOME + '/jarvis';
 const SUMMARIZATION_PROMPT = `Analyze this conversation and provide:
 1. A concise summary (2-4 sentences) capturing the main topics and outcomes
 2. A list of 3-5 key topic tags
-3. Any durable facts worth remembering permanently (server IPs, passwords, setup details, user preferences, device names)
+3. Any durable facts worth remembering permanently (personal info like names, server IPs, passwords, setup details, user preferences, device names, relationships, locations, schedules)
 
 Respond ONLY with valid JSON, no markdown:
 {"summary": "...", "topics": ["..."], "facts": ["..."]}
 
 CONVERSATION:
 `;
+
+const EXTRACTION_PROMPT = `Extract any personal facts, preferences, or important details from this exchange worth remembering permanently.
+
+Include: names, personal info, preferences, device details, configurations, relationships, locations, schedules, account info, setup details.
+Exclude: transient questions, troubleshooting steps, greetings, conversation filler, things that are commands or actions.
+
+USER: {user}
+ASSISTANT: {assistant}
+
+Respond with ONLY valid JSON, no markdown:
+{"facts": ["The user's name is ...", "..."]}
+If nothing worth remembering: {"facts": []}`;
+
+const pendingFactBatches = new Map();
+const PENDING_TTL = 5 * 60 * 1000;
 
 // --- Database pool (lazy init) ---
 
@@ -398,6 +413,46 @@ export async function buildMemoryContext(currentPrompt, sessionId) {
   if (!parts.length) return currentPrompt;
 
   return parts.join('\n') + '\nCurrent message:\n' + currentPrompt;
+}
+
+// --- Real-time fact extraction ---
+
+export async function extractFactsFromExchange(userMessage, assistantResponse) {
+  const prompt = EXTRACTION_PROMPT
+    .replace('{user}', userMessage.slice(0, 1000))
+    .replace('{assistant}', assistantResponse.slice(0, 1000));
+
+  const raw = await runHaiku(prompt);
+  const parsed = parseJsonResponse(raw);
+  return parsed?.facts?.filter((f) => f && f.length > 5) || [];
+}
+
+function cleanupPendingBatches() {
+  const now = Date.now();
+  for (const [id, batch] of pendingFactBatches) {
+    if (now - batch.timestamp > PENDING_TTL) pendingFactBatches.delete(id);
+  }
+}
+
+export function storePendingBatch(facts) {
+  cleanupPendingBatches();
+  const id = Math.random().toString(36).slice(2, 10);
+  pendingFactBatches.set(id, { facts, timestamp: Date.now() });
+  return id;
+}
+
+export function getPendingBatch(batchId) {
+  const batch = pendingFactBatches.get(batchId);
+  if (!batch) return null;
+  if (Date.now() - batch.timestamp > PENDING_TTL) {
+    pendingFactBatches.delete(batchId);
+    return null;
+  }
+  return batch.facts;
+}
+
+export function deletePendingBatch(batchId) {
+  pendingFactBatches.delete(batchId);
 }
 
 // --- Cleanup ---

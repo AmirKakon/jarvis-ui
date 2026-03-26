@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { Telegraf, Markup } from 'telegraf';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, editOrReply } from './utils.js';
 import { statusCommand, statusRefresh } from './commands/status.js';
 import { dockerCommand, dockerCallback, dockerRefresh } from './commands/docker.js';
 import { storageCommand, storageRefresh } from './commands/storage.js';
@@ -10,6 +10,7 @@ import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
 import { downloadCommand, downloadCallback, downloadRefresh } from './commands/download.js';
 import { askClaude, closePool } from './claude.js';
+import { storeFact, getPendingBatch, deletePendingBatch } from './memory.js';
 import {
   handleVoice, handleAudio, handlePhoto, handleDocument,
   handleVideo, handleVideoNote, handleAnimation, handleSticker,
@@ -150,6 +151,33 @@ bot.action(/^x:(.+)$/, (ctx) => {
 
 // --- Cron rerun callbacks ---
 bot.action(/^j:(.+)$/, cronRerun);
+
+// --- Memory fact confirmation callbacks ---
+bot.action(/^mem:([yn]):(.+)$/, async (ctx) => {
+  const action = ctx.match[1];
+  const batchId = ctx.match[2];
+  const facts = getPendingBatch(batchId);
+
+  if (!facts) {
+    return ctx.answerCbQuery('Expired');
+  }
+
+  if (action === 'y') {
+    for (const fact of facts) {
+      await storeFact(fact, null, 'telegram');
+    }
+    deletePendingBatch(batchId);
+    await ctx.answerCbQuery('Saved!');
+    const saved = facts.map((f) => `• ${escapeHtml(f)}`).join('\n');
+    await editOrReply(ctx, ctx.callbackQuery.message.message_id,
+      `✅ <b>Remembered ${facts.length} fact(s):</b>\n${saved}`
+    );
+  } else {
+    deletePendingBatch(batchId);
+    await ctx.answerCbQuery('Skipped');
+    await editOrReply(ctx, ctx.callbackQuery.message.message_id, '⏭ Skipped.');
+  }
+});
 
 // --- Media handlers → process + Claude Code ---
 bot.on('voice', handleVoice);
