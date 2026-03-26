@@ -247,8 +247,16 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 function parseDelegation(text) {
   try {
-    const trimmed = text.trim();
+    let trimmed = text.trim();
+    // Strip markdown code fences if the model wrapped the JSON
+    if (trimmed.startsWith('```')) {
+      trimmed = trimmed.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+    }
     if (!trimmed.startsWith('{')) return null;
+    // Normalize smart/curly quotes → ASCII (Haiku sometimes uses them)
+    trimmed = trimmed
+      .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+      .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
     const parsed = JSON.parse(trimmed);
     if (parsed.delegate === true && parsed.task) return parsed;
   } catch { /* not JSON */ }
