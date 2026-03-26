@@ -109,7 +109,7 @@ async function runFrontModel(systemPrompt, userMessage) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-3-5-haiku-20241022',
+          model: 'claude-haiku-4-5-20251015',
           max_tokens: 1024,
           system: systemPrompt,
           messages: [{ role: 'user', content: userMessage }],
@@ -120,7 +120,7 @@ async function runFrontModel(systemPrompt, userMessage) {
         const data = await res.json();
         const text = data.content?.[0]?.text?.trim();
         if (text) {
-          console.log('[front] Responded via Anthropic Haiku 3.5');
+          console.log('[front] Responded via Anthropic Haiku 4.5');
           return { ok: true, output: text, provider: 'haiku' };
         }
       }
