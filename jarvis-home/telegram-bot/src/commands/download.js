@@ -15,6 +15,24 @@ const QBT_PASS = () => process.env.QBT_PASSWORD || '';
 let sid = '';
 let loginCooldownUntil = 0;
 
+async function diagnoseUnreachable() {
+  const { ok: loopback } = await run('ping -c 1 -W 2 127.0.0.1', { timeout: 5_000 });
+  if (!loopback) return 'System networking is down entirely.';
+
+  const { ok: containerUp } = await run('docker inspect -f "{{.State.Running}}" qbittorrent', { timeout: 5_000 });
+  if (!containerUp) return 'The qBittorrent container is not running. Use /docker start qbittorrent';
+
+  const { ok: gateway } = await run('ping -c 1 -W 2 $(ip route | awk \'/default/ {print $3}\')', { timeout: 5_000 });
+  if (!gateway) {
+    return 'Network is down — cannot reach the gateway. ' +
+      'This is likely the WiFi driver crashing after heavy I/O.\n\n' +
+      '<b>Quick fix:</b>\n<code>sudo iw dev wlan0 set power_save off</code>\n' +
+      'Or restart networking:\n<code>sudo systemctl restart NetworkManager</code>';
+  }
+
+  return null;
+}
+
 async function qbtLogin() {
   if (Date.now() < loginCooldownUntil) {
     return false;
@@ -141,9 +159,11 @@ async function handleList(ctx) {
   const { ok, output } = await qbtApi('torrents/info');
 
   if (!ok) {
-    return editOrReply(ctx, placeholder.message_id,
-      `🔴 qBittorrent unreachable:\n${pre(output || 'Connection refused')}`
-    );
+    const diagnosis = await diagnoseUnreachable();
+    const detail = diagnosis
+      ? `\n\n${diagnosis}`
+      : `\n${pre(output || 'Connection refused')}`;
+    return editOrReply(ctx, placeholder.message_id, `🔴 qBittorrent unreachable.${detail}`);
   }
 
   let torrents;
@@ -185,14 +205,15 @@ async function handleList(ctx) {
 async function handleStatus(ctx) {
   const { ok, output } = await qbtApi('app/version');
   if (!ok) {
+    const diagnosis = await diagnoseUnreachable();
     const pingResult = await run(`curl -s -o /dev/null -w "%{http_code}" "${QBT_URL()}/api/v2/app/version"`, { timeout: 5_000 });
     const httpCode = pingResult.ok ? pingResult.output : 'unreachable';
-    return ctx.replyWithHTML(
-      `🔴 qBittorrent is unreachable.\n\n` +
+    let msg = `🔴 qBittorrent is unreachable.\n\n` +
       `<b>URL:</b> <code>${escapeHtml(QBT_URL())}</code>\n` +
       `<b>HTTP:</b> <code>${httpCode}</code>\n` +
-      `<b>Login SID:</b> <code>${sid ? 'set' : 'none'}</code>`
-    );
+      `<b>Login SID:</b> <code>${sid ? 'set' : 'none'}</code>`;
+    if (diagnosis) msg += `\n\n<b>Diagnosis:</b> ${diagnosis}`;
+    return ctx.replyWithHTML(msg);
   }
   const version = output.trim();
   const { ok: ok2, output: info } = await qbtApi('transfer/info');
@@ -399,9 +420,9 @@ async function handleOrganize(ctx) {
   const { ok, output } = await qbtApi('torrents/info');
 
   if (!ok) {
-    return editOrReply(ctx, placeholder.message_id,
-      `🔴 qBittorrent unreachable.\n\n<i>Try: <code>cd ~/jarvis && docker compose restart qbittorrent</code></i>`
-    );
+    const diagnosis = await diagnoseUnreachable();
+    const detail = diagnosis || '<i>Try: <code>cd ~/jarvis && docker compose restart qbittorrent</code></i>';
+    return editOrReply(ctx, placeholder.message_id, `🔴 qBittorrent unreachable.\n\n${detail}`);
   }
 
   let torrents;
@@ -534,7 +555,11 @@ export async function downloadCallback(ctx) {
 export async function downloadRefresh(ctx) {
   await ctx.answerCbQuery('Refreshing...');
   const { ok, output } = await qbtApi('torrents/info');
-  if (!ok) return ctx.replyWithHTML('🔴 qBittorrent unreachable.');
+  if (!ok) {
+    const diagnosis = await diagnoseUnreachable();
+    const detail = diagnosis ? `\n\n${diagnosis}` : '';
+    return ctx.replyWithHTML(`🔴 qBittorrent unreachable.${detail}`);
+  }
 
   let torrents;
   try {

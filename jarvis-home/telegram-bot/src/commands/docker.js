@@ -4,6 +4,23 @@ import { run, bold, pre, code, sendLong, escapeHtml, cbData, editOrReply } from 
 const ALLOWED_ACTIONS = ['restart', 'stop', 'start', 'logs'];
 const SHORT_ACTION = { r: 'restart', s: 'stop', S: 'start', l: 'logs' };
 
+const HEALTH_CHECKS = {
+  qbittorrent: { url: 'http://localhost:20008/api/v2/app/version', delay: 5_000 },
+};
+
+async function verifyHealth(name) {
+  const check = HEALTH_CHECKS[name];
+  if (!check) return null;
+
+  await new Promise((r) => setTimeout(r, check.delay));
+
+  const { ok } = await run(
+    `curl -sf -o /dev/null -w "%{http_code}" "${check.url}"`,
+    { timeout: 10_000 }
+  );
+  return ok;
+}
+
 function sanitiseName(name) {
   return name.replace(/[^a-zA-Z0-9._-]/g, '');
 }
@@ -73,6 +90,17 @@ export async function dockerCommand(ctx) {
   const placeholder = await ctx.replyWithHTML(`<i>Running ${code(`docker ${action} ${target}`)}...</i>`);
   const { ok, output } = await run(`docker ${action} ${target}`, { timeout: 30_000 });
   if (!ok) return editOrReply(ctx, placeholder.message_id, `🔴 Failed:\n${pre(output)}`);
+
+  if (action === 'restart' || action === 'start') {
+    const healthy = await verifyHealth(target);
+    if (healthy === false) {
+      return editOrReply(ctx, placeholder.message_id,
+        `⚠️ ${code(target)} — ${action} completed but service is not responding.\n\n` +
+        `<i>The container is running but the service inside may still be starting, or there may be a network issue (WiFi driver, etc).</i>`
+      );
+    }
+  }
+
   return editOrReply(ctx, placeholder.message_id, `🟢 ${code(target)} — ${action} completed.`);
 }
 
@@ -91,6 +119,17 @@ export async function dockerCallback(ctx) {
 
   const { ok, output } = await run(`docker ${action} ${name}`, { timeout: 30_000 });
   if (!ok) return ctx.replyWithHTML(`🔴 Failed:\n${pre(output)}`);
+
+  if (action === 'restart' || action === 'start') {
+    const healthy = await verifyHealth(name);
+    if (healthy === false) {
+      return ctx.replyWithHTML(
+        `⚠️ ${code(name)} — ${action} completed but service is not responding.\n\n` +
+        `<i>The container is running but the service inside may still be starting, or there may be a network issue (WiFi driver, etc).</i>`
+      );
+    }
+  }
+
   return ctx.replyWithHTML(`🟢 ${code(name)} — ${action} completed.`);
 }
 

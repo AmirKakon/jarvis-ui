@@ -27,45 +27,45 @@ if [ -d "$JARVIS_DIR/.claude" ]; then
 fi
 
 # --- Step 1: Global Claude config ---
-echo -e "${GREEN}[1/15]${NC} Setting up global Claude config (~/.claude/CLAUDE.md)..."
+echo -e "${GREEN}[1/16]${NC} Setting up global Claude config (~/.claude/CLAUDE.md)..."
 mkdir -p "$GLOBAL_CLAUDE_DIR"
 cp "$SCRIPT_DIR/global-claude/CLAUDE.md" "$GLOBAL_CLAUDE_DIR/CLAUDE.md"
 echo "  Done."
 
 # --- Step 2: Project CLAUDE.md ---
-echo -e "${GREEN}[2/15]${NC} Setting up Jarvis project directory ($JARVIS_DIR)..."
+echo -e "${GREEN}[2/16]${NC} Setting up Jarvis project directory ($JARVIS_DIR)..."
 mkdir -p "$JARVIS_DIR"
 cp "$SCRIPT_DIR/CLAUDE.md" "$JARVIS_DIR/CLAUDE.md"
 echo "  Done."
 
 # --- Step 3: Rules (clean sync) ---
-echo -e "${GREEN}[3/15]${NC} Syncing rules ($JARVIS_DIR/.claude/rules/)..."
+echo -e "${GREEN}[3/16]${NC} Syncing rules ($JARVIS_DIR/.claude/rules/)..."
 mkdir -p "$JARVIS_DIR/.claude/rules"
 rm -f "$JARVIS_DIR/.claude/rules/"*.md
 cp "$SCRIPT_DIR/.claude/rules/"*.md "$JARVIS_DIR/.claude/rules/"
 echo "  Done."
 
 # --- Step 4: Commands (clean sync) ---
-echo -e "${GREEN}[4/15]${NC} Syncing commands ($JARVIS_DIR/.claude/commands/)..."
+echo -e "${GREEN}[4/16]${NC} Syncing commands ($JARVIS_DIR/.claude/commands/)..."
 mkdir -p "$JARVIS_DIR/.claude/commands"
 rm -f "$JARVIS_DIR/.claude/commands/"*.md
 cp "$SCRIPT_DIR/.claude/commands/"*.md "$JARVIS_DIR/.claude/commands/"
 echo "  Done."
 
 # --- Step 5: Agents (clean sync) ---
-echo -e "${GREEN}[5/15]${NC} Syncing subagents ($JARVIS_DIR/.claude/agents/)..."
+echo -e "${GREEN}[5/16]${NC} Syncing subagents ($JARVIS_DIR/.claude/agents/)..."
 mkdir -p "$JARVIS_DIR/.claude/agents"
 rm -f "$JARVIS_DIR/.claude/agents/"*.md
 cp "$SCRIPT_DIR/.claude/agents/"*.md "$JARVIS_DIR/.claude/agents/"
 echo "  Done."
 
 # --- Step 6: Settings ---
-echo -e "${GREEN}[6/15]${NC} Setting up project settings ($JARVIS_DIR/.claude/settings.json)..."
+echo -e "${GREEN}[6/16]${NC} Setting up project settings ($JARVIS_DIR/.claude/settings.json)..."
 cp "$SCRIPT_DIR/.claude/settings.json" "$JARVIS_DIR/.claude/settings.json"
 echo "  Done."
 
 # --- Step 7: Monitoring scripts ---
-echo -e "${GREEN}[7/15]${NC} Syncing monitoring scripts ($JARVIS_DIR/scripts/)..."
+echo -e "${GREEN}[7/16]${NC} Syncing monitoring scripts ($JARVIS_DIR/scripts/)..."
 mkdir -p "$JARVIS_DIR/scripts"
 mkdir -p "$JARVIS_DIR/logs"
 mkdir -p "$JARVIS_DIR/downloads/pending"
@@ -74,11 +74,11 @@ chmod +x "$JARVIS_DIR/scripts/"*.sh
 echo "  Done."
 
 # --- Step 8: Cron jobs ---
-echo -e "${GREEN}[8/15]${NC} Installing monitoring cron jobs..."
+echo -e "${GREEN}[8/16]${NC} Installing monitoring cron jobs..."
 bash "$JARVIS_DIR/scripts/install-cron.sh"
 
 # --- Step 9: Environment file ---
-echo -e "${GREEN}[9/15]${NC} Setting up environment file ($JARVIS_DIR/.env)..."
+echo -e "${GREEN}[9/16]${NC} Setting up environment file ($JARVIS_DIR/.env)..."
 if [ -f "$JARVIS_DIR/.env" ]; then
     echo "  .env already exists — skipping (won't overwrite your secrets)."
 else
@@ -87,7 +87,7 @@ else
 fi
 
 # --- Step 10: Telegram bot ---
-echo -e "${GREEN}[10/15]${NC} Setting up Telegram bot ($JARVIS_DIR/telegram-bot/)..."
+echo -e "${GREEN}[10/16]${NC} Setting up Telegram bot ($JARVIS_DIR/telegram-bot/)..."
 if command -v node &>/dev/null; then
     mkdir -p "$JARVIS_DIR/telegram-bot"
     cp -r "$SCRIPT_DIR/telegram-bot/src" "$JARVIS_DIR/telegram-bot/"
@@ -101,11 +101,11 @@ else
 fi
 
 # --- Step 11: Glances system monitor ---
-echo -e "${GREEN}[11/15]${NC} Installing Glances system monitor..."
+echo -e "${GREEN}[11/16]${NC} Installing Glances system monitor..."
 bash "$SCRIPT_DIR/scripts/install-glances.sh"
 
 # --- Step 12: Telegram bot systemd service ---
-echo -e "${GREEN}[12/15]${NC} Installing Telegram bot service..."
+echo -e "${GREEN}[12/16]${NC} Installing Telegram bot service..."
 if command -v node &>/dev/null; then
     SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
     mkdir -p "$SYSTEMD_USER_DIR"
@@ -119,7 +119,7 @@ else
 fi
 
 # --- Step 13: Docker compose for media services ---
-echo -e "${GREEN}[13/15]${NC} Setting up Docker Compose for media services..."
+echo -e "${GREEN}[13/16]${NC} Setting up Docker Compose for media services..."
 if [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
     cp "$SCRIPT_DIR/docker-compose.yml" "$JARVIS_DIR/docker-compose.yml"
     mkdir -p "$JARVIS_DIR/qbittorrent-config" "$JARVIS_DIR/qbittorrent-init"
@@ -136,7 +136,7 @@ else
 fi
 
 # --- Step 14: Memory maintenance cron (weekly) ---
-echo -e "${GREEN}[14/15]${NC} Installing weekly memory maintenance cron..."
+echo -e "${GREEN}[14/16]${NC} Installing weekly memory maintenance cron..."
 MEMORY_CRON="0 3 * * 0 ${JARVIS_DIR}/scripts/memory-maintenance.sh >> ${JARVIS_DIR}/logs/memory-maintenance.log 2>&1"
 if crontab -l 2>/dev/null | grep -q "memory-maintenance"; then
     echo "  Memory maintenance cron already installed — skipping."
@@ -145,8 +145,20 @@ else
     echo "  Done. Runs every Sunday at 3 AM."
 fi
 
-# --- Step 15: Finalise ---
-echo -e "${GREEN}[15/15]${NC} Finalising..."
+# --- Step 15: WiFi power save fix (RTL8821CE) ---
+echo -e "${GREEN}[15/16]${NC} Installing WiFi power save fix..."
+if iw dev wlan0 info &>/dev/null; then
+    sudo cp "$SCRIPT_DIR/wifi-powersave-off.service" /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable wifi-powersave-off.service 2>/dev/null
+    sudo systemctl start wifi-powersave-off.service 2>/dev/null
+    echo "  Done. WiFi power save disabled (prevents driver crash after heavy I/O)."
+else
+    echo "  No wlan0 interface found — skipping (not needed on wired connections)."
+fi
+
+# --- Step 16: Finalise ---
+echo -e "${GREEN}[16/16]${NC} Finalising..."
 echo "  Done."
 
 # --- Shell alias ---
@@ -201,7 +213,8 @@ echo "    ~/jarvis/logs/                     (monitoring logs)"
 echo "    ~/jarvis/telegram-bot/             (Telegram bot for mobile access)"
 echo "    ~/jarvis/docker-compose.yml        (qBittorrent media service)"
 echo "    ~/jarvis/downloads/pending/        (download organize queue)"
-echo "    ~/jarvis/.env                      (secrets - HA, n8n, Telegram, qBittorrent)"
+    echo "    ~/jarvis/.env                      (secrets - HA, n8n, Telegram, qBittorrent)"
+    echo "    /etc/systemd/system/wifi-powersave-off.service (WiFi driver fix)"
 echo ""
 echo "  To start Jarvis:"
 echo ""

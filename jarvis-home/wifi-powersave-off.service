@@ -1,0 +1,12 @@
+[Unit]
+Description=Disable WiFi power save (fixes RTL8821CE driver crash on heavy I/O)
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/iw dev wlan0 set power_save off
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

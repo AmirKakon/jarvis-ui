@@ -12,7 +12,7 @@ const RATE_LIMIT_MAX = Number(process.env.CLAUDE_RATE_LIMIT) || 20;
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
 
 const TIMEOUTS = {
-  opus: 240_000,   // 4 minutes for interactive chat
+  opus: 360_000,   // 6 minutes for interactive chat (complex diagnostics need time)
   sonnet: 120_000, // 2 minutes for structured tasks
   haiku: 60_000,   // 1 minute for simple extraction
 };

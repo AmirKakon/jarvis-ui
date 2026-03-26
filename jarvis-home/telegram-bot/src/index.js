@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { Telegraf, Markup } from 'telegraf';
+import { escapeHtml } from './utils.js';
 import { statusCommand, statusRefresh } from './commands/status.js';
 import { dockerCommand, dockerCallback, dockerRefresh } from './commands/docker.js';
 import { storageCommand, storageRefresh } from './commands/storage.js';
@@ -65,8 +66,11 @@ bot.use((ctx, next) => {
 
 // --- Error handler ---
 bot.catch((err, ctx) => {
-  console.error(`Bot error for ${ctx.updateType}:`, err.message);
-  ctx.replyWithHTML('🔴 Something went wrong. Check the bot logs.').catch(() => {});
+  console.error(`Bot error for ${ctx.updateType}:`, err);
+  const short = (err.message || String(err)).slice(0, 300);
+  ctx.replyWithHTML(
+    `🔴 <b>Error</b> (${escapeHtml(ctx.updateType)}):\n<pre>${escapeHtml(short)}</pre>`
+  ).catch(() => {});
 });
 
 // --- Slash commands ---
