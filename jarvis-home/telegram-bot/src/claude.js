@@ -119,12 +119,17 @@ async function runFrontModel(systemPrompt, userMessage) {
       if (res.ok) {
         const data = await res.json();
         const text = data.content?.[0]?.text?.trim();
-        if (text) return { ok: true, output: text };
+        if (text) {
+          console.log('[front] Responded via Anthropic Haiku 3.5');
+          return { ok: true, output: text, provider: 'haiku' };
+        }
       }
       console.error(`[front] Anthropic API error: ${res.status}`);
     } catch (err) {
       console.error('[front] Anthropic API failed:', err.message);
     }
+  } else {
+    console.log('[front] No ANTHROPIC_API_KEY — falling back to OpenAI');
   }
 
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -150,7 +155,10 @@ async function runFrontModel(systemPrompt, userMessage) {
       if (res.ok) {
         const data = await res.json();
         const text = data.choices?.[0]?.message?.content?.trim();
-        if (text) return { ok: true, output: text };
+        if (text) {
+          console.log('[front] Responded via OpenAI GPT-4o-mini (fallback)');
+          return { ok: true, output: text, provider: 'gpt4o-mini' };
+        }
       }
       console.error(`[front] OpenAI API error: ${res.status}`);
     } catch (err) {
@@ -280,7 +288,7 @@ export async function askClaude(ctx, textOverride = null) {
   const delegation = parseDelegation(output);
 
   if (delegation) {
-    // Delegation path: acknowledge → run Opus in background → deliver result
+    console.log(`[front] Delegating to Opus: ${delegation.task.slice(0, 100)}`);
     const ack = delegation.acknowledge || 'Working on it, Sir...';
     await ctx.telegram.editMessageText(
       thinking.chat.id, thinking.message_id, undefined,
