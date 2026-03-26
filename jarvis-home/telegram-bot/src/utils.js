@@ -62,9 +62,18 @@ export function mdToHtml(text) {
   const out = [];
   let inCodeBlock = false;
   let codeBuffer = [];
+  let tableBuffer = [];
+
+  function flushTable() {
+    if (!tableBuffer.length) return;
+    const filtered = tableBuffer.filter((l) => !/^\|[-\s:|]+\|$/.test(l));
+    out.push(`<pre>${escapeHtml(filtered.join('\n'))}</pre>`);
+    tableBuffer = [];
+  }
 
   for (const line of lines) {
     if (line.startsWith('```')) {
+      flushTable();
       if (inCodeBlock) {
         out.push(`<pre>${escapeHtml(codeBuffer.join('\n'))}</pre>`);
         codeBuffer = [];
@@ -80,6 +89,13 @@ export function mdToHtml(text) {
       continue;
     }
 
+    if (/^\s*\|/.test(line)) {
+      tableBuffer.push(line);
+      continue;
+    }
+
+    flushTable();
+
     let converted = escapeHtml(line);
     converted = converted.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
     converted = converted.replace(/__(.+?)__/g, '<b>$1</b>');
@@ -91,6 +107,8 @@ export function mdToHtml(text) {
 
     out.push(converted);
   }
+
+  flushTable();
 
   if (codeBuffer.length) {
     out.push(`<pre>${escapeHtml(codeBuffer.join('\n'))}</pre>`);
