@@ -10,6 +10,11 @@ import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
 import { downloadCommand, downloadCallback, downloadRefresh } from './commands/download.js';
 import { askClaude, closePool } from './claude.js';
+import {
+  handleVoice, handleAudio, handlePhoto, handleDocument,
+  handleVideo, handleVideoNote, handleAnimation, handleSticker,
+  handleLocation, handleContact,
+} from './media.js';
 import { memoryCommand } from './commands/memory.js';
 import { securityCommand, securityRefresh } from './commands/security.js';
 import { cronRerun } from './commands/cron-rerun.js';
@@ -145,6 +150,18 @@ bot.action(/^x:(.+)$/, (ctx) => {
 
 // --- Cron rerun callbacks ---
 bot.action(/^j:(.+)$/, cronRerun);
+
+// --- Media handlers → process + Claude Code ---
+bot.on('voice', handleVoice);
+bot.on('audio', handleAudio);
+bot.on('photo', handlePhoto);
+bot.on('document', handleDocument);
+bot.on('video', handleVideo);
+bot.on('video_note', handleVideoNote);
+bot.on('animation', handleAnimation);
+bot.on('sticker', handleSticker);
+bot.on('location', handleLocation);
+bot.on('contact', handleContact);
 
 // --- Free-text → Claude Code ---
 bot.on('text', askClaude);

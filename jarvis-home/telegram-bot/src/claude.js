@@ -147,9 +147,11 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 /**
  * Handle a free-text message by sending it to Claude Code.
  * Uses Opus with PostgreSQL-backed long-term memory and session management.
+ * @param {object} ctx - Telegraf context
+ * @param {string|null} textOverride - optional prompt (for media: transcriptions, file references, etc.)
  */
-export async function askClaude(ctx) {
-  const prompt = (ctx.message.text || '').trim();
+export async function askClaude(ctx, textOverride = null) {
+  const prompt = (textOverride || ctx.message.text || '').trim();
   if (!prompt) return;
 
   const chatId = String(ctx.chat?.id || 'default');
