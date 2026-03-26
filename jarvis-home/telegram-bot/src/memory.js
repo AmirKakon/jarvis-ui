@@ -41,10 +41,11 @@ Respond ONLY with valid JSON, no markdown:
 CONVERSATION:
 `;
 
-const EXTRACTION_PROMPT = `Extract any personal facts, preferences, or important details from this exchange worth remembering permanently.
+const EXTRACTION_PROMPT = `Extract any facts about the USER worth remembering permanently from this exchange.
 
-Include: names, personal info, preferences, device details, configurations, relationships, locations, schedules, account info, setup details.
-Exclude: transient questions, troubleshooting steps, greetings, conversation filler, things that are commands or actions.
+Include: the user's name, personal info, preferences, device details, configurations, relationships, locations, schedules, account info, setup details.
+Exclude: facts about the assistant/bot itself (its name, capabilities, location), transient questions, troubleshooting steps, greetings, conversation filler, commands or actions.
+IMPORTANT: Only extract facts about the USER, not about the assistant.
 
 USER: {user}
 ASSISTANT: {assistant}
