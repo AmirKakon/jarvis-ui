@@ -423,7 +423,16 @@ export async function extractFactsFromExchange(userMessage, assistantResponse) {
     .replace('{assistant}', assistantResponse.slice(0, 1000));
 
   const raw = await runHaiku(prompt);
+  if (!raw) {
+    console.error('[memory] Haiku extraction returned null (CLI error or timeout)');
+    return [];
+  }
+  console.log('[memory] Haiku raw response:', raw.slice(0, 200));
   const parsed = parseJsonResponse(raw);
+  if (!parsed) {
+    console.error('[memory] Failed to parse Haiku response as JSON');
+    return [];
+  }
   return parsed?.facts?.filter((f) => f && f.length > 5) || [];
 }
 

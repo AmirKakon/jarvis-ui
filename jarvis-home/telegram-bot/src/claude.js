@@ -213,7 +213,9 @@ export async function askClaude(ctx, textOverride = null) {
 }
 
 async function offerFactExtraction(ctx, userMessage, assistantResponse) {
+  console.log('[memory] Extracting facts from exchange...');
   const facts = await extractFactsFromExchange(userMessage, assistantResponse);
+  console.log(`[memory] Extracted ${facts.length} fact(s):`, facts);
   if (!facts.length) return;
 
   const batchId = storePendingBatch(facts);
