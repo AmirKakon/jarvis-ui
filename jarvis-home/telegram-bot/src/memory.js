@@ -146,14 +146,42 @@ export async function getSessionMessages(sessionId) {
   return rows;
 }
 
-// --- Session summarization ---
+// --- Small model for summarization / extraction ---
 
-function runHaiku(prompt) {
+async function runSmallModel(prompt) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (apiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0,
+          max_tokens: 500,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content?.trim() || null;
+      }
+      console.error(`[memory] OpenAI API error: ${res.status} ${await res.text()}`);
+    } catch (err) {
+      console.error('[memory] OpenAI API call failed:', err.message);
+    }
+  }
+
+  // Fallback: Claude CLI
+  const escaped = prompt.replace(/'/g, "'\\''");
+  const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model ${HAIKU_MODEL} -p '${escaped}' 2>&1`;
   return new Promise((resolve) => {
-    const escaped = prompt.replace(/'/g, "'\\''");
-    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model ${HAIKU_MODEL} -p '${escaped}' 2>/dev/null`;
     exec(cmd, { timeout: 60_000, shell: '/bin/bash', maxBuffer: 1024 * 1024 }, (err, stdout) => {
       if (err) {
+        console.error('[memory] Claude CLI fallback failed:', stdout?.slice(0, 200) || err.message);
         resolve(null);
       } else {
         resolve(stdout?.trim() || null);
@@ -192,7 +220,7 @@ export async function summarizeSession(sessionId, source = 'telegram') {
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
     .join('\n');
 
-  const raw = await runHaiku(SUMMARIZATION_PROMPT + conversationText);
+  const raw = await runSmallModel(SUMMARIZATION_PROMPT + conversationText);
   const parsed = parseJsonResponse(raw);
 
   const summary = parsed?.summary || raw || 'Session with no extractable summary.';
@@ -422,12 +450,12 @@ export async function extractFactsFromExchange(userMessage, assistantResponse) {
     .replace('{user}', userMessage.slice(0, 1000))
     .replace('{assistant}', assistantResponse.slice(0, 1000));
 
-  const raw = await runHaiku(prompt);
+  const raw = await runSmallModel(prompt);
   if (!raw) {
-    console.error('[memory] Haiku extraction returned null (CLI error or timeout)');
+    console.error('[memory] Small model returned null');
     return [];
   }
-  console.log('[memory] Haiku raw response:', raw.slice(0, 200));
+  console.log('[memory] Extraction response:', raw.slice(0, 200));
   const parsed = parseJsonResponse(raw);
   if (!parsed) {
     console.error('[memory] Failed to parse Haiku response as JSON');
