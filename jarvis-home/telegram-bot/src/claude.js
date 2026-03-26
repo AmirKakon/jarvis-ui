@@ -151,7 +151,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
  * @param {string|null} textOverride - optional prompt (for media: transcriptions, file references, etc.)
  */
 export async function askClaude(ctx, textOverride = null) {
-  const prompt = (textOverride || ctx.message.text || '').trim();
+  const prompt = (typeof textOverride === 'string' ? textOverride : ctx.message.text || '').trim();
   if (!prompt) return;
 
   const chatId = String(ctx.chat?.id || 'default');
