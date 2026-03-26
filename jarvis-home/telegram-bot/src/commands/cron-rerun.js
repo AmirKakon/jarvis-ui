@@ -9,6 +9,11 @@ const ALLOWED_SCRIPTS = new Set([
   'backup-checker',
   'samba-monitor',
   'ha-update',
+  'network-scanner',
+  'ssh-monitor',
+  'docker-security',
+  'ssl-monitor',
+  'firewall-audit',
 ]);
 
 export async function cronRerun(ctx) {

@@ -79,6 +79,7 @@ The bot provides mobile access with three tiers:
 - `/ha` — Home Assistant control (status, states, toggle, turn_on, turn_off)
 - `/n8n` — workflow management
 - `/download` — torrent downloads (add, list, status)
+- `/security` — security dashboard (network, SSH, Docker, SSL, firewall)
 - `/memory` — memory stats (fact count, summaries, topics)
 - `/recall <query>` — search past conversations and facts
 
@@ -225,17 +226,58 @@ Run the Alembic migration (from the backend directory):
 cd ~/repos/jarvis-ui/backend && alembic upgrade head
 ```
 
+## Network & Security (Phase 7)
+
+Five security monitoring scripts run via cron with Telegram alerts — zero AI cost. Interactive dashboard via `/security` Telegram command.
+
+| Script | Schedule | Purpose |
+|--------|----------|---------|
+| `network-scanner.sh` | Every hour | Detects new/unknown devices on the LAN (arp-scan / nmap / ip neigh) |
+| `ssh-monitor.sh` | Every hour | SSH brute force detection (auth.log, threshold alerting) |
+| `docker-security.sh` | Weekly (Sun 04:00) | Audits root/privileged containers, host networking, outdated images |
+| `ssl-monitor.sh` | Daily 07:00 | SSL cert expiry alerts (14-day warning, 3-day critical) |
+| `firewall-audit.sh` | Daily 07:30 | Firewall rule + listening port change detection |
+
+Each script gracefully degrades if a required tool (`arp-scan`, `nmap`, `ufw`) is not installed.
+
+### Known devices baseline
+
+The network scanner maintains `~/jarvis/known-devices.txt`:
+```
+AA:BB:CC:DD:EE:FF  192.168.68.1    router
+11:22:33:44:55:66  192.168.68.124  kamuri-mini-pc
+```
+
+First run establishes the baseline. New devices are auto-added and trigger an alert.
+
+### SSL endpoints
+
+Configure `~/jarvis/ssl-endpoints.txt` (one per line, format `host:port`):
+```
+example.com:443
+myapp.local:8443
+```
+
+If no endpoints are configured and no local SSL is detected, the script silently skips.
+
 ## Monitoring (Cron)
 
 All monitoring runs via cron with Telegram alerts — zero AI cost:
 
 | Script | Schedule | Purpose |
 |--------|----------|---------|
-| `disk-watchdog.sh` | Every 6h | Alerts if any disk > 90% |
-| `smart-monitor.sh` | Daily | SMART health checks |
 | `service-monitor.sh` | Every 15m | Docker + systemd + port checks |
 | `samba-monitor.sh` | Every 15m | Samba service + share mount checks |
-| `backup-checker.sh` | Daily | Home Assistant backup freshness |
+| `disk-watchdog.sh` | Every 6h | Alerts if any disk > 90% |
+| `network-scanner.sh` | Every hour | Unknown device detection |
+| `ssh-monitor.sh` | Every hour | SSH intrusion detection |
+| `smart-monitor.sh` | Daily 06:00 | SMART health checks |
+| `ssl-monitor.sh` | Daily 07:00 | SSL cert expiry |
+| `firewall-audit.sh` | Daily 07:30 | Firewall & port audit |
+| `backup-checker.sh` | Daily 08:00 | Home Assistant backup freshness |
+| `ha-update.sh` | Weekly Sun 03:00 | HA auto-update |
+| `docker-security.sh` | Weekly Sun 04:00 | Docker security audit |
+| `memory-maintenance.sh` | Weekly Sun 03:00 | Memory deduplication & pruning |
 
 ## File Structure (deployed)
 

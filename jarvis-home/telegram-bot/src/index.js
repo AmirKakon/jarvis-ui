@@ -10,6 +10,7 @@ import { n8nCommand } from './commands/n8n.js';
 import { downloadCommand, downloadCallback, downloadRefresh } from './commands/download.js';
 import { askClaude, closePool } from './claude.js';
 import { memoryCommand } from './commands/memory.js';
+import { securityCommand, securityRefresh } from './commands/security.js';
 import { cronRerun } from './commands/cron-rerun.js';
 
 // --- Load environment from ~/jarvis/.env ---
@@ -81,6 +82,7 @@ const HELP_TEXT = [
   '/ha        — Home Assistant control',
   '/n8n       — n8n workflow management',
   '/download  — torrent downloads',
+  '/security  — security dashboard',
   '/help      — this message',
   '',
   '<b>Memory (persistent across sessions):</b>',
@@ -108,6 +110,7 @@ bot.command('services', servicesCommand);
 bot.command('ha', haCommand);
 bot.command('n8n', n8nCommand);
 bot.command('download', downloadCommand);
+bot.command('security', securityCommand);
 bot.command('remember', memoryCommand('remember'));
 bot.command('recall', memoryCommand('recall'));
 bot.command('memory', memoryCommand('memory'));
@@ -126,6 +129,7 @@ const refreshHandlers = {
   network: networkRefresh,
   services: servicesRefresh,
   download: downloadRefresh,
+  security: securityRefresh,
 };
 
 bot.action(/^x:(.+)$/, (ctx) => {
@@ -161,6 +165,7 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'ha', description: 'Home Assistant control' },
     { command: 'n8n', description: 'n8n workflow management' },
     { command: 'download', description: 'Torrent downloads' },
+    { command: 'security', description: 'Security dashboard' },
     { command: 'remember', description: 'Store a permanent fact' },
     { command: 'recall', description: 'Search past conversations' },
     { command: 'memory', description: 'Memory stats' },
