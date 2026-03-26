@@ -9,7 +9,7 @@ import { servicesCommand, servicesRefresh } from './commands/services.js';
 import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
 import { downloadCommand, downloadCallback, downloadRefresh } from './commands/download.js';
-import { askClaude, closePool } from './claude.js';
+import { askClaude, askOpusDirect, closePool } from './claude.js';
 import { storeFact, getPendingBatch, deletePendingBatch } from './memory.js';
 import {
   handleVoice, handleAudio, handlePhoto, handleDocument,
@@ -105,9 +105,10 @@ const HELP_TEXT = [
   '/ha automate &lt;desc&gt; — create HA automation',
   '/ha scene &lt;desc&gt;    — create HA scene',
   '',
-  '<b>AI-powered (uses Claude):</b>',
-  'Send any free-text message to ask Claude.',
-  'Conversations are saved and summarized automatically.',
+  '<b>AI-powered:</b>',
+  'Send any message — handled by a fast, cheap model.',
+  'Server tasks are automatically delegated to Opus.',
+  '/deep &lt;question&gt; — bypass, send directly to Opus',
 ].join('\n');
 
 bot.command('start', (ctx) => ctx.replyWithHTML(HELP_TEXT));
@@ -121,6 +122,7 @@ bot.command('ha', haCommand);
 bot.command('n8n', n8nCommand);
 bot.command('download', downloadCommand);
 bot.command('security', securityCommand);
+bot.command('deep', askOpusDirect);
 bot.command('remember', memoryCommand('remember'));
 bot.command('recall', memoryCommand('recall'));
 bot.command('memory', memoryCommand('memory'));
@@ -219,6 +221,7 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'recall', description: 'Search past conversations' },
     { command: 'memory', description: 'Memory stats' },
     { command: 'new', description: 'End session & start fresh' },
+    { command: 'deep', description: 'Send directly to Opus (bypasses front model)' },
     { command: 'help', description: 'Show all commands' },
   ]);
   console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);
