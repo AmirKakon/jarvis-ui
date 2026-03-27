@@ -8,6 +8,9 @@ const PENDING_DIR = HOME + '/jarvis/downloads/pending';
 const DOWNLOADS_HOST = HOME + '/shared-storage-2/downloads';
 const MOVIES_HOST = HOME + '/shared-storage-2/movies';
 const TV_HOST = HOME + '/shared-storage-2/tv-shows';
+
+const pendingEdits = new Map(); // chatId -> { shortHash, timestamp }
+const PENDING_EDIT_TTL = 300_000; // 5 minutes
 const QBT_URL = () => process.env.QBT_URL || 'http://localhost:20008';
 const QBT_USER = () => process.env.QBT_USERNAME || 'admin';
 const QBT_PASS = () => process.env.QBT_PASSWORD || '';
@@ -291,13 +294,48 @@ async function handleOrganizeEdit(ctx, shortHash) {
 
   await ctx.answerCbQuery('Send the correct path');
 
-  // Store that we're waiting for a path edit
-  ctx._downloadEditHash = shortHash;
+  const chatId = String(ctx.chat?.id || ctx.callbackQuery?.message?.chat?.id);
+  pendingEdits.set(chatId, { shortHash, timestamp: Date.now() });
 
   await ctx.replyWithHTML(
     `Current destination:\n<code>${escapeHtml(meta.destination)}</code>\n\n` +
     `Reply with the correct full path (under ~/shared-storage-2/), ` +
     `or send the folder structure like:\n<code>tv-shows/Show Name/Season 1</code>`
+  );
+}
+
+async function handleOrganizeApplyEdit(ctx, shortHash, newPath) {
+  const pendingFile = `${PENDING_DIR}/${shortHash}.json`;
+  let meta;
+  try {
+    meta = JSON.parse(readFileSync(pendingFile, 'utf-8'));
+  } catch {
+    await ctx.replyWithHTML('⚠️ Pending entry expired or not found.');
+    return;
+  }
+
+  let dest = newPath.trim();
+  // If relative path, resolve under shared-storage-2
+  if (!dest.startsWith('/')) {
+    dest = `${HOME}/shared-storage-2/${dest}`;
+  }
+  // Append the content name if the user provided a directory path
+  const contentName = basename(meta.source_file);
+  if (!dest.endsWith(contentName)) {
+    dest = dest.replace(/\/+$/, '') + '/' + contentName;
+  }
+
+  meta.destination = dest;
+  writeFileSync(pendingFile, JSON.stringify(meta, null, 2));
+
+  const shortDest = dest.replace(/.*shared-storage-2\//, '');
+  await ctx.replyWithHTML(
+    `Updated destination:\n<code>${escapeHtml(shortDest)}</code>`,
+    Markup.inlineKeyboard([[
+      Markup.button.callback('✅ Confirm', `dl:c:${shortHash}`),
+      Markup.button.callback('✏️ Edit', `dl:e:${shortHash}`),
+      Markup.button.callback('⏭ Skip', `dl:s:${shortHash}`),
+    ]])
   );
 }
 
@@ -331,7 +369,7 @@ function parseTorrentName(name, containerContentPath, category = '') {
   const quality = qualityMatch ? qualityMatch[0] : 'unknown';
   const cleanName = name.replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // TV show: match SxxExx pattern or category hint
+  // TV show: match SxxExx pattern (single episode)
   const tvMatch = name.match(/[.\s_-][Ss](\d{1,2})[Ee](\d{1,2})/);
   if (tvMatch) {
     const show = titleCase(name.replace(/[.\s_-]*[Ss]\d+[Ee]\d+.*/i, '').replace(/[._]/g, ' ').trim());
@@ -339,6 +377,15 @@ function parseTorrentName(name, containerContentPath, category = '') {
     const episode = parseInt(tvMatch[2]);
     const dest = `${TV_HOST}/${show}/Season ${season}/${contentName}`;
     return { type: 'tv', title: show, season, episode, quality, is_dir: isDir, source_file: hostPath, destination: dest };
+  }
+
+  // TV season pack: match Sxx without Exx (e.g. "The.Bear.S01.1080p")
+  const seasonPackMatch = name.match(/[.\s_-][Ss](\d{1,2})(?:[.\s_-]|$)(?![Ee]\d)/);
+  if (seasonPackMatch) {
+    const show = titleCase(name.replace(/[.\s_-]*[Ss]\d+.*/i, '').replace(/[._]/g, ' ').trim());
+    const season = parseInt(seasonPackMatch[1]);
+    const dest = `${TV_HOST}/${show}/Season ${season}/${contentName}`;
+    return { type: 'tv', title: show, season, quality, is_dir: isDir, source_file: hostPath, destination: dest };
   }
 
   // Movie: match year pattern or use category hint
@@ -523,6 +570,21 @@ export async function downloadCommand(ctx) {
   const category = args[1]?.toLowerCase();
   const validCategories = ['movie', 'tv'];
   return handleAdd(ctx, input, validCategories.includes(category) ? category : '');
+}
+
+export function handlePendingDownloadEdit(ctx) {
+  const chatId = String(ctx.chat?.id);
+  const pending = pendingEdits.get(chatId);
+  if (!pending) return false;
+  if (Date.now() - pending.timestamp > PENDING_EDIT_TTL) {
+    pendingEdits.delete(chatId);
+    return false;
+  }
+  pendingEdits.delete(chatId);
+  handleOrganizeApplyEdit(ctx, pending.shortHash, ctx.message.text).catch((err) =>
+    console.error('Download edit failed:', err.message)
+  );
+  return true;
 }
 
 export async function downloadCallback(ctx) {
