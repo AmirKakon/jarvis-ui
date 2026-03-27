@@ -2,6 +2,7 @@
 # Send a Telegram notification with optional rerun button.
 # Usage: ./notify.sh "Your message here" [script-name]
 #   script-name: if provided, adds a "Rerun" inline button that triggers the script
+# Deduplication: identical alerts from the same script are suppressed for 1 hour.
 # Loads TG_BOT_TOKEN and TG_CHAT_ID from ~/jarvis/.env
 
 JARVIS_ENV="$HOME/jarvis/.env"
@@ -25,6 +26,28 @@ if [ -z "$MESSAGE" ]; then
     echo "Usage: $0 \"message\" [script-name]" >&2
     exit 1
 fi
+
+# --- Deduplication: suppress identical alerts within cooldown ---
+DEDUP_DIR="$HOME/jarvis/state/alert-dedup"
+COOLDOWN_SECONDS=3600
+mkdir -p "$DEDUP_DIR"
+
+SCRIPT_TAG="${RERUN_SCRIPT:-generic}"
+MSG_HASH=$(echo "$MESSAGE" | md5sum | cut -d' ' -f1)
+STATE_FILE="$DEDUP_DIR/${SCRIPT_TAG}_${MSG_HASH}"
+
+if [ -f "$STATE_FILE" ]; then
+    LAST_SENT=$(cat "$STATE_FILE")
+    NOW=$(date +%s)
+    if [ $((NOW - LAST_SENT)) -lt $COOLDOWN_SECONDS ]; then
+        exit 0
+    fi
+fi
+
+date +%s > "$STATE_FILE"
+
+# Clean up state files older than 24 hours
+find "$DEDUP_DIR" -type f -mmin +1440 -delete 2>/dev/null
 
 if [ -n "$RERUN_SCRIPT" ]; then
     REPLY_MARKUP="{\"inline_keyboard\":[[{\"text\":\"🔄 Rerun\",\"callback_data\":\"j:${RERUN_SCRIPT}\"}]]}"
