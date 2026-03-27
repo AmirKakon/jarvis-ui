@@ -246,20 +246,40 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 // --- Parse delegation JSON from front model response ---
 
 function parseDelegation(text) {
-  try {
-    let trimmed = text.trim();
-    // Strip markdown code fences if the model wrapped the JSON
-    if (trimmed.startsWith('```')) {
-      trimmed = trimmed.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  const normalize = (s) => s
+    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
+
+  const tryParse = (s) => {
+    try {
+      const parsed = JSON.parse(s);
+      if (parsed.delegate === true && parsed.task) return parsed;
+    } catch { /* not valid JSON */ }
+    return null;
+  };
+
+  let trimmed = text.trim();
+  if (trimmed.startsWith('```')) {
+    trimmed = trimmed.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  }
+  trimmed = normalize(trimmed);
+
+  // Try full text as JSON
+  if (trimmed.startsWith('{')) {
+    const result = tryParse(trimmed);
+    if (result) return result;
+  }
+
+  // Fallback: extract JSON object embedded in prose (e.g. "Sure, Sir. {...}")
+  const jsonStart = trimmed.indexOf('{"delegate"');
+  if (jsonStart >= 0) {
+    const jsonEnd = trimmed.lastIndexOf('}');
+    if (jsonEnd > jsonStart) {
+      const result = tryParse(trimmed.slice(jsonStart, jsonEnd + 1));
+      if (result) return result;
     }
-    if (!trimmed.startsWith('{')) return null;
-    // Normalize smart/curly quotes → ASCII (Haiku sometimes uses them)
-    trimmed = trimmed
-      .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
-      .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
-    const parsed = JSON.parse(trimmed);
-    if (parsed.delegate === true && parsed.task) return parsed;
-  } catch { /* not JSON */ }
+  }
+
   return null;
 }
 
