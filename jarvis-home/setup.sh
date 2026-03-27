@@ -169,7 +169,7 @@ echo "  Done."
 echo ""
 
 ALIAS_CMD='alias jarvis="cd ~/jarvis && claude --dangerously-skip-permissions"'
-UPDATE_CMD='alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull origin feature/advanced && cd jarvis-home && bash setup.sh"'
+UPDATE_CMD='alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull && cd jarvis-home && bash setup.sh"'
 SHELL_RC=""
 
 if [ -f "$HOME/.bashrc" ]; then
@@ -187,7 +187,7 @@ if [ -n "$SHELL_RC" ]; then
     echo '' >> "$SHELL_RC"
     echo '# Jarvis — Claude Code assistant' >> "$SHELL_RC"
     echo 'alias jarvis="cd ~/jarvis && claude --dangerously-skip-permissions"' >> "$SHELL_RC"
-    echo 'alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull origin feature/advanced && cd jarvis-home && bash setup.sh"' >> "$SHELL_RC"
+    echo 'alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull && cd jarvis-home && bash setup.sh"' >> "$SHELL_RC"
 
     echo -e "  ${GREEN}Aliases configured in $SHELL_RC${NC}"
     echo ""
