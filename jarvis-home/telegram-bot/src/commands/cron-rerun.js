@@ -36,9 +36,14 @@ export async function cronRerun(ctx) {
   );
 
   const icon = ok ? '✅' : '🔴';
-  const result = output
-    ? `\n${pre(output.slice(-1500))}`
-    : '\n<i>No output</i>';
+  let result;
+  if (output) {
+    result = `\n${pre(output.slice(-1500))}`;
+  } else if (ok) {
+    result = '\n<i>All checks passed — no issues detected.</i>';
+  } else {
+    result = '\n<i>Script failed with no output.</i>';
+  }
 
   try {
     await ctx.telegram.editMessageText(
