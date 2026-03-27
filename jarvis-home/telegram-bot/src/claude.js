@@ -345,12 +345,6 @@ export async function askClaude(ctx, textOverride = null) {
     }
 
     await ctx.replyWithHTML(response);
-
-    if (opusOk && prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, opusOutput).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
-    }
   } else {
     // Direct response from front model
     await storeMessage(sessionId, 'assistant', output);
