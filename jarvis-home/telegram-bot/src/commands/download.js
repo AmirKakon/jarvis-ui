@@ -274,8 +274,8 @@ async function handleOrganizeConfirm(ctx, shortHash) {
 
   try { unlinkSync(pendingFile); } catch { /* ignore */ }
 
-  // Remove torrent from qBittorrent (files already moved)
-  if (meta.hash) {
+  // Remove torrent from qBittorrent (files already moved, skip for orphans)
+  if (meta.hash && !meta.orphan) {
     await qbtApi('torrents/delete', 'POST', `hashes=${meta.hash}&deleteFiles=false`);
   }
 
@@ -474,6 +474,26 @@ const COMPLETED_STATES = new Set([
   'stoppedUP',  // qBittorrent v5+ renamed pausedUP to stoppedUP
 ]);
 
+function scanOrphanedDownloads(knownTorrents) {
+  if (!existsSync(DOWNLOADS_HOST)) return [];
+
+  const knownNames = new Set(knownTorrents.map(t => basename(t.content_path)));
+  const entries = [];
+
+  try {
+    for (const name of readdirSync(DOWNLOADS_HOST)) {
+      if (name.startsWith('.') || knownNames.has(name)) continue;
+      const fullPath = `${DOWNLOADS_HOST}/${name}`;
+      try {
+        const isDir = statSync(fullPath).isDirectory();
+        entries.push({ name, path: fullPath, isDir });
+      } catch { /* stat failed */ }
+    }
+  } catch { /* readdir failed */ }
+
+  return entries;
+}
+
 async function handleOrganize(ctx) {
   const placeholder = await ctx.replyWithHTML('<i>Scanning for completed downloads...</i>');
   const { ok, output } = await qbtApi('torrents/info');
@@ -490,8 +510,65 @@ async function handleOrganize(ctx) {
   }
 
   const completed = torrents.filter(t => COMPLETED_STATES.has(t.state));
+
+  // Fallback: scan filesystem for orphaned folders not tracked by qBittorrent
   if (!completed.length) {
-    return editOrReply(ctx, placeholder.message_id, 'No completed downloads to organize.');
+    const orphans = scanOrphanedDownloads(torrents);
+    if (!orphans.length) {
+      return editOrReply(ctx, placeholder.message_id, 'No completed downloads to organize.');
+    }
+
+    await editOrReply(ctx, placeholder.message_id,
+      `Found <b>${orphans.length}</b> orphaned download(s) on disk. Processing...`
+    );
+
+    for (const entry of orphans) {
+      const fakeHash = Buffer.from(entry.name).toString('hex').slice(0, 40).padEnd(40, '0');
+      const shortHash = fakeHash.slice(0, 8);
+
+      let meta = parseTorrentName(entry.name, `/downloads/${entry.name}`, '');
+      if (!meta) meta = await claudeParseFallback(entry.name, `/downloads/${entry.name}`);
+      if (!meta) {
+        meta = {
+          type: 'unknown',
+          title: entry.name,
+          quality: 'unknown',
+          is_dir: entry.isDir,
+          source_file: entry.path,
+          destination: `${DOWNLOADS_HOST}/${entry.name}`,
+        };
+      }
+
+      meta.hash = fakeHash;
+      meta.orphan = true;
+
+      try {
+        writeFileSync(`${PENDING_DIR}/${shortHash}.json`, JSON.stringify(meta, null, 2));
+      } catch (err) {
+        await ctx.replyWithHTML(`🔴 Failed to write pending file for ${escapeHtml(entry.name)}: ${escapeHtml(err.message)}`);
+        continue;
+      }
+
+      const icon = meta.type === 'tv' ? '📺' : meta.type === 'movie' ? '🎬' : '❓';
+      const shortDest = meta.destination.replace(new RegExp(`^${HOME}/`), '');
+
+      await ctx.replyWithHTML(
+        [
+          `<b>${icon} ${escapeHtml(meta.title)}</b> <i>(orphaned)</i>`,
+          `Type: ${meta.type} | Quality: ${meta.quality || 'unknown'}`,
+          '',
+          `Move to:\n<code>${escapeHtml(shortDest)}</code>`,
+        ].join('\n'),
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback('✅ Confirm', `dl:c:${shortHash}`),
+            Markup.button.callback('✏️ Edit path', `dl:e:${shortHash}`),
+            Markup.button.callback('⏭ Skip', `dl:s:${shortHash}`),
+          ],
+        ])
+      );
+    }
+    return;
   }
 
   await editOrReply(ctx, placeholder.message_id,
