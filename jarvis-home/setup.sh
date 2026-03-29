@@ -190,7 +190,7 @@ fi
 
 if [ -n "$SHELL_RC" ]; then
     # Remove any existing jarvis aliases and their comment header
-    grep -v '^# Jarvis .* Claude Code' "$SHELL_RC" | grep -v '^alias jarvis=' | grep -v '^alias jarvis-update=' > "$SHELL_RC.tmp"
+    grep -v '^# Jarvis .* Claude Code' "$SHELL_RC" | grep -v '^alias jarvis=' | grep -v '^alias jarvis-update=' | grep -v '^alias jarvis-deploy=' | grep -v '^jarvis-deploy()' > "$SHELL_RC.tmp"
     mv "$SHELL_RC.tmp" "$SHELL_RC"
 
     # Add fresh aliases
@@ -198,6 +198,7 @@ if [ -n "$SHELL_RC" ]; then
     echo '# Jarvis — Claude Code assistant' >> "$SHELL_RC"
     echo 'alias jarvis="cd ~/jarvis && claude --dangerously-skip-permissions"' >> "$SHELL_RC"
     echo 'alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull && cd jarvis-home && bash setup.sh"' >> "$SHELL_RC"
+    echo 'jarvis-deploy() { cd ~/repos/jarvis-ui && git fetch && git checkout "${1:-main}" && git pull && cd jarvis-home && bash setup.sh; }' >> "$SHELL_RC"
 
     echo -e "  ${GREEN}Aliases configured in $SHELL_RC${NC}"
     echo ""
