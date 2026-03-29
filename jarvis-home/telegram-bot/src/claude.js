@@ -65,7 +65,7 @@ export async function forceNewSession(chatId) {
   return result;
 }
 
-export { closePool };
+export { closePool, extractResponseContent };
 
 // --- Front-layer system prompt ---
 
@@ -83,19 +83,54 @@ The memory block below (if present) contains your permanent facts and conversati
 YOUR CAPABILITIES:
 You handle casual conversation, simple questions, knowledge queries, and memory-related tasks DIRECTLY.
 
-DELEGATION:
-For tasks that require EXECUTING commands on the server — Docker, systemctl, SSH, reading logs, restarting services, deploying, disk/network diagnostics, file operations, n8n workflows, Home Assistant device actions, qBittorrent management, system health checks, or ANYTHING requiring shell access — you MUST delegate.
+ACTIONS:
+When you cannot answer directly, respond with ONLY a JSON object (no other text):
 
-When delegating, respond with ONLY this JSON (no other text):
-{"delegate": true, "task": "full description of what to do, with context", "acknowledge": "brief message to user about what you're doing"}
+1. Server tasks (Docker, systemctl, SSH, logs, deploys, disk/network diagnostics, file ops, n8n, HA device actions, qBittorrent, system health):
+{"delegate": true, "task": "full description of what to do, with context", "acknowledge": "brief message to user"}
 
-IMPORTANT:
-- If the user asks you to CHECK something on the server (status, logs, disk space), that requires delegation.
-- If the user asks a KNOWLEDGE question (what is Docker, explain Linux), answer directly.
-- If unsure whether delegation is needed, delegate — it's safer.
-- Never mention delegation, models, or architecture to the user. Just respond naturally or delegate silently.`;
+2. Web search (current events, real-time info, news, prices, weather, anything needing up-to-date knowledge):
+{"search": true, "query": "concise search query", "acknowledge": "brief message to user"}
 
-// --- Front model API call (Haiku 3.5 primary, GPT-4o-mini fallback) ---
+RULES:
+- Server operations (check status, read logs, restart services) → delegate
+- Current info, news, prices, live data → search
+- Knowledge questions (what is X, explain Y) → answer directly
+- If unsure whether to delegate or search → delegate (safer)
+- Never mention actions, models, or architecture to the user. Just respond naturally.`;
+
+// --- Parse Anthropic multi-block response (text + web search citations) ---
+
+function extractResponseContent(data) {
+  const blocks = data.content || [];
+  const lastSearchIdx = blocks.findLastIndex((b) => b.type === 'web_search_tool_result');
+  const searched = lastSearchIdx >= 0;
+
+  const textParts = [];
+  const sources = new Map();
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    if (block.type !== 'text') continue;
+    // Skip preamble text before search results ("I'll search for...")
+    if (searched && i <= lastSearchIdx) continue;
+
+    textParts.push(block.text);
+    for (const cite of (block.citations || [])) {
+      if (cite.url && !sources.has(cite.url)) {
+        sources.set(cite.url, cite.title || cite.url);
+      }
+    }
+  }
+
+  return {
+    text: textParts.join('').trim(),
+    sources: [...sources.entries()].map(([url, title]) => ({ url, title })),
+    searched,
+  };
+}
+
+// --- Front model API call (Haiku 4.5 primary, GPT-4o-mini fallback) — pure router, no tools ---
 
 async function runFrontModel(systemPrompt, userMessage) {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -168,6 +203,53 @@ async function runFrontModel(systemPrompt, userMessage) {
   }
 
   return { ok: false, output: 'No API key available for front model (set ANTHROPIC_API_KEY or OPENAI_API_KEY).' };
+}
+
+// --- Web search — separate focused Haiku call with Anthropic web search tool ---
+
+async function runWebSearch(query) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured', sources: [] };
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: 'You are a concise research assistant. Answer based on web search results. Cite sources. Use British English.',
+        messages: [{ role: 'user', content: query }],
+        tools: [{
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 3,
+          user_location: {
+            type: 'approximate',
+            city: 'Jerusalem',
+            country: 'IL',
+            timezone: 'Asia/Jerusalem',
+          },
+        }],
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      return { ok: false, output: `Search API error: ${res.status}`, sources: [] };
+    }
+
+    const data = await res.json();
+    const { text, sources } = extractResponseContent(data);
+    return { ok: !!text, output: text || 'No results found.', sources };
+  } catch (err) {
+    return { ok: false, output: err.message, sources: [] };
+  }
 }
 
 // --- Claude Code CLI (Opus — for delegated server tasks) ---
@@ -243,9 +325,11 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
   }
 }
 
-// --- Parse delegation JSON from front model response ---
+// --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-function parseDelegation(text) {
+const ACTION_KEYS = ['delegate', 'search'];
+
+function parseAction(text) {
   const normalize = (s) => s
     .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
     .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
@@ -253,7 +337,9 @@ function parseDelegation(text) {
   const tryParse = (s) => {
     try {
       const parsed = JSON.parse(s);
-      if (parsed.delegate === true && parsed.task) return parsed;
+      if (typeof parsed === 'object' && parsed !== null) {
+        if (ACTION_KEYS.some((k) => parsed[k])) return parsed;
+      }
     } catch { /* not valid JSON */ }
     return null;
   };
@@ -264,19 +350,21 @@ function parseDelegation(text) {
   }
   trimmed = normalize(trimmed);
 
-  // Try full text as JSON
   if (trimmed.startsWith('{')) {
     const result = tryParse(trimmed);
     if (result) return result;
   }
 
-  // Fallback: extract JSON object embedded in prose (e.g. "Sure, Sir. {...}")
-  const jsonStart = trimmed.indexOf('{"delegate"');
-  if (jsonStart >= 0) {
-    const jsonEnd = trimmed.lastIndexOf('}');
-    if (jsonEnd > jsonStart) {
-      const result = tryParse(trimmed.slice(jsonStart, jsonEnd + 1));
-      if (result) return result;
+  // Fallback: extract JSON object embedded in prose
+  for (const key of ACTION_KEYS) {
+    const marker = `{"${key}"`;
+    const jsonStart = trimmed.indexOf(marker);
+    if (jsonStart >= 0) {
+      const jsonEnd = trimmed.lastIndexOf('}');
+      if (jsonEnd > jsonStart) {
+        const result = tryParse(trimmed.slice(jsonStart, jsonEnd + 1));
+        if (result) return result;
+      }
     }
   }
 
@@ -313,12 +401,55 @@ export async function askClaude(ctx, textOverride = null) {
     return;
   }
 
-  // Check if front model wants to delegate to Opus
-  const delegation = parseDelegation(output);
+  const action = parseAction(output);
 
-  if (delegation) {
-    console.log(`[front] Delegating to Opus: ${delegation.task.slice(0, 100)}`);
-    const ack = delegation.acknowledge || 'Working on it, Sir...';
+  // --- Web search action ---
+  if (action?.search) {
+    const ack = action.acknowledge || 'Searching the web, Sir...';
+    console.log(`[front] Web search: ${action.query?.slice(0, 100)}`);
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `🔍 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+    ).catch(() => {});
+
+    const { ok: searchOk, output: searchOutput, sources } = await runWebSearch(action.query);
+
+    await storeMessage(sessionId, 'assistant', searchOk ? searchOutput : `Search failed: ${searchOutput}`);
+
+    let response;
+    if (searchOk) {
+      response = truncate(mdToHtml(searchOutput), 3700);
+      if (sources?.length) {
+        const links = sources.map((s) =>
+          `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`
+        ).join(' · ');
+        response += `\n\n📎 ${links}`;
+      }
+    } else {
+      response = `🔴 Search failed: ${escapeHtml(searchOutput)}`;
+    }
+
+    try {
+      await ctx.telegram.editMessageText(
+        thinking.chat.id, thinking.message_id, undefined,
+        response, { parse_mode: 'HTML', disable_web_page_preview: true }
+      );
+    } catch {
+      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+    }
+
+    if (searchOk && prompt.length > 10) {
+      offerFactExtraction(ctx, prompt, searchOutput).catch((err) =>
+        console.error('Fact extraction failed:', err.message)
+      );
+    }
+    return;
+  }
+
+  // --- Server delegation action ---
+  if (action?.delegate) {
+    console.log(`[front] Delegating to Opus: ${action.task.slice(0, 100)}`);
+    const ack = action.acknowledge || 'Working on it, Sir...';
     await ctx.telegram.editMessageText(
       thinking.chat.id, thinking.message_id, undefined,
       `⚙️ <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
@@ -330,7 +461,7 @@ export async function askClaude(ctx, textOverride = null) {
     }
 
     recordTo(opusCallLog);
-    const opusPrompt = `${contextPrompt}\n\nTask to execute: ${delegation.task}`;
+    const opusPrompt = `${contextPrompt}\n\nTask to execute: ${action.task}`;
     const { ok: opusOk, output: opusOutput } = await runOpus(opusPrompt);
     const left = remainingIn(opusCallLog, OPUS_RATE_MAX);
 
@@ -345,25 +476,26 @@ export async function askClaude(ctx, textOverride = null) {
     }
 
     await ctx.replyWithHTML(response);
-  } else {
-    // Direct response from front model
-    await storeMessage(sessionId, 'assistant', output);
+    return;
+  }
 
-    const response = truncate(mdToHtml(output), 3900);
-    try {
-      await ctx.telegram.editMessageText(
-        thinking.chat.id, thinking.message_id, undefined,
-        response, { parse_mode: 'HTML' }
-      );
-    } catch {
-      await ctx.replyWithHTML(response);
-    }
+  // --- Direct response ---
+  await storeMessage(sessionId, 'assistant', output);
 
-    if (prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, output).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
-    }
+  const response = truncate(mdToHtml(output), 3900);
+  try {
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      response, { parse_mode: 'HTML' }
+    );
+  } catch {
+    await ctx.replyWithHTML(response);
+  }
+
+  if (prompt.length > 10) {
+    offerFactExtraction(ctx, prompt, output).catch((err) =>
+      console.error('Fact extraction failed:', err.message)
+    );
   }
 }
 

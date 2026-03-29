@@ -18,6 +18,7 @@ import {
 } from './media.js';
 import { memoryCommand } from './commands/memory.js';
 import { securityCommand, securityRefresh } from './commands/security.js';
+import { searchCommand } from './commands/search.js';
 import { cronRerun } from './commands/cron-rerun.js';
 
 // --- Load environment from ~/jarvis/.env ---
@@ -93,6 +94,7 @@ const HELP_TEXT = [
   '/n8n       — n8n workflow management',
   '/download  — torrent downloads',
   '/security  — security dashboard',
+  '/search    — web search (AI-summarized)',
   '/help      — this message',
   '',
   '<b>Memory (persistent across sessions):</b>',
@@ -122,6 +124,7 @@ bot.command('ha', haCommand);
 bot.command('n8n', n8nCommand);
 bot.command('download', downloadCommand);
 bot.command('security', securityCommand);
+bot.command('search', searchCommand);
 bot.command('deep', askOpusDirect);
 bot.command('remember', memoryCommand('remember'));
 bot.command('recall', memoryCommand('recall'));
@@ -221,6 +224,7 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'n8n', description: 'n8n workflow management' },
     { command: 'download', description: 'Torrent downloads' },
     { command: 'security', description: 'Security dashboard' },
+    { command: 'search', description: 'Web search (AI-summarized)' },
     { command: 'remember', description: 'Store a permanent fact' },
     { command: 'recall', description: 'Search past conversations' },
     { command: 'memory', description: 'Memory stats' },
