@@ -5,6 +5,8 @@
 - ~~markdown to html converter for the telegram bot~~ — `mdToHtml()` in utils.js
 - ~~control house via HA~~ — `/ha` command (status, states, toggle, automate, scene)
 - ~~search the web capability~~ — Anthropic web search tool in front model + `/search` command
+- ~~read web pages / PDFs~~ — Anthropic web fetch tool (`web_fetch_20250910`), front model routes `{"fetch": true}`
+- ~~calculations & code execution~~ — Anthropic sandbox (`code_execution_20250825`), front model routes `{"compute": true}`, supports chart images
 
 ## 🔧 Planned
 

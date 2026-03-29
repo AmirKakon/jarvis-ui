@@ -92,19 +92,29 @@ When you cannot answer directly, respond with ONLY a JSON object (no other text)
 2. Web search (current events, real-time info, news, prices, weather, anything needing up-to-date knowledge):
 {"search": true, "query": "concise search query", "acknowledge": "brief message to user"}
 
+3. Read a web page or PDF (user shares a URL and wants content read, summarised, or answered about):
+{"fetch": true, "url": "the URL to read", "question": "what the user wants to know", "acknowledge": "brief message to user"}
+
+4. Calculations, data analysis, or code tasks (math, conversions, charts, CSV analysis, programming puzzles):
+{"compute": true, "task": "what to calculate or generate", "acknowledge": "brief message to user"}
+
 RULES:
 - Server operations (check status, read logs, restart services) → delegate
 - Current info, news, prices, live data → search
+- URL shared with a question about its content → fetch
+- Math, conversions, data analysis, generate charts → compute
 - Knowledge questions (what is X, explain Y) → answer directly
 - If unsure whether to delegate or search → delegate (safer)
 - Never mention actions, models, or architecture to the user. Just respond naturally.`;
 
-// --- Parse Anthropic multi-block response (text + web search citations) ---
+// --- Parse Anthropic multi-block response (text + citations from search/fetch/code) ---
+
+const TOOL_RESULT_TYPES = ['web_search_tool_result', 'web_fetch_tool_result', 'code_execution_result'];
 
 function extractResponseContent(data) {
   const blocks = data.content || [];
-  const lastSearchIdx = blocks.findLastIndex((b) => b.type === 'web_search_tool_result');
-  const searched = lastSearchIdx >= 0;
+  const lastToolIdx = blocks.findLastIndex((b) => TOOL_RESULT_TYPES.includes(b.type));
+  const searched = lastToolIdx >= 0;
 
   const textParts = [];
   const sources = new Map();
@@ -112,8 +122,8 @@ function extractResponseContent(data) {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     if (block.type !== 'text') continue;
-    // Skip preamble text before search results ("I'll search for...")
-    if (searched && i <= lastSearchIdx) continue;
+    // Skip preamble text before tool results ("I'll search for...", "Let me fetch...")
+    if (searched && i <= lastToolIdx) continue;
 
     textParts.push(block.text);
     for (const cite of (block.citations || [])) {
@@ -252,6 +262,111 @@ async function runWebSearch(query) {
   }
 }
 
+// --- Web fetch — separate focused Haiku call with Anthropic web fetch tool ---
+
+async function runWebFetch(url, question) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured', sources: [] };
+
+  try {
+    const prompt = question
+      ? `Fetch and read ${url}, then answer: ${question}`
+      : `Fetch and read ${url}, then summarise the key content.`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: 'You are a concise research assistant. Read the fetched content and answer the question or provide a summary. Cite sources. Use British English.',
+        messages: [{ role: 'user', content: prompt }],
+        tools: [{
+          type: 'web_fetch_20250910',
+          name: 'web_fetch',
+          max_uses: 3,
+          max_content_tokens: 20000,
+        }],
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      return { ok: false, output: `Fetch API error: ${res.status}`, sources: [] };
+    }
+
+    const data = await res.json();
+    const { text, sources } = extractResponseContent(data);
+    return { ok: !!text, output: text || 'Could not read the page.', sources };
+  } catch (err) {
+    return { ok: false, output: err.message, sources: [] };
+  }
+}
+
+// --- Code execution — separate focused Haiku call with Anthropic sandbox ---
+
+function extractCodeImages(data) {
+  const images = [];
+  for (const block of (data.content || [])) {
+    if (block.type !== 'code_execution_result') continue;
+    for (const item of (block.content || [])) {
+      if (item.type === 'image' && item.source?.type === 'base64') {
+        images.push({ base64: item.source.data, mediaType: item.source.media_type || 'image/png' });
+      }
+    }
+  }
+  return images;
+}
+
+async function runCodeExecution(task) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured', sources: [], images: [] };
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        system: 'You are a precise computation assistant. Write and execute code to solve the task. Show results clearly. Use British English.',
+        messages: [{ role: 'user', content: task }],
+        tools: [
+          { type: 'code_execution_20250825', name: 'code_execution' },
+          {
+            type: 'web_search_20250305',
+            name: 'web_search',
+            max_uses: 0,
+            user_location: { type: 'approximate', city: 'Jerusalem', country: 'IL', timezone: 'Asia/Jerusalem' },
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      return { ok: false, output: `Code execution API error: ${res.status}`, sources: [], images: [] };
+    }
+
+    const data = await res.json();
+    const { text, sources } = extractResponseContent(data);
+    const images = extractCodeImages(data);
+    return { ok: !!text, output: text || 'No output.', sources, images };
+  } catch (err) {
+    return { ok: false, output: err.message, sources: [], images: [] };
+  }
+}
+
 // --- Claude Code CLI (Opus — for delegated server tasks) ---
 
 const OPUS_TIMEOUT = 360_000; // 6 minutes
@@ -327,7 +442,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 // --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-const ACTION_KEYS = ['delegate', 'search'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute'];
 
 function parseAction(text) {
   const normalize = (s) => s
@@ -440,6 +555,104 @@ export async function askClaude(ctx, textOverride = null) {
 
     if (searchOk && prompt.length > 10) {
       offerFactExtraction(ctx, prompt, searchOutput).catch((err) =>
+        console.error('Fact extraction failed:', err.message)
+      );
+    }
+    return;
+  }
+
+  // --- Web fetch action ---
+  if (action?.fetch) {
+    const ack = action.acknowledge || 'Reading the page, Sir...';
+    console.log(`[front] Web fetch: ${action.url?.slice(0, 100)}`);
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `📄 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+    ).catch(() => {});
+
+    const { ok: fetchOk, output: fetchOutput, sources } = await runWebFetch(action.url, action.question);
+
+    await storeMessage(sessionId, 'assistant', fetchOk ? fetchOutput : `Fetch failed: ${fetchOutput}`);
+
+    let response;
+    if (fetchOk) {
+      response = truncate(mdToHtml(fetchOutput), 3700);
+      if (sources?.length) {
+        const links = sources.map((s) =>
+          `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`
+        ).join(' · ');
+        response += `\n\n📎 ${links}`;
+      }
+    } else {
+      response = `🔴 Failed to read page: ${escapeHtml(fetchOutput)}`;
+    }
+
+    try {
+      await ctx.telegram.editMessageText(
+        thinking.chat.id, thinking.message_id, undefined,
+        response, { parse_mode: 'HTML', disable_web_page_preview: true }
+      );
+    } catch {
+      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+    }
+
+    if (fetchOk && prompt.length > 10) {
+      offerFactExtraction(ctx, prompt, fetchOutput).catch((err) =>
+        console.error('Fact extraction failed:', err.message)
+      );
+    }
+    return;
+  }
+
+  // --- Code execution action ---
+  if (action?.compute) {
+    const ack = action.acknowledge || 'Running calculations, Sir...';
+    console.log(`[front] Code execution: ${action.task?.slice(0, 100)}`);
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `🧮 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+    ).catch(() => {});
+
+    const { ok: codeOk, output: codeOutput, sources, images } = await runCodeExecution(action.task);
+
+    await storeMessage(sessionId, 'assistant', codeOk ? codeOutput : `Computation failed: ${codeOutput}`);
+
+    let response;
+    if (codeOk) {
+      response = truncate(mdToHtml(codeOutput), 3700);
+      if (sources?.length) {
+        const links = sources.map((s) =>
+          `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`
+        ).join(' · ');
+        response += `\n\n📎 ${links}`;
+      }
+    } else {
+      response = `🔴 Computation failed: ${escapeHtml(codeOutput)}`;
+    }
+
+    try {
+      await ctx.telegram.editMessageText(
+        thinking.chat.id, thinking.message_id, undefined,
+        response, { parse_mode: 'HTML' }
+      );
+    } catch {
+      await ctx.replyWithHTML(response);
+    }
+
+    // Send generated images (charts, plots) as photos
+    if (codeOk && images?.length) {
+      for (const img of images) {
+        try {
+          const buf = Buffer.from(img.base64, 'base64');
+          await ctx.replyWithPhoto({ source: buf, filename: 'chart.png' });
+        } catch (err) {
+          console.error('Failed to send generated image:', err.message);
+        }
+      }
+    }
+
+    if (codeOk && prompt.length > 10) {
+      offerFactExtraction(ctx, prompt, codeOutput).catch((err) =>
         console.error('Fact extraction failed:', err.message)
       );
     }
