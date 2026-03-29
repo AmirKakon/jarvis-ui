@@ -2,10 +2,14 @@
 # Docker security audit — checks for outdated images, root/privileged containers.
 # Runs via cron weekly (Sunday 04:00).
 # Logs to ~/jarvis/logs/docker-security.log
+#
+# To suppress root-user findings for a container:
+#   echo "container_name" >> ~/jarvis/logs/docker-security-allowlist.txt
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$HOME/jarvis/logs"
 LOG_FILE="$LOG_DIR/docker-security.log"
+ALLOWLIST="$LOG_DIR/docker-security-allowlist.txt"
 
 mkdir -p "$LOG_DIR"
 
@@ -16,6 +20,10 @@ if ! command -v docker &>/dev/null; then
     exit 0
 fi
 
+is_allowed() {
+    [ -f "$ALLOWLIST" ] && grep -qxF "$1" "$ALLOWLIST"
+}
+
 FINDINGS=""
 FINDING_COUNT=0
 
@@ -24,8 +32,12 @@ while IFS= read -r line; do
     NAME=$(echo "$line" | cut -d'|' -f1)
     USER=$(echo "$line" | cut -d'|' -f2)
     if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
-        FINDINGS="${FINDINGS}\n🟡 <b>${NAME}</b> runs as root"
-        FINDING_COUNT=$((FINDING_COUNT + 1))
+        if ! is_allowed "$NAME"; then
+            FINDINGS="${FINDINGS}\n🟡 <b>${NAME}</b> runs as root"
+            FINDING_COUNT=$((FINDING_COUNT + 1))
+        else
+            echo "[$TIMESTAMP] $NAME runs as root (allowlisted)" >> "$LOG_FILE"
+        fi
     fi
 done <<< "$(docker ps --format '{{.Names}}' | while read -r c; do
     USER=$(docker inspect --format '{{.Config.User}}' "$c" 2>/dev/null)
@@ -54,7 +66,6 @@ done
 OUTDATED=""
 for CONTAINER in $(docker ps --format '{{.Names}}'); do
     IMAGE=$(docker inspect --format '{{.Config.Image}}' "$CONTAINER" 2>/dev/null)
-    # Skip local/unnamed images
     if [[ "$IMAGE" != *"/"* ]] && [[ "$IMAGE" != *":"* ]]; then
         continue
     fi

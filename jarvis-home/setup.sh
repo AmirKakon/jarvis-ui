@@ -27,45 +27,45 @@ if [ -d "$JARVIS_DIR/.claude" ]; then
 fi
 
 # --- Step 1: Global Claude config ---
-echo -e "${GREEN}[1/16]${NC} Setting up global Claude config (~/.claude/CLAUDE.md)..."
+echo -e "${GREEN}[1/17]${NC} Setting up global Claude config (~/.claude/CLAUDE.md)..."
 mkdir -p "$GLOBAL_CLAUDE_DIR"
 cp "$SCRIPT_DIR/global-claude/CLAUDE.md" "$GLOBAL_CLAUDE_DIR/CLAUDE.md"
 echo "  Done."
 
 # --- Step 2: Project CLAUDE.md ---
-echo -e "${GREEN}[2/16]${NC} Setting up Jarvis project directory ($JARVIS_DIR)..."
+echo -e "${GREEN}[2/17]${NC} Setting up Jarvis project directory ($JARVIS_DIR)..."
 mkdir -p "$JARVIS_DIR"
 cp "$SCRIPT_DIR/CLAUDE.md" "$JARVIS_DIR/CLAUDE.md"
 echo "  Done."
 
 # --- Step 3: Rules (clean sync) ---
-echo -e "${GREEN}[3/16]${NC} Syncing rules ($JARVIS_DIR/.claude/rules/)..."
+echo -e "${GREEN}[3/17]${NC} Syncing rules ($JARVIS_DIR/.claude/rules/)..."
 mkdir -p "$JARVIS_DIR/.claude/rules"
 rm -f "$JARVIS_DIR/.claude/rules/"*.md
 cp "$SCRIPT_DIR/.claude/rules/"*.md "$JARVIS_DIR/.claude/rules/"
 echo "  Done."
 
 # --- Step 4: Commands (clean sync) ---
-echo -e "${GREEN}[4/16]${NC} Syncing commands ($JARVIS_DIR/.claude/commands/)..."
+echo -e "${GREEN}[4/17]${NC} Syncing commands ($JARVIS_DIR/.claude/commands/)..."
 mkdir -p "$JARVIS_DIR/.claude/commands"
 rm -f "$JARVIS_DIR/.claude/commands/"*.md
 cp "$SCRIPT_DIR/.claude/commands/"*.md "$JARVIS_DIR/.claude/commands/"
 echo "  Done."
 
 # --- Step 5: Agents (clean sync) ---
-echo -e "${GREEN}[5/16]${NC} Syncing subagents ($JARVIS_DIR/.claude/agents/)..."
+echo -e "${GREEN}[5/17]${NC} Syncing subagents ($JARVIS_DIR/.claude/agents/)..."
 mkdir -p "$JARVIS_DIR/.claude/agents"
 rm -f "$JARVIS_DIR/.claude/agents/"*.md
 cp "$SCRIPT_DIR/.claude/agents/"*.md "$JARVIS_DIR/.claude/agents/"
 echo "  Done."
 
 # --- Step 6: Settings ---
-echo -e "${GREEN}[6/16]${NC} Setting up project settings ($JARVIS_DIR/.claude/settings.json)..."
+echo -e "${GREEN}[6/17]${NC} Setting up project settings ($JARVIS_DIR/.claude/settings.json)..."
 cp "$SCRIPT_DIR/.claude/settings.json" "$JARVIS_DIR/.claude/settings.json"
 echo "  Done."
 
 # --- Step 7: Monitoring scripts ---
-echo -e "${GREEN}[7/16]${NC} Syncing monitoring scripts ($JARVIS_DIR/scripts/)..."
+echo -e "${GREEN}[7/17]${NC} Syncing monitoring scripts ($JARVIS_DIR/scripts/)..."
 mkdir -p "$JARVIS_DIR/scripts"
 mkdir -p "$JARVIS_DIR/logs"
 mkdir -p "$JARVIS_DIR/downloads/pending"
@@ -78,11 +78,11 @@ fi
 echo "  Done."
 
 # --- Step 8: Cron jobs ---
-echo -e "${GREEN}[8/16]${NC} Installing monitoring cron jobs..."
+echo -e "${GREEN}[8/17]${NC} Installing monitoring cron jobs..."
 bash "$JARVIS_DIR/scripts/install-cron.sh"
 
 # --- Step 9: Environment file ---
-echo -e "${GREEN}[9/16]${NC} Setting up environment file ($JARVIS_DIR/.env)..."
+echo -e "${GREEN}[9/17]${NC} Setting up environment file ($JARVIS_DIR/.env)..."
 if [ -f "$JARVIS_DIR/.env" ]; then
     echo "  .env already exists — skipping (won't overwrite your secrets)."
 else
@@ -91,7 +91,7 @@ else
 fi
 
 # --- Step 10: Telegram bot ---
-echo -e "${GREEN}[10/16]${NC} Setting up Telegram bot ($JARVIS_DIR/telegram-bot/)..."
+echo -e "${GREEN}[10/17]${NC} Setting up Telegram bot ($JARVIS_DIR/telegram-bot/)..."
 if command -v node &>/dev/null; then
     mkdir -p "$JARVIS_DIR/telegram-bot"
     cp -r "$SCRIPT_DIR/telegram-bot/src" "$JARVIS_DIR/telegram-bot/"
@@ -105,11 +105,11 @@ else
 fi
 
 # --- Step 11: Glances system monitor ---
-echo -e "${GREEN}[11/16]${NC} Installing Glances system monitor..."
+echo -e "${GREEN}[11/17]${NC} Installing Glances system monitor..."
 bash "$SCRIPT_DIR/scripts/install-glances.sh"
 
 # --- Step 12: Telegram bot systemd service ---
-echo -e "${GREEN}[12/16]${NC} Installing Telegram bot service..."
+echo -e "${GREEN}[12/17]${NC} Installing Telegram bot service..."
 if command -v node &>/dev/null; then
     SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
     mkdir -p "$SYSTEMD_USER_DIR"
@@ -123,7 +123,7 @@ else
 fi
 
 # --- Step 13: Docker compose for media services ---
-echo -e "${GREEN}[13/16]${NC} Setting up Docker Compose for media services..."
+echo -e "${GREEN}[13/17]${NC} Setting up Docker Compose for media services..."
 if [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
     cp "$SCRIPT_DIR/docker-compose.yml" "$JARVIS_DIR/docker-compose.yml"
     mkdir -p "$JARVIS_DIR/qbittorrent-config" "$JARVIS_DIR/qbittorrent-init"
@@ -140,7 +140,7 @@ else
 fi
 
 # --- Step 14: Memory maintenance cron (weekly) ---
-echo -e "${GREEN}[14/16]${NC} Installing weekly memory maintenance cron..."
+echo -e "${GREEN}[14/17]${NC} Installing weekly memory maintenance cron..."
 MEMORY_CRON="0 3 * * 0 ${JARVIS_DIR}/scripts/memory-maintenance.sh >> ${JARVIS_DIR}/logs/memory-maintenance.log 2>&1"
 if crontab -l 2>/dev/null | grep -q "memory-maintenance"; then
     echo "  Memory maintenance cron already installed — skipping."
@@ -150,7 +150,7 @@ else
 fi
 
 # --- Step 15: WiFi power save fix (RTL8821CE) ---
-echo -e "${GREEN}[15/16]${NC} Installing WiFi power save fix..."
+echo -e "${GREEN}[15/17]${NC} Installing WiFi power save fix..."
 if iw dev wlan0 info &>/dev/null; then
     sudo cp "$SCRIPT_DIR/wifi-powersave-off.service" /etc/systemd/system/
     sudo systemctl daemon-reload
@@ -161,8 +161,18 @@ else
     echo "  No wlan0 interface found — skipping (not needed on wired connections)."
 fi
 
-# --- Step 16: Finalise ---
-echo -e "${GREEN}[16/16]${NC} Finalising..."
+# --- Step 16: Seed monitoring allowlists ---
+echo -e "${GREEN}[16/17]${NC} Seeding monitoring allowlists..."
+ALLOWLIST="$JARVIS_DIR/logs/docker-security-allowlist.txt"
+for CONTAINER in qbittorrent pgvector jarvis-frontend jarvis-backend; do
+    if ! grep -qxF "$CONTAINER" "$ALLOWLIST" 2>/dev/null; then
+        echo "$CONTAINER" >> "$ALLOWLIST"
+    fi
+done
+echo "  Done. Docker security allowlist: $ALLOWLIST"
+
+# --- Step 17: Finalise ---
+echo -e "${GREEN}[17/17]${NC} Finalising..."
 echo "  Done."
 
 # --- Shell alias ---

@@ -22,7 +22,7 @@ FAILED=""
 SKIPPED=0
 
 ha_curl() {
-    curl -sf -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json" "$@"
+    curl -sS -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json" "$@"
 }
 
 echo "[$TIMESTAMP] Starting HA update check..." >> "$LOG_FILE"
@@ -67,13 +67,16 @@ while IFS='|' read -r ENTITY_ID NAME CUR_VER NEW_VER; do
 
     echo "[$TIMESTAMP] Installing: $NAME ($CUR_VER -> $NEW_VER)..." >> "$LOG_FILE"
 
-    # Trigger install
-    RESULT=$(ha_curl -X POST "$HA_URL/api/services/update/install" \
-        -d "{\"entity_id\": \"$ENTITY_ID\"}" 2>&1)
+    # Trigger install (HA OS Supervisor requires backup: true for core updates)
+    HTTP_CODE=$(curl -sS -o /tmp/ha-update-response.json -w "%{http_code}" \
+        -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json" \
+        -X POST "$HA_URL/api/services/update/install" \
+        -d "{\"entity_id\": \"$ENTITY_ID\", \"backup\": true}" 2>>/tmp/ha-update-err.txt)
 
-    if [ $? -ne 0 ]; then
-        echo "[$TIMESTAMP] Failed to trigger: $NAME" >> "$LOG_FILE"
-        FAILED="${FAILED}\n  🔴 ${NAME}: ${CUR_VER} → ${NEW_VER} (trigger failed)"
+    if [ "$HTTP_CODE" -ge 400 ] 2>/dev/null || [ -z "$HTTP_CODE" ]; then
+        BODY=$(cat /tmp/ha-update-response.json 2>/dev/null | head -c 200)
+        echo "[$TIMESTAMP] Failed to trigger: $NAME (HTTP $HTTP_CODE: $BODY)" >> "$LOG_FILE"
+        FAILED="${FAILED}\n  🔴 ${NAME}: ${CUR_VER} → ${NEW_VER} (HTTP ${HTTP_CODE})"
         continue
     fi
 

@@ -36,8 +36,8 @@ else
     FW_CURRENT="No firewall detected"
 fi
 
-# --- Capture current listening ports ---
-PORTS_CURRENT=$(ss -tlnp 2>/dev/null | grep LISTEN | awk '{print $4}' | sort)
+# --- Capture current listening ports (exclude loopback-only — not externally reachable) ---
+PORTS_CURRENT=$(ss -tlnp 2>/dev/null | grep LISTEN | awk '{print $4}' | grep -v '^127\.\|^\[::1\]' | sort)
 
 # --- First run: establish baseline ---
 if [ ! -f "$FW_SNAPSHOT" ] || [ ! -f "$PORTS_SNAPSHOT" ]; then

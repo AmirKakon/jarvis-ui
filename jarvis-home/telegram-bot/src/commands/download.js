@@ -58,24 +58,33 @@ async function qbtLogin() {
 
 async function qbtApi(endpoint, method = 'GET', body = null) {
   if (!sid) {
-    if (!await qbtLogin()) return { ok: false, output: 'Login failed (cooldown active or bad credentials)' };
+    if (!await qbtLogin()) return { ok: false, output: 'qBittorrent login failed — check credentials in ~/jarvis/.env' };
   }
   const bodyFlag = body ? `-d '${body}'` : '';
-  const { ok, output } = await run(
-    `curl -sf -X ${method} -b "SID=${sid}" ` +
-    `${bodyFlag} "${QBT_URL()}/api/v2/${endpoint}"`,
-    { timeout: 15_000 }
-  );
-  if (!ok && output.includes('403')) {
-    if (!await qbtLogin()) return { ok: false, output: 'Re-login failed' };
-    const retry = await run(
-      `curl -sf -X ${method} -b "SID=${sid}" ` +
-      `${bodyFlag} "${QBT_URL()}/api/v2/${endpoint}"`,
-      { timeout: 15_000 }
-    );
-    return retry;
+  const curlCmd = (sessionId) =>
+    `curl -sS -w "\\n%{http_code}" -X ${method} -b "SID=${sessionId}" ` +
+    `${bodyFlag} "${QBT_URL()}/api/v2/${endpoint}"`;
+
+  const { ok, output } = await run(curlCmd(sid), { timeout: 15_000 });
+
+  // Extract HTTP status code from last line
+  const lines = output.split('\n');
+  const httpCode = lines.pop()?.trim();
+  const responseBody = lines.join('\n');
+
+  if (httpCode === '403' || (!ok && /403|Forbidden/i.test(output))) {
+    sid = '';
+    if (!await qbtLogin()) return { ok: false, output: 'qBittorrent session expired and re-login failed' };
+    const retry = await run(curlCmd(sid), { timeout: 15_000 });
+    return { ok: retry.ok, output: retry.ok ? retry.output.split('\n').slice(0, -1).join('\n') : 'qBittorrent request failed after re-login' };
   }
-  return { ok, output };
+
+  if (!ok) {
+    const diagnosis = await diagnoseUnreachable();
+    return { ok: false, output: diagnosis || 'qBittorrent is unreachable.' };
+  }
+
+  return { ok: true, output: responseBody };
 }
 
 function extractHash(input) {
@@ -131,23 +140,30 @@ async function handleAdd(ctx, input, category) {
 
   if (!sid) await qbtLogin();
 
-  let cmd = `curl -sf -X POST -b "SID=${sid}" ` +
-    `--data-urlencode "urls=${magnetUri}" ` +
-    `--data-urlencode "savepath=/downloads" `;
-  if (category) cmd += `--data-urlencode "category=${category}" `;
-  cmd += `"${QBT_URL()}/api/v2/torrents/add"`;
+  const buildAddCmd = (sessionId) => {
+    let c = `curl -sS -w "\\n%{http_code}" -X POST -b "SID=${sessionId}" ` +
+      `--data-urlencode "urls=${magnetUri}" ` +
+      `--data-urlencode "savepath=/downloads" `;
+    if (category) c += `--data-urlencode "category=${category}" `;
+    c += `"${QBT_URL()}/api/v2/torrents/add"`;
+    return c;
+  };
 
-  let { ok, output } = await run(cmd, { timeout: 15_000 });
+  let { ok, output } = await run(buildAddCmd(sid), { timeout: 15_000 });
 
-  if (!ok && (output.includes('403') || output.includes('Forbidden'))) {
+  // Check for 403 (stale session)
+  if (!ok || /403|Forbidden/i.test(output)) {
+    sid = '';
     await qbtLogin();
-    cmd = cmd.replace(/SID=[^"]*/, `SID=${sid}`);
-    ({ ok, output } = await run(cmd, { timeout: 15_000 }));
+    if (sid) {
+      ({ ok, output } = await run(buildAddCmd(sid), { timeout: 15_000 }));
+    }
   }
 
   if (!ok) {
+    const diagnosis = await diagnoseUnreachable();
     return editOrReply(ctx, placeholder.message_id,
-      `🔴 Failed to add torrent:\n${pre(output || 'qBittorrent unreachable')}`
+      `🔴 ${diagnosis || 'Failed to add torrent — qBittorrent unreachable.'}`
     );
   }
 
@@ -162,11 +178,7 @@ async function handleList(ctx) {
   const { ok, output } = await qbtApi('torrents/info');
 
   if (!ok) {
-    const diagnosis = await diagnoseUnreachable();
-    const detail = diagnosis
-      ? `\n\n${diagnosis}`
-      : `\n${pre(output || 'Connection refused')}`;
-    return editOrReply(ctx, placeholder.message_id, `🔴 qBittorrent unreachable.${detail}`);
+    return editOrReply(ctx, placeholder.message_id, `🔴 ${escapeHtml(output)}`);
   }
 
   let torrents;
