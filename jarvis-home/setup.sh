@@ -198,7 +198,7 @@ if [ -n "$SHELL_RC" ]; then
     echo '# Jarvis — Claude Code assistant' >> "$SHELL_RC"
     echo 'alias jarvis="cd ~/jarvis && claude --dangerously-skip-permissions"' >> "$SHELL_RC"
     echo 'alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull && cd jarvis-home && bash setup.sh"' >> "$SHELL_RC"
-    echo 'jarvis-deploy() { cd ~/repos/jarvis-ui && git fetch && git checkout "${1:-main}" && git pull && cd jarvis-home && bash setup.sh; }' >> "$SHELL_RC"
+    echo 'jarvis-deploy() { cd ~/repos/jarvis-ui && sudo git fetch && sudo git checkout "${1:-main}" && sudo git pull && cd jarvis-home && bash setup.sh; }' >> "$SHELL_RC"
 
     echo -e "  ${GREEN}Aliases configured in $SHELL_RC${NC}"
     echo ""
