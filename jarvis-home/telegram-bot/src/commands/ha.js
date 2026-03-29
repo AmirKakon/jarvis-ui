@@ -11,15 +11,23 @@ function loadEnv() {
   return { url, token };
 }
 
-function curlHA(env, endpoint, method = 'GET', body = null) {
+async function curlHA(env, endpoint, method = 'GET', body = null) {
   const bodyFlag = body ? `-d '${JSON.stringify(body)}'` : '';
-  return run(
-    `curl -sf -X ${method} ` +
+  const { ok, output } = await run(
+    `curl -sS -w "\\n%{http_code}" -X ${method} ` +
       `-H "Authorization: Bearer ${env.token}" ` +
       `-H "Content-Type: application/json" ` +
       `${bodyFlag} "${env.url}/api/${endpoint}"`,
     { timeout: 15_000 }
   );
+  if (!ok) return { ok: false, output: `HA API error (${endpoint})` };
+  const lines = output.split('\n');
+  const httpCode = lines.pop()?.trim();
+  const responseBody = lines.join('\n');
+  if (httpCode && parseInt(httpCode) >= 400) {
+    return { ok: false, output: `HA returned HTTP ${httpCode}` };
+  }
+  return { ok: true, output: responseBody };
 }
 
 const STATUS_KEYBOARD = Markup.inlineKeyboard([
@@ -199,16 +207,22 @@ async function handleEntityState(ctx, env, entityId) {
   }
 }
 
+const DOMAIN_SERVICE_MAP = {
+  scene:  { toggle: 'turn_on', turn_off: 'turn_on' },
+  script: { toggle: 'turn_on', turn_off: 'turn_on' },
+};
+
 async function handleService(ctx, env, service, entityId) {
   const domain = entityId.split('.')[0];
+  const resolved = DOMAIN_SERVICE_MAP[domain]?.[service] || service;
   const { ok, output } = await curlHA(
     env,
-    `services/${domain}/${service}`,
+    `services/${domain}/${resolved}`,
     'POST',
     { entity_id: entityId }
   );
-  if (!ok) return ctx.replyWithHTML(`🔴 ${pre(output)}`);
-  return ctx.replyWithHTML(`🟢 ${code(entityId)} — ${service} executed.`);
+  if (!ok) return ctx.replyWithHTML(`🔴 Failed to ${resolved} ${code(entityId)}.`);
+  return ctx.replyWithHTML(`🟢 ${code(entityId)} — ${resolved} executed.`);
 }
 
 async function handleAutomate(ctx, description) {
