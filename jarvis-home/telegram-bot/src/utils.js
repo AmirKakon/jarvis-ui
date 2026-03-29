@@ -1,4 +1,5 @@
 import { exec } from 'node:child_process';
+import MarkdownIt from 'markdown-it';
 
 const TG_MAX_LENGTH = 4096;
 const TG_SAFE_LENGTH = 4000; // leave room for tags
@@ -53,68 +54,100 @@ export function cbData(prefix, id) {
   return `${prefix}${truncated}`;
 }
 
+// --- Telegram HTML renderer powered by markdown-it ---
+const md = new MarkdownIt({ linkify: true });
+const _rules = md.renderer.rules;
+let _listStack = [];
+
+_rules.paragraph_open = () => '';
+_rules.paragraph_close = (tokens, idx) => (tokens[idx].hidden ? '' : '\n');
+
+_rules.heading_open = () => '<b>';
+_rules.heading_close = () => '</b>\n';
+
+_rules.hr = () => '———\n';
+
+_rules.blockquote_open = () => '<blockquote>';
+_rules.blockquote_close = () => '</blockquote>';
+
+_rules.bullet_list_open = () => {
+  const nested = _listStack.length > 0;
+  _listStack.push({ ordered: false });
+  return nested ? '\n' : '';
+};
+_rules.bullet_list_close = () => { _listStack.pop(); return ''; };
+_rules.ordered_list_open = (tokens, idx) => {
+  const nested = _listStack.length > 0;
+  _listStack.push({ ordered: true, counter: Number(tokens[idx].attrGet('start') || 1) });
+  return nested ? '\n' : '';
+};
+_rules.ordered_list_close = () => { _listStack.pop(); return ''; };
+_rules.list_item_open = () => {
+  const indent = '  '.repeat(Math.max(0, _listStack.length - 1));
+  const item = _listStack[_listStack.length - 1];
+  if (item?.ordered) return `${indent}${item.counter++}. `;
+  return `${indent}• `;
+};
+_rules.list_item_close = () => '\n';
+
+_rules.fence = (tokens, idx) => {
+  const lang = tokens[idx].info.trim().split(/\s+/)[0];
+  const content = escapeHtml(tokens[idx].content.replace(/\n$/, ''));
+  if (lang) return `<pre><code class="language-${escapeHtml(lang)}">${content}</code></pre>\n`;
+  return `<pre>${content}</pre>\n`;
+};
+_rules.code_block = (tokens, idx) =>
+  `<pre>${escapeHtml(tokens[idx].content.replace(/\n$/, ''))}</pre>\n`;
+_rules.code_inline = (tokens, idx) =>
+  `<code>${escapeHtml(tokens[idx].content)}</code>`;
+
+_rules.table_open = () => '<pre>';
+_rules.table_close = () => '</pre>\n';
+_rules.thead_open = () => '';
+_rules.thead_close = () => '';
+_rules.tbody_open = () => '';
+_rules.tbody_close = () => '';
+_rules.tr_open = () => '| ';
+_rules.tr_close = () => '\n';
+_rules.th_open = () => '';
+_rules.th_close = () => ' | ';
+_rules.td_open = () => '';
+_rules.td_close = () => ' | ';
+
+_rules.text = (tokens, idx) => escapeHtml(tokens[idx].content);
+_rules.softbreak = () => '\n';
+_rules.hardbreak = () => '\n';
+_rules.html_block = (tokens, idx) => escapeHtml(tokens[idx].content);
+_rules.html_inline = (tokens, idx) => escapeHtml(tokens[idx].content);
+
+_rules.link_open = (tokens, idx) => {
+  const href = tokens[idx].attrGet('href') || '';
+  return `<a href="${escapeHtml(href)}">`;
+};
+_rules.link_close = () => '</a>';
+_rules.image = (tokens, idx) => {
+  const src = tokens[idx].attrGet('src') || '';
+  const alt = tokens[idx].children?.reduce((s, t) => s + t.content, '') || 'image';
+  return `<a href="${escapeHtml(src)}">${escapeHtml(alt)}</a>`;
+};
+
+_rules.strong_open = () => '<b>';
+_rules.strong_close = () => '</b>';
+_rules.em_open = () => '<i>';
+_rules.em_close = () => '</i>';
+_rules.s_open = () => '<s>';
+_rules.s_close = () => '</s>';
+
+md.renderer.renderToken = () => '';
+
 /**
- * Convert Claude's markdown output to Telegram-compatible HTML.
- * Handles fenced code blocks, inline code, bold, headers, and preserves lists.
+ * Convert markdown to Telegram-compatible HTML using markdown-it.
+ * Supports bold, italic, strikethrough, code, pre (with language),
+ * links, blockquotes, lists, tables (as pre), and headings.
  */
 export function mdToHtml(text) {
-  const lines = text.split('\n');
-  const out = [];
-  let inCodeBlock = false;
-  let codeBuffer = [];
-  let tableBuffer = [];
-
-  function flushTable() {
-    if (!tableBuffer.length) return;
-    const filtered = tableBuffer.filter((l) => !/^\|[-\s:|]+\|$/.test(l));
-    out.push(`<pre>${escapeHtml(filtered.join('\n'))}</pre>`);
-    tableBuffer = [];
-  }
-
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      flushTable();
-      if (inCodeBlock) {
-        out.push(`<pre>${escapeHtml(codeBuffer.join('\n'))}</pre>`);
-        codeBuffer = [];
-        inCodeBlock = false;
-      } else {
-        inCodeBlock = true;
-      }
-      continue;
-    }
-
-    if (inCodeBlock) {
-      codeBuffer.push(line);
-      continue;
-    }
-
-    if (/^\s*\|/.test(line)) {
-      tableBuffer.push(line);
-      continue;
-    }
-
-    flushTable();
-
-    let converted = escapeHtml(line);
-    converted = converted.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-    converted = converted.replace(/__(.+?)__/g, '<b>$1</b>');
-    converted = converted.replace(/`([^`]+)`/g, '<code>$1</code>');
-    if (/^#{1,3}\s+/.test(line)) {
-      const heading = converted.replace(/^#{1,3}\s+/, '');
-      converted = `<b>${heading}</b>`;
-    }
-
-    out.push(converted);
-  }
-
-  flushTable();
-
-  if (codeBuffer.length) {
-    out.push(`<pre>${escapeHtml(codeBuffer.join('\n'))}</pre>`);
-  }
-
-  return out.join('\n');
+  _listStack = [];
+  return md.render(text).replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
