@@ -5,7 +5,7 @@ import { truncate, escapeHtml, mdToHtml } from './utils.js';
 import {
   ensureSession, storeMessage, summarizeSession,
   buildMemoryContext, closePool,
-  extractFactsFromExchange, storePendingBatch,
+  extractFactsFromExchange, deduplicateFacts, storePendingBatch,
 } from './memory.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
@@ -418,8 +418,15 @@ export async function askOpusDirect(ctx, textOverride = null) {
 
 // --- Background fact extraction ---
 
+const MEMORY_RECALL_PATTERN = /\b(remember|memory|recall|forget|what\s+do\s+you\s+(know|remember))\b/i;
+
 async function offerFactExtraction(ctx, userMessage, assistantResponse) {
-  const facts = await extractFactsFromExchange(userMessage, assistantResponse);
+  if (MEMORY_RECALL_PATTERN.test(userMessage)) return;
+
+  const rawFacts = await extractFactsFromExchange(userMessage, assistantResponse);
+  if (!rawFacts.length) return;
+
+  const facts = await deduplicateFacts(rawFacts);
   if (!facts.length) return;
 
   const batchId = storePendingBatch(facts);

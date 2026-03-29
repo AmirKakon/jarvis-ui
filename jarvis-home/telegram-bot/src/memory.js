@@ -465,6 +465,31 @@ export async function extractFactsFromExchange(userMessage, assistantResponse) {
   return parsed?.facts?.filter((f) => f && f.length > 5) || [];
 }
 
+/**
+ * Filter out candidate facts that already exist in memory_facts
+ * by embedding each candidate and checking PGVector similarity.
+ * Returns only genuinely novel facts.
+ */
+export async function deduplicateFacts(candidateFacts) {
+  const novel = [];
+  for (const fact of candidateFacts) {
+    const embedding = await createEmbedding(fact);
+    if (!embedding) {
+      novel.push(fact);
+      continue;
+    }
+    const { rows } = await query(
+      `SELECT 1 FROM memory_facts
+       WHERE embedding IS NOT NULL
+         AND 1 - (embedding <=> $1::vector) >= $2
+       LIMIT 1`,
+      [vectorLiteral(embedding), FACT_DEDUP_THRESHOLD]
+    );
+    if (!rows.length) novel.push(fact);
+  }
+  return novel;
+}
+
 function cleanupPendingBatches() {
   const now = Date.now();
   for (const [id, batch] of pendingFactBatches) {
