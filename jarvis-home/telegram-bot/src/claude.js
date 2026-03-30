@@ -13,6 +13,7 @@ import { runWebFetch } from './agents/fetch.js';
 import { runCodeExecution } from './agents/compute.js';
 import { runOpus } from './agents/opus.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
+import { resolveAndExecute } from './agents/ha.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
@@ -159,14 +160,20 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 4. Calculations, data analysis, or code tasks (math, conversions, charts, CSV analysis, programming puzzles — NO internet access):
 {"compute": true, "task": "what to calculate or generate", "acknowledge": "brief message to user"}
 
+5. Home Assistant device control (turn on/off lights, switches, fans, or other smart devices):
+{"ha": true, "command": "the full natural language command", "acknowledge": "brief message to user"}
+
 EXAMPLES:
 - User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
 - User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container", "acknowledge": "Restarting nginx now, Sir."}
 - User: "what's the weather in Jerusalem" → {"search": true, "query": "weather Jerusalem Israel today", "acknowledge": "Checking the weather, Sir."}
 - User: "calculate 15% tip on 230 shekels" → {"compute": true, "task": "Calculate 15% tip on 230 ILS", "acknowledge": "Let me work that out, Sir."}
 - User: "call the forecast API at https://www.02ws.co.il/api/forecast" → {"delegate": true, "task": "Make an HTTP GET request to https://www.02ws.co.il/api/forecast and return the response", "acknowledge": "Calling that API now, Sir."}
+- User: "turn off the heater plug" → {"ha": true, "command": "turn off the heater plug", "acknowledge": "Switching it off now, Sir."}
+- User: "turn on the living room light" → {"ha": true, "command": "turn on the living room light", "acknowledge": "Lighting up the living room, Sir."}
 
 RULES:
+- Smart home device control (turn on/off, toggle lights/switches/plugs/fans/covers) → ha
 - Server operations (check status, read logs, restart services) → delegate
 - API calls, curl requests, HTTP endpoints that need headers/auth → delegate (server has full network access)
 - Current info, news, prices, live data → search
@@ -304,7 +311,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 // --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha'];
 
 function parseAction(text) {
   const normalize = (s) => s
@@ -541,6 +548,33 @@ export async function askClaude(ctx, textOverride = null) {
           console.error('Fact extraction failed:', err.message)
         );
       }
+    }
+    return;
+  }
+
+  // --- Home Assistant control action ---
+  if (action?.ha) {
+    const ack = action.acknowledge || 'Controlling Home Assistant, Sir...';
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `🏡 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+    ).catch(() => {});
+
+    const result = await resolveAndExecute(action.command);
+
+    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
+
+    if (result.ok) {
+      const reply = `✅ ${escapeHtml(result.output)}`;
+      await ctx.replyWithHTML(reply);
+      await maybeSendVoice(ctx, result.output);
+      if (prompt.length > 10) {
+        offerFactExtraction(ctx, prompt, result.output).catch((err) =>
+          console.error('Fact extraction failed:', err.message)
+        );
+      }
+    } else {
+      await ctx.replyWithHTML(`⚠️ ${escapeHtml(result.output)}`);
     }
     return;
   }
