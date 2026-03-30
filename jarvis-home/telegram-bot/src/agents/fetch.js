@@ -33,6 +33,7 @@ export async function runWebFetch(url, question) {
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
+      console.error(`[fetch] API error ${res.status}: ${errBody.slice(0, 500)}`);
       return { ok: false, output: `Fetch API error: ${res.status}`, sources: [] };
     }
 

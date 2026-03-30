@@ -34,6 +34,7 @@ export async function runWebSearch(query) {
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
+      console.error(`[search] API error ${res.status}: ${errBody.slice(0, 500)}`);
       return { ok: false, output: `Search API error: ${res.status}`, sources: [] };
     }
 

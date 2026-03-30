@@ -32,12 +32,6 @@ export async function runCodeExecution(task) {
         messages: [{ role: 'user', content: task }],
         tools: [
           { type: 'code_execution_20250825', name: 'code_execution' },
-          {
-            type: 'web_search_20250305',
-            name: 'web_search',
-            max_uses: 0,
-            user_location: { type: 'approximate', city: 'Jerusalem', country: 'IL', timezone: 'Asia/Jerusalem' },
-          },
         ],
       }),
       signal: AbortSignal.timeout(60_000),
@@ -45,6 +39,7 @@ export async function runCodeExecution(task) {
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
+      console.error(`[compute] API error ${res.status}: ${errBody.slice(0, 500)}`);
       return { ok: false, output: `Code execution API error: ${res.status}`, sources: [], images: [] };
     }
 
