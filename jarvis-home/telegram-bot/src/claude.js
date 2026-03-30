@@ -89,7 +89,7 @@ YOUR CAPABILITIES:
 You handle casual conversation, simple questions, knowledge queries, and memory-related tasks DIRECTLY.
 
 ACTIONS:
-When you cannot answer directly, respond with ONLY a JSON object (no other text):
+When you cannot answer directly, respond with ONLY a raw JSON object — no markdown, no XML, no wrapper tags, no prose before or after. Just the JSON.
 
 1. Server tasks (Docker, systemctl, SSH, logs, deploys, disk/network diagnostics, file ops, n8n, HA device actions, qBittorrent, system health):
 {"delegate": true, "task": "full description of what to do, with context", "acknowledge": "brief message to user"}
@@ -103,6 +103,12 @@ When you cannot answer directly, respond with ONLY a JSON object (no other text)
 4. Calculations, data analysis, or code tasks (math, conversions, charts, CSV analysis, programming puzzles):
 {"compute": true, "task": "what to calculate or generate", "acknowledge": "brief message to user"}
 
+EXAMPLES:
+- User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
+- User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container", "acknowledge": "Restarting nginx now, Sir."}
+- User: "what's the weather in Jerusalem" → {"search": true, "query": "weather Jerusalem Israel today", "acknowledge": "Checking the weather, Sir."}
+- User: "calculate 15% tip on 230 shekels" → {"compute": true, "task": "Calculate 15% tip on 230 ILS", "acknowledge": "Let me work that out, Sir."}
+
 RULES:
 - Server operations (check status, read logs, restart services) → delegate
 - Current info, news, prices, live data → search
@@ -110,6 +116,7 @@ RULES:
 - Math, conversions, data analysis, generate charts → compute
 - Knowledge questions (what is X, explain Y) → answer directly
 - If unsure whether to delegate or search → delegate (safer)
+- NEVER invent tool call formats like <function_calls>, <tool_use>, or XML tags. Only use the JSON formats above.
 - Never mention actions, models, or architecture to the user. Just respond naturally.`;
 
 // --- Front model API call (Haiku 4.5 primary, GPT-4o-mini fallback) — pure router, no tools ---
@@ -313,7 +320,22 @@ export async function askClaude(ctx, textOverride = null) {
     return;
   }
 
-  const action = parseAction(output);
+  let action = parseAction(output);
+
+  // Fallback: if user sent a URL but the front model didn't return a fetch action, auto-trigger fetch
+  if (!action) {
+    const urlMatch = prompt.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch) {
+      console.log(`[front] URL fallback — front model missed fetch action, auto-triggering for: ${urlMatch[0].slice(0, 100)}`);
+      const questionPart = prompt.replace(urlMatch[0], '').trim();
+      action = {
+        fetch: true,
+        url: urlMatch[0],
+        question: questionPart || 'Provide an overview of the content.',
+        acknowledge: 'Reading the page, Sir...',
+      };
+    }
+  }
 
   // --- Web search action ---
   if (action?.search) {
