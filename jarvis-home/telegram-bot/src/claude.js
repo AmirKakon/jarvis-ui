@@ -75,7 +75,7 @@ export { closePool, extractResponseContent };
 
 // --- Voice TTS toggle (per-chat) ---
 
-const DEFAULT_VOICE = 'onyx';
+const DEFAULT_VOICE = 'fable';
 const voiceSettings = new Map();
 
 export function toggleVoice(chatId) {

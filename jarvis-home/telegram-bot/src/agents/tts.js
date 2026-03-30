@@ -4,7 +4,7 @@ function isValidVoice(voice) {
   return VALID_VOICES.includes(voice);
 }
 
-async function generateSpeech(text, voice = 'onyx') {
+async function generateSpeech(text, voice = 'fable') {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
