@@ -1,5 +1,6 @@
 import { run, escapeHtml, editOrReply } from './utils.js';
 import { askClaude } from './claude.js';
+import { describeImage } from './agents/vision.js';
 
 const HOME = process.env.HOME || '/home/iot';
 const MEDIA_DIR = `${HOME}/jarvis/telegram-media`;
@@ -76,7 +77,7 @@ export async function handleAudio(ctx) {
   return askClaude(ctx, prompt);
 }
 
-// --- Photos → save + Claude vision ---
+// --- Photos → vision analysis → Claude ---
 
 export async function handlePhoto(ctx) {
   const photo = ctx.message.photo.at(-1);
@@ -84,9 +85,27 @@ export async function handlePhoto(ctx) {
   if (!filepath) return ctx.replyWithHTML('🔴 Failed to download photo.');
 
   const caption = ctx.message.caption || '';
+  const placeholder = await ctx.replyWithHTML('👁 <i>Analysing image...</i>');
+
+  const description = await describeImage(filepath, caption || null);
+
+  if (!description) {
+    await ctx.telegram.editMessageText(
+      placeholder.chat.id, placeholder.message_id, undefined,
+      '🔴 Failed to analyse image.', { parse_mode: 'HTML' }
+    ).catch(() => {});
+    return;
+  }
+
+  const short = description.length > 200 ? description.slice(0, 197) + '...' : description;
+  await ctx.telegram.editMessageText(
+    placeholder.chat.id, placeholder.message_id, undefined,
+    `👁 <i>${escapeHtml(short)}</i>`, { parse_mode: 'HTML' }
+  ).catch(() => {});
+
   const prompt = caption
-    ? `${caption}\n\n[User sent a photo saved at: ${filepath}]`
-    : `[User sent a photo saved at: ${filepath}. Analyze it.]`;
+    ? `${caption}\n\n[Image analysis: ${description}]`
+    : `[Image analysis: ${description}]`;
 
   return askClaude(ctx, prompt);
 }
@@ -145,7 +164,7 @@ export async function handleAnimation(ctx) {
   return askClaude(ctx, prompt);
 }
 
-// --- Stickers → save image if static, describe otherwise ---
+// --- Stickers → vision for static, text fallback for animated/video ---
 
 export async function handleSticker(ctx) {
   const sticker = ctx.message.sticker;
@@ -160,7 +179,12 @@ export async function handleSticker(ctx) {
     return askClaude(ctx, `[User sent a sticker ${emoji}]`);
   }
 
-  return askClaude(ctx, `[User sent a sticker ${emoji}, image saved at: ${filepath}]`);
+  const description = await describeImage(filepath, 'Briefly describe this sticker image.');
+  const prompt = description
+    ? `[User sent a sticker ${emoji}. Image: ${description}]`
+    : `[User sent a sticker ${emoji}]`;
+
+  return askClaude(ctx, prompt);
 }
 
 // --- Location → text coordinates ---
