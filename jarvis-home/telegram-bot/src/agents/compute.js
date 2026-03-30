@@ -28,7 +28,7 @@ export async function runCodeExecution(task) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 2048,
-        system: 'You are a precise computation assistant. Write and execute code to solve the task. Show results clearly. Use British English.',
+        system: 'You are a precise computation assistant. Write and execute code to solve the task. Show results clearly. Use British English. IMPORTANT: The sandbox has NO internet access — do not attempt HTTP requests, curl, wget, or any network calls. Work only with the data provided in the task.',
         messages: [{ role: 'user', content: task }],
         tools: [
           { type: 'code_execution_20250825', name: 'code_execution' },
