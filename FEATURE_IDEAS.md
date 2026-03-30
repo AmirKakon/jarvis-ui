@@ -13,8 +13,9 @@
 ### Core Capabilities
 
 1. TTS for the telegram bot (voice replies via OpenAI TTS — completes the STT/TTS round-trip)
-3. natural language HA control — say "turn off the living room light" instead of exact entity IDs
-4. reminders / scheduled messages — "remind me to check the laundry in 30 minutes"
+2. natural language HA control — say "turn off the living room light" instead of exact entity IDs
+3. reminders / scheduled messages — "remind me to check the laundry in 30 minutes"
+4. multi-tool research agent — a combined agent with access to web search + web fetch + code execution that can chain tools autonomously in a single request (e.g., "find Bitcoin price history and chart it" → search → fetch data → run code → return chart). Trades per-step user feedback for autonomous multi-step reasoning.
 
 ### Automations
 
@@ -28,7 +29,7 @@
 
 ### Integrations
 
-1. weather integration (OpenWeatherMap or HA weather entity)
+1. weather integration (OpenWeatherMap or HA weather entity or https://v2013.02ws.co.il/small/?tempunit=%C2%B0c&section=Api&lang=1)
 2. calendar integration (Google Calendar / CalDAV — "what's on my schedule today?")
 3. media recommendations — suggest what to watch/download based on Jellyfin history
 4. multi-room audio / music control — control speakers via HA from Telegram

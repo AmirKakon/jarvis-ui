@@ -7,6 +7,11 @@ import {
   buildMemoryContext, closePool,
   extractFactsFromExchange, deduplicateFacts, storePendingBatch,
 } from './memory.js';
+import { extractResponseContent } from './agents/shared.js';
+import { runWebSearch } from './agents/search.js';
+import { runWebFetch } from './agents/fetch.js';
+import { runCodeExecution } from './agents/compute.js';
+import { runOpus } from './agents/opus.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
@@ -107,39 +112,6 @@ RULES:
 - If unsure whether to delegate or search → delegate (safer)
 - Never mention actions, models, or architecture to the user. Just respond naturally.`;
 
-// --- Parse Anthropic multi-block response (text + citations from search/fetch/code) ---
-
-const TOOL_RESULT_TYPES = ['web_search_tool_result', 'web_fetch_tool_result', 'code_execution_result'];
-
-function extractResponseContent(data) {
-  const blocks = data.content || [];
-  const lastToolIdx = blocks.findLastIndex((b) => TOOL_RESULT_TYPES.includes(b.type));
-  const searched = lastToolIdx >= 0;
-
-  const textParts = [];
-  const sources = new Map();
-
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
-    if (block.type !== 'text') continue;
-    // Skip preamble text before tool results ("I'll search for...", "Let me fetch...")
-    if (searched && i <= lastToolIdx) continue;
-
-    textParts.push(block.text);
-    for (const cite of (block.citations || [])) {
-      if (cite.url && !sources.has(cite.url)) {
-        sources.set(cite.url, cite.title || cite.url);
-      }
-    }
-  }
-
-  return {
-    text: textParts.join('').trim(),
-    sources: [...sources.entries()].map(([url, title]) => ({ url, title })),
-    searched,
-  };
-}
-
 // --- Front model API call (Haiku 4.5 primary, GPT-4o-mini fallback) — pure router, no tools ---
 
 async function runFrontModel(systemPrompt, userMessage) {
@@ -213,181 +185,6 @@ async function runFrontModel(systemPrompt, userMessage) {
   }
 
   return { ok: false, output: 'No API key available for front model (set ANTHROPIC_API_KEY or OPENAI_API_KEY).' };
-}
-
-// --- Web search — separate focused Haiku call with Anthropic web search tool ---
-
-async function runWebSearch(query) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured', sources: [] };
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: 'You are a concise research assistant. Answer based on web search results. Cite sources. Use British English.',
-        messages: [{ role: 'user', content: query }],
-        tools: [{
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 3,
-          user_location: {
-            type: 'approximate',
-            city: 'Jerusalem',
-            country: 'IL',
-            timezone: 'Asia/Jerusalem',
-          },
-        }],
-      }),
-      signal: AbortSignal.timeout(45_000),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      return { ok: false, output: `Search API error: ${res.status}`, sources: [] };
-    }
-
-    const data = await res.json();
-    const { text, sources } = extractResponseContent(data);
-    return { ok: !!text, output: text || 'No results found.', sources };
-  } catch (err) {
-    return { ok: false, output: err.message, sources: [] };
-  }
-}
-
-// --- Web fetch — separate focused Haiku call with Anthropic web fetch tool ---
-
-async function runWebFetch(url, question) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured', sources: [] };
-
-  try {
-    const prompt = question
-      ? `Fetch and read ${url}, then answer: ${question}`
-      : `Fetch and read ${url}, then summarise the key content.`;
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: 'You are a concise research assistant. Read the fetched content and answer the question or provide a summary. Cite sources. Use British English.',
-        messages: [{ role: 'user', content: prompt }],
-        tools: [{
-          type: 'web_fetch_20250910',
-          name: 'web_fetch',
-          max_uses: 3,
-          max_content_tokens: 20000,
-        }],
-      }),
-      signal: AbortSignal.timeout(45_000),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      return { ok: false, output: `Fetch API error: ${res.status}`, sources: [] };
-    }
-
-    const data = await res.json();
-    const { text, sources } = extractResponseContent(data);
-    return { ok: !!text, output: text || 'Could not read the page.', sources };
-  } catch (err) {
-    return { ok: false, output: err.message, sources: [] };
-  }
-}
-
-// --- Code execution — separate focused Haiku call with Anthropic sandbox ---
-
-function extractCodeImages(data) {
-  const images = [];
-  for (const block of (data.content || [])) {
-    if (block.type !== 'code_execution_result') continue;
-    for (const item of (block.content || [])) {
-      if (item.type === 'image' && item.source?.type === 'base64') {
-        images.push({ base64: item.source.data, mediaType: item.source.media_type || 'image/png' });
-      }
-    }
-  }
-  return images;
-}
-
-async function runCodeExecution(task) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured', sources: [], images: [] };
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        system: 'You are a precise computation assistant. Write and execute code to solve the task. Show results clearly. Use British English.',
-        messages: [{ role: 'user', content: task }],
-        tools: [
-          { type: 'code_execution_20250825', name: 'code_execution' },
-          {
-            type: 'web_search_20250305',
-            name: 'web_search',
-            max_uses: 0,
-            user_location: { type: 'approximate', city: 'Jerusalem', country: 'IL', timezone: 'Asia/Jerusalem' },
-          },
-        ],
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      return { ok: false, output: `Code execution API error: ${res.status}`, sources: [], images: [] };
-    }
-
-    const data = await res.json();
-    const { text, sources } = extractResponseContent(data);
-    const images = extractCodeImages(data);
-    return { ok: !!text, output: text || 'No output.', sources, images };
-  } catch (err) {
-    return { ok: false, output: err.message, sources: [], images: [] };
-  }
-}
-
-// --- Claude Code CLI (Opus — for delegated server tasks) ---
-
-const OPUS_TIMEOUT = 360_000; // 6 minutes
-
-function runOpus(prompt) {
-  return new Promise((resolve) => {
-    const escaped = prompt.replace(/'/g, "'\\''");
-    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model claude-opus-4-20250514 -p '${escaped}' 2>/dev/null`;
-
-    exec(cmd, { timeout: OPUS_TIMEOUT, shell: '/bin/bash', maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) {
-        if (err.killed) {
-          resolve({ ok: false, output: 'Claude timed out after 6 minutes. Try a simpler question or use a slash command.' });
-        } else {
-          resolve({ ok: false, output: stderr?.trim() || err.message });
-        }
-      } else {
-        resolve({ ok: true, output: stdout?.trim() || '(no response)' });
-      }
-    });
-  });
 }
 
 // --- Legacy: sendToClaude for slash commands that use specific models ---

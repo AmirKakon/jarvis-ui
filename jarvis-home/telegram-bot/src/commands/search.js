@@ -1,5 +1,5 @@
 import { escapeHtml, truncate, mdToHtml } from '../utils.js';
-import { extractResponseContent } from '../claude.js';
+import { extractResponseContent } from '../agents/shared.js';
 
 const SEARCH_SYSTEM = `You are a web search assistant. Search for the user's query and provide a clear, concise answer based on the search results. Always cite your sources. Be brief but comprehensive. Use British English.`;
 
