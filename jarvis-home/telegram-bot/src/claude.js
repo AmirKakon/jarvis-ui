@@ -12,6 +12,7 @@ import { runWebSearch } from './agents/search.js';
 import { runWebFetch } from './agents/fetch.js';
 import { runCodeExecution } from './agents/compute.js';
 import { runOpus } from './agents/opus.js';
+import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
@@ -71,6 +72,61 @@ export async function forceNewSession(chatId) {
 }
 
 export { closePool, extractResponseContent };
+
+// --- Voice TTS toggle (per-chat) ---
+
+const DEFAULT_VOICE = 'onyx';
+const voiceSettings = new Map();
+
+export function toggleVoice(chatId) {
+  const current = voiceSettings.get(chatId);
+  if (current?.enabled) {
+    current.enabled = false;
+    return { enabled: false, voice: current.voice };
+  }
+  const voice = current?.voice || DEFAULT_VOICE;
+  voiceSettings.set(chatId, { enabled: true, voice });
+  return { enabled: true, voice };
+}
+
+export function setVoice(chatId, voiceName) {
+  const name = voiceName.toLowerCase();
+  if (!isValidVoice(name)) return null;
+  const current = voiceSettings.get(chatId) || { enabled: false, voice: DEFAULT_VOICE };
+  current.voice = name;
+  current.enabled = true;
+  voiceSettings.set(chatId, current);
+  return current;
+}
+
+export function getVoiceStatus(chatId) {
+  const s = voiceSettings.get(chatId);
+  return { enabled: !!s?.enabled, voice: s?.voice || DEFAULT_VOICE };
+}
+
+export { VALID_VOICES };
+
+function stripHtml(html) {
+  return html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+}
+
+async function maybeSendVoice(ctx, text) {
+  const chatId = String(ctx.chat?.id || 'default');
+  const settings = voiceSettings.get(chatId);
+  if (!settings?.enabled) return;
+
+  const plain = stripHtml(text).slice(0, 4096);
+  if (!plain) return;
+
+  try {
+    const buf = await generateSpeech(plain, settings.voice);
+    if (buf) {
+      await ctx.replyWithVoice({ source: buf, filename: 'jarvis.ogg' });
+    }
+  } catch (err) {
+    console.error('[tts] Failed to send voice:', err.message);
+  }
+}
 
 // --- Front-layer system prompt ---
 
@@ -374,10 +430,13 @@ export async function askClaude(ctx, textOverride = null) {
       await ctx.replyWithHTML(response, { disable_web_page_preview: true });
     }
 
-    if (searchOk && prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, searchOutput).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
+    if (searchOk) {
+      await maybeSendVoice(ctx, searchOutput);
+      if (prompt.length > 10) {
+        offerFactExtraction(ctx, prompt, searchOutput).catch((err) =>
+          console.error('Fact extraction failed:', err.message)
+        );
+      }
     }
     return;
   }
@@ -417,10 +476,13 @@ export async function askClaude(ctx, textOverride = null) {
       await ctx.replyWithHTML(response, { disable_web_page_preview: true });
     }
 
-    if (fetchOk && prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, fetchOutput).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
+    if (fetchOk) {
+      await maybeSendVoice(ctx, fetchOutput);
+      if (prompt.length > 10) {
+        offerFactExtraction(ctx, prompt, fetchOutput).catch((err) =>
+          console.error('Fact extraction failed:', err.message)
+        );
+      }
     }
     return;
   }
@@ -472,10 +534,13 @@ export async function askClaude(ctx, textOverride = null) {
       }
     }
 
-    if (codeOk && prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, codeOutput).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
+    if (codeOk) {
+      await maybeSendVoice(ctx, codeOutput);
+      if (prompt.length > 10) {
+        offerFactExtraction(ctx, prompt, codeOutput).catch((err) =>
+          console.error('Fact extraction failed:', err.message)
+        );
+      }
     }
     return;
   }
@@ -510,6 +575,7 @@ export async function askClaude(ctx, textOverride = null) {
     }
 
     await ctx.replyWithHTML(response);
+    if (opusOk) await maybeSendVoice(ctx, opusOutput);
     return;
   }
 
@@ -525,6 +591,8 @@ export async function askClaude(ctx, textOverride = null) {
   } catch {
     await ctx.replyWithHTML(response);
   }
+
+  await maybeSendVoice(ctx, output);
 
   if (prompt.length > 10) {
     offerFactExtraction(ctx, prompt, output).catch((err) =>
@@ -575,10 +643,13 @@ export async function askOpusDirect(ctx, textOverride = null) {
     await ctx.replyWithHTML(response);
   }
 
-  if (ok && prompt.length > 10) {
-    offerFactExtraction(ctx, prompt, output).catch((err) =>
-      console.error('Fact extraction failed:', err.message)
-    );
+  if (ok) {
+    await maybeSendVoice(ctx, output);
+    if (prompt.length > 10) {
+      offerFactExtraction(ctx, prompt, output).catch((err) =>
+        console.error('Fact extraction failed:', err.message)
+      );
+    }
   }
 }
 

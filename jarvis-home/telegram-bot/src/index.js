@@ -9,7 +9,7 @@ import { servicesCommand, servicesRefresh } from './commands/services.js';
 import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
 import { downloadCommand, downloadCallback, downloadRefresh, handlePendingDownloadEdit } from './commands/download.js';
-import { askClaude, askOpusDirect, closePool } from './claude.js';
+import { askClaude, askOpusDirect, closePool, toggleVoice, setVoice, getVoiceStatus, VALID_VOICES } from './claude.js';
 import { storeFact, getPendingBatch, deletePendingBatch } from './memory.js';
 import {
   handleVoice, handleAudio, handlePhoto, handleDocument,
@@ -111,6 +111,9 @@ const HELP_TEXT = [
   'Send any message — handled by a fast, cheap model.',
   'Server tasks are automatically delegated to Opus.',
   '/deep &lt;question&gt; — bypass, send directly to Opus',
+  '/voice             — toggle voice replies on/off',
+  '/voice &lt;name&gt;      — switch TTS voice (e.g. echo, nova)',
+  '/voice list        — show available voices',
 ].join('\n');
 
 bot.command('start', (ctx) => ctx.replyWithHTML(HELP_TEXT));
@@ -126,6 +129,30 @@ bot.command('download', downloadCommand);
 bot.command('security', securityCommand);
 bot.command('search', searchCommand);
 bot.command('deep', askOpusDirect);
+bot.command('voice', (ctx) => {
+  const chatId = String(ctx.chat?.id || 'default');
+  const arg = (ctx.message.text || '').replace(/^\/voice\s*/i, '').trim().toLowerCase();
+
+  if (arg === 'list') {
+    const { voice: current } = getVoiceStatus(chatId);
+    const list = VALID_VOICES.map((v) => v === current ? `<b>→ ${v}</b>` : `  ${v}`).join('\n');
+    return ctx.replyWithHTML(`🎙 <b>Available voices:</b>\n<pre>${list}</pre>\n\nUsage: <code>/voice &lt;name&gt;</code>`);
+  }
+
+  if (arg) {
+    const result = setVoice(chatId, arg);
+    if (!result) {
+      return ctx.replyWithHTML(`❌ Unknown voice "<code>${escapeHtml(arg)}</code>".\nUse <code>/voice list</code> to see options.`);
+    }
+    return ctx.replyWithHTML(`🎙 Voice set to <b>${result.voice}</b> and enabled.`);
+  }
+
+  const { enabled, voice } = toggleVoice(chatId);
+  return ctx.replyWithHTML(enabled
+    ? `🔊 Voice replies <b>enabled</b> (voice: ${voice})`
+    : `🔇 Voice replies <b>disabled</b>`
+  );
+});
 bot.command('remember', memoryCommand('remember'));
 bot.command('recall', memoryCommand('recall'));
 bot.command('memory', memoryCommand('memory'));
@@ -229,6 +256,7 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'recall', description: 'Search past conversations' },
     { command: 'memory', description: 'Memory stats' },
     { command: 'new', description: 'End session & start fresh' },
+    { command: 'voice', description: 'Toggle voice replies / change TTS voice' },
     { command: 'deep', description: 'Send directly to Opus (bypasses front model)' },
     { command: 'help', description: 'Show all commands' },
   ]);

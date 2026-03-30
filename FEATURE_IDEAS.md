@@ -7,12 +7,11 @@
 - ~~search the web capability~~ — Anthropic web search tool in front model + `/search` command
 - ~~read web pages / PDFs~~ — Anthropic web fetch tool (`web_fetch_20250910`), front model routes `{"fetch": true}`
 - ~~calculations & code execution~~ — Anthropic sandbox (`code_execution_20250825`), front model routes `{"compute": true}`, supports chart images
+- ~~TTS voice replies~~ — OpenAI TTS (`tts-1`), `/voice` toggle with configurable voice (alloy, echo, nova, onyx, etc.)
 
 ## 🔧 Planned
 
 ### Core Capabilities
-
-1. TTS for the telegram bot (voice replies via OpenAI TTS — completes the STT/TTS round-trip)
 2. natural language HA control — say "turn off the living room light" instead of exact entity IDs
 3. reminders / scheduled messages — "remind me to check the laundry in 30 minutes"
 4. multi-tool research agent — a combined agent with access to web search + web fetch + code execution that can chain tools autonomously in a single request (e.g., "find Bitcoin price history and chart it" → search → fetch data → run code → return chart). Trades per-step user feedback for autonomous multi-step reasoning.
@@ -29,7 +28,14 @@
 
 ### Integrations
 
-1. weather integration (OpenWeatherMap or HA weather entity or https://v2013.02ws.co.il/small/?tempunit=%C2%B0c&section=Api&lang=1)
+1. weather integration (OpenWeatherMap or HA weather entity or 02ws.co.il)
+   - **02ws.co.il API docs:** https://v2013.02ws.co.il/small/?tempunit=%C2%B0c&section=Api&lang=1
+   - Forecast (all days): `GET https://www.02ws.co.il/api/forecast`
+   - Forecast (day N): `GET https://www.02ws.co.il/api/forecast/{dayNumber}/{language}/{tempUnit}/{futureUse}`
+   - Current conditions: `GET https://www.02ws.co.il/api/now/{dataNumber}/{language}/{tempUnit}/{futureUse}`
+   - dataNumber: 1=time, 2=temp, 3=temp2, 4=temp3, 5=humidity, 6=pressure, 7=wind dir, 8=wind speed, 9=rain rate, 10=rain chance, 11=solar radiation, 12=sunshine hours, 13=rain today (0=all)
+   - language: 0=English, 1=Hebrew
+   - **Requires `Accept` header** — requests without `Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8` return empty responses
 2. calendar integration (Google Calendar / CalDAV — "what's on my schedule today?")
 3. media recommendations — suggest what to watch/download based on Jellyfin history
 4. multi-room audio / music control — control speakers via HA from Telegram
