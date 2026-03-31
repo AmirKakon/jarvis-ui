@@ -14,7 +14,7 @@ import { runCodeExecution } from './agents/compute.js';
 import { runOpus } from './agents/opus.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
 import { resolveAndExecute } from './agents/ha.js';
-import { parseAndCreate, listReminders, cancelReminder, extendReminder } from './agents/remind.js';
+import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
@@ -604,11 +604,11 @@ export async function askClaude(ctx, textOverride = null) {
         result = await listReminders(chatId);
         break;
       case 'cancel': {
-        const idMatch = action.text?.match(/\d+/);
-        const remId = idMatch ? parseInt(idMatch[0]) : null;
+        const idMatch = action.text?.match(/(?:reminder\s*#?\s*)?(\d+)/i);
+        const remId = idMatch ? parseInt(idMatch[1]) : null;
         result = remId
           ? await cancelReminder(chatId, remId)
-          : { ok: false, output: 'Please specify a reminder number to cancel (e.g. "cancel reminder 3").' };
+          : await cancelByText(chatId, action.text || prompt);
         break;
       }
       case 'extend': {

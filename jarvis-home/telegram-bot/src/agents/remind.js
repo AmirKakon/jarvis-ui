@@ -198,6 +198,30 @@ export async function cancelReminder(chatId, id) {
   return { ok: true, output: `Reminder #${id} cancelled.` };
 }
 
+export async function cancelByText(chatId, searchText) {
+  await ensureTable();
+
+  const { rows } = await query(
+    'SELECT id, message FROM reminders WHERE chat_id = $1 AND fired = FALSE ORDER BY fire_at ASC',
+    [chatId]
+  );
+
+  if (!rows.length) {
+    return { ok: false, output: 'No active reminders to cancel.' };
+  }
+
+  const lower = searchText.toLowerCase().replace(/cancel\s*(the\s*)?reminder\s*(about|for|to)?\s*/i, '').trim();
+  const match = rows.find((r) => r.message.toLowerCase().includes(lower));
+
+  if (!match) {
+    const list = rows.map((r) => `#${r.id} — ${r.message}`).join('\n');
+    return { ok: false, output: `No reminder matching "${lower}". Active reminders:\n${list}` };
+  }
+
+  await query('UPDATE reminders SET fired = TRUE WHERE id = $1', [match.id]);
+  return { ok: true, output: `Reminder #${match.id} ("${match.message}") cancelled.` };
+}
+
 export async function snoozeReminder(id, minutes = 5) {
   await ensureTable();
 
