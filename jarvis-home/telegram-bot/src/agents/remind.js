@@ -53,10 +53,12 @@ function nowJerusalemISO() {
   }).formatToParts(now);
 
   const get = (type) => parts.find((p) => p.type === type)?.value;
-  const offsetMs = new Date(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}Z`).getTime() - now.getTime();
-  const offH = String(Math.floor(Math.abs(offsetMs) / 3600000)).padStart(2, '0');
-  const offM = String(Math.floor((Math.abs(offsetMs) % 3600000) / 60000)).padStart(2, '0');
-  const sign = offsetMs >= 0 ? '+' : '-';
+  const rawOffsetMs = new Date(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}Z`).getTime() - now.getTime();
+  const offsetMin = Math.round(rawOffsetMs / 60_000);
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const absMin = Math.abs(offsetMin);
+  const offH = String(Math.floor(absMin / 60)).padStart(2, '0');
+  const offM = String(absMin % 60).padStart(2, '0');
 
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}${sign}${offH}:${offM}`;
 }

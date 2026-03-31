@@ -18,6 +18,10 @@ async function pollReminders(bot, defaultChatId) {
   try {
     const due = await getDueReminders();
 
+    if (due.length > 0) {
+      console.log(`[scheduler] ${due.length} reminder(s) due: ${due.map((r) => `#${r.id} "${r.message}" fire_at=${r.fire_at}`).join(', ')}`);
+    }
+
     for (const reminder of due) {
       const chatId = reminder.chat_id || defaultChatId;
       const rec = reminder.recurrence ? `\n🔁 Recurring: ${reminder.recurrence}` : '';
