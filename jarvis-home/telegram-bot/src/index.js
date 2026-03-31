@@ -261,6 +261,7 @@ async function shutdown(signal) {
   bot.stop(signal);
   await closePool();
   await closeReminderPool();
+  process.exit(0);
 }
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
@@ -289,4 +290,11 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'help', description: 'Show all commands' },
   ]);
   console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);
+}).catch((err) => {
+  console.error('Bot launch error:', err.message);
 });
+
+// Failsafe: start scheduler even if bot.launch().then() is delayed by Telegram conflicts
+setTimeout(() => {
+  startScheduler(bot, CHAT_ID);
+}, 10_000);

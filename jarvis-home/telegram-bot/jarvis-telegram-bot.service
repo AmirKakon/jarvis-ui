@@ -8,7 +8,8 @@ Type=simple
 WorkingDirectory=%h/jarvis/telegram-bot
 ExecStart=/usr/bin/node src/index.js
 Restart=always
-RestartSec=10
+RestartSec=5
+TimeoutStopSec=10
 Environment=NODE_ENV=production
 
 [Install]
