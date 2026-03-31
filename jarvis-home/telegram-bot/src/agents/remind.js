@@ -239,19 +239,23 @@ export async function cancelByText(chatId, searchText) {
     return { ok: false, output: 'No active reminders to cancel.' };
   }
 
-  const lower = searchText.toLowerCase().replace(/cancel\s*(the\s*)?reminder\s*(about|for|to)?\s*/i, '').trim();
-  const searchWords = lower.split(/\s+/).filter((w) => w.length > 1);
+  const NOISE = new Set(['cancel', 'delete', 'remove', 'stop', 'the', 'my', 'a', 'reminder', 'reminders', 'alarm', 'about', 'for', 'to']);
+  const lower = searchText.toLowerCase();
+  const searchWords = lower.split(/\s+/).filter((w) => w.length > 1 && !NOISE.has(w));
 
-  const match = rows.find((r) => r.message.toLowerCase().includes(lower))
-    || rows.find((r) => {
-      const msg = r.message.toLowerCase();
-      const matched = searchWords.filter((w) => msg.includes(w));
-      return matched.length >= Math.ceil(searchWords.length * 0.6);
-    });
+  const cleanedQuery = searchWords.join(' ');
+
+  const match = searchWords.length > 0
+    && (rows.find((r) => r.message.toLowerCase().includes(cleanedQuery))
+      || rows.find((r) => {
+        const msg = r.message.toLowerCase();
+        const matched = searchWords.filter((w) => msg.includes(w));
+        return matched.length >= Math.ceil(searchWords.length * 0.6);
+      }));
 
   if (!match) {
     const list = rows.map((r) => `#${r.id} — ${r.message}`).join('\n');
-    return { ok: false, output: `No reminder matching "${lower}". Active reminders:\n${list}` };
+    return { ok: false, output: `No reminder matching "${cleanedQuery}". Active reminders:\n${list}` };
   }
 
   await query('UPDATE reminders SET fired = TRUE WHERE id = $1', [match.id]);
