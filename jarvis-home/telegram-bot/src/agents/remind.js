@@ -94,13 +94,22 @@ Return ONLY a JSON object:
 CRITICAL: For relative times ("in 30 minutes", "in 2 hours"), add the duration to CURRENT TIME directly. Keep the same UTC offset. Example: if CURRENT TIME is 2026-03-31T09:39:00+03:00 and user says "in 2 minutes", fire_at = 2026-03-31T09:41:00+03:00.
 
 Recurrence patterns (null for one-shot):
+- "interval:N:min" — every N minutes (e.g. every 5 minutes)
+- "interval:N:hour" — every N hours (e.g. every 2 hours)
+- "hourly:MM" — every hour at :MM
 - "daily:HH:MM" — every day at HH:MM (Jerusalem local time)
 - "weekly:D:HH:MM" — every week on day D (1=Mon..7=Sun) at HH:MM
 - "monthly:DD:HH:MM" — every month on day DD at HH:MM
 
+IMPORTANT: You MUST use ONLY these exact patterns. Never invent your own format.
+
 Examples:
 - "in 30 minutes" → fire_at = CURRENT TIME + 30min, recurrence = null
 - "tomorrow at 9am" → fire_at = tomorrow 09:00 same offset, recurrence = null
+- "every minute" → fire_at = CURRENT TIME + 1min, recurrence = "interval:1:min"
+- "every 5 minutes" → fire_at = CURRENT TIME + 5min, recurrence = "interval:5:min"
+- "every 2 hours" → fire_at = CURRENT TIME + 2h, recurrence = "interval:2:hour"
+- "every hour at :30" → fire_at = next :30, recurrence = "hourly:30"
 - "every Monday at 9" → fire_at = next Monday 09:00, recurrence = "weekly:1:09:00"
 - "every day at 8:30" → fire_at = next 08:30, recurrence = "daily:08:30"`,
         messages: [{ role: 'user', content: userMessage }],
@@ -133,6 +142,12 @@ const DAY_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 function formatRecurrence(rec) {
   if (!rec) return '';
   const [type, ...parts] = rec.split(':');
+  if (type === 'interval') {
+    const n = parseInt(parts[0]);
+    const unit = parts[1] === 'hour' ? 'hour' : 'minute';
+    return `every ${n} ${unit}${n > 1 ? 's' : ''}`;
+  }
+  if (type === 'hourly') return `every hour at :${parts[0]}`;
   if (type === 'daily') return `daily at ${parts[0]}:${parts[1]}`;
   if (type === 'weekly') return `every ${DAY_NAMES[parseInt(parts[0])] || parts[0]} at ${parts[1]}:${parts[2]}`;
   if (type === 'monthly') return `monthly on the ${parts[0]}th at ${parts[1]}:${parts[2]}`;
@@ -293,6 +308,20 @@ export function computeNextFire(recurrence, lastFire) {
 
   const [type, ...parts] = recurrence.split(':');
   const base = new Date(lastFire);
+
+  if (type === 'interval') {
+    const n = parseInt(parts[0]);
+    const unit = parts[1];
+    const ms = unit === 'hour' ? n * 3600_000 : n * 60_000;
+    return new Date(base.getTime() + ms);
+  }
+
+  if (type === 'hourly') {
+    const mm = parseInt(parts[0]);
+    base.setHours(base.getHours() + 1);
+    base.setMinutes(mm, 0, 0);
+    return base;
+  }
 
   if (type === 'daily') {
     const [hh, mm] = parts;
