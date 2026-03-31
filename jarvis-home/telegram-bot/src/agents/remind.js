@@ -43,16 +43,29 @@ async function ensureTable() {
   tableReady = true;
 }
 
-function nowJerusalem() {
-  return new Date().toLocaleString('en-GB', { timeZone: TZ });
+function nowJerusalemISO() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  const offsetMs = now.getTime() - new Date(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}Z`).getTime();
+  const offH = String(Math.floor(Math.abs(offsetMs) / 3600000)).padStart(2, '0');
+  const offM = String(Math.floor((Math.abs(offsetMs) % 3600000) / 60000)).padStart(2, '0');
+  const sign = offsetMs >= 0 ? '+' : '-';
+
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}${sign}${offH}:${offM}`;
 }
 
 async function parseWithHaiku(userMessage) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const now = nowJerusalem();
-  const isoNow = new Date().toISOString();
+  const isoNow = nowJerusalemISO();
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -65,28 +78,29 @@ async function parseWithHaiku(userMessage) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 256,
-        system: `You parse reminder requests into structured JSON. Current time in Jerusalem (Asia/Jerusalem): ${now} (ISO: ${isoNow}).
+        system: `You parse reminder requests into structured JSON.
+
+CURRENT TIME: ${isoNow}
 
 Return ONLY a JSON object:
 {
   "message": "what to remind about",
-  "fire_at": "ISO 8601 datetime with +03:00 offset",
+  "fire_at": "ISO 8601 datetime — MUST use the SAME UTC offset as CURRENT TIME above",
   "recurrence": null or pattern
 }
 
+CRITICAL: For relative times ("in 30 minutes", "in 2 hours"), add the duration to CURRENT TIME directly. Keep the same UTC offset. Example: if CURRENT TIME is 2026-03-31T09:39:00+03:00 and user says "in 2 minutes", fire_at = 2026-03-31T09:41:00+03:00.
+
 Recurrence patterns (null for one-shot):
-- "daily:HH:MM" — every day at HH:MM
+- "daily:HH:MM" — every day at HH:MM (Jerusalem local time)
 - "weekly:D:HH:MM" — every week on day D (1=Mon..7=Sun) at HH:MM
 - "monthly:DD:HH:MM" — every month on day DD at HH:MM
 
 Examples:
-- "remind me in 30 minutes" → fire_at = now + 30min, recurrence = null
-- "remind me tomorrow at 9am" → fire_at = tomorrow 09:00, recurrence = null
-- "remind me every Monday at 9" → fire_at = next Monday 09:00, recurrence = "weekly:1:09:00"
-- "remind me every day at 8:30" → fire_at = next 08:30, recurrence = "daily:08:30"
-- "remind me on the 15th of every month at 10am" → fire_at = next 15th 10:00, recurrence = "monthly:15:10:00"
-
-Use Jerusalem timezone (+03:00 or +02:00 depending on DST). Be precise with the ISO datetime.`,
+- "in 30 minutes" → fire_at = CURRENT TIME + 30min, recurrence = null
+- "tomorrow at 9am" → fire_at = tomorrow 09:00 same offset, recurrence = null
+- "every Monday at 9" → fire_at = next Monday 09:00, recurrence = "weekly:1:09:00"
+- "every day at 8:30" → fire_at = next 08:30, recurrence = "daily:08:30"`,
         messages: [{ role: 'user', content: userMessage }],
       }),
       signal: AbortSignal.timeout(15_000),
@@ -103,7 +117,9 @@ Use Jerusalem timezone (+03:00 or +02:00 depending on DST). Be precise with the 
     if (!text) return null;
 
     const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    console.log(`[remind] Haiku parsed: now=${isoNow} fire_at=${parsed.fire_at} msg="${parsed.message}"`);
+    return parsed;
   } catch (err) {
     console.error('[remind] Parse failed:', err.message);
     return null;
@@ -123,7 +139,8 @@ export async function parseAndCreate(chatId, userMessage) {
     return { ok: false, output: 'Could not parse the reminder time.' };
   }
 
-  if (fireAt <= new Date()) {
+  const TOLERANCE_MS = 2 * 60_000;
+  if (fireAt.getTime() < Date.now() - TOLERANCE_MS) {
     return { ok: false, output: 'That time is in the past, Sir.' };
   }
 
