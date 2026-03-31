@@ -5,7 +5,6 @@ import { escapeHtml } from '../utils.js';
 const POLL_INTERVAL = 30_000;
 
 let intervalId = null;
-let pollCount = 0;
 
 function snoozeKeyboard(reminderId) {
   return Markup.inlineKeyboard([
@@ -16,13 +15,11 @@ function snoozeKeyboard(reminderId) {
 }
 
 async function pollReminders(bot, defaultChatId) {
-  pollCount++;
   try {
     const due = await getDueReminders();
-    console.log(`[scheduler] poll #${pollCount}: ${due.length} due reminder(s)`);
 
     if (due.length > 0) {
-      console.log(`[scheduler] firing: ${due.map((r) => `#${r.id} "${r.message}" fire_at=${r.fire_at}`).join(', ')}`);
+      console.log(`[scheduler] ${due.length} reminder(s) due: ${due.map((r) => `#${r.id} "${r.message}"`).join(', ')}`);
     }
 
     for (const reminder of due) {
