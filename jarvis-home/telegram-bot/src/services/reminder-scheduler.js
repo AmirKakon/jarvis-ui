@@ -1,10 +1,13 @@
 import { Markup } from 'telegraf';
-import { getDueReminders, markFired, updateFireAt, computeNextFire } from '../agents/remind.js';
+import { getDueReminders, markFired, updateFireAt, computeNextFire, purgeOldReminders } from '../agents/remind.js';
 import { escapeHtml } from '../utils.js';
 
 const POLL_INTERVAL = 30_000;
 
+const PURGE_EVERY = 2880; // ~24h at 30s intervals
+
 let intervalId = null;
+let pollCount = 0;
 
 function snoozeKeyboard(reminderId) {
   return Markup.inlineKeyboard([
@@ -49,6 +52,10 @@ async function pollReminders(bot, defaultChatId) {
       } else {
         await markFired(reminder.id);
       }
+    }
+    pollCount++;
+    if (pollCount % PURGE_EVERY === 0) {
+      await purgeOldReminders();
     }
   } catch (err) {
     console.error('[scheduler] Poll error:', err.message);

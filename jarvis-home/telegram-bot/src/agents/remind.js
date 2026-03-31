@@ -368,6 +368,17 @@ export async function updateFireAt(id, newFireAt) {
   await query('UPDATE reminders SET fire_at = $1 WHERE id = $2', [newFireAt.toISOString(), id]);
 }
 
+export async function purgeOldReminders() {
+  await ensureTable();
+  const { rowCount } = await query(
+    "DELETE FROM reminders WHERE fired = TRUE AND fire_at < NOW() - INTERVAL '1 day'"
+  );
+  if (rowCount > 0) {
+    console.log(`[remind] Purged ${rowCount} old fired reminder(s)`);
+  }
+  return rowCount;
+}
+
 export async function closeReminderPool() {
   if (pool) {
     await pool.end();
