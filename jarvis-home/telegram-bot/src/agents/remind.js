@@ -211,7 +211,14 @@ export async function cancelByText(chatId, searchText) {
   }
 
   const lower = searchText.toLowerCase().replace(/cancel\s*(the\s*)?reminder\s*(about|for|to)?\s*/i, '').trim();
-  const match = rows.find((r) => r.message.toLowerCase().includes(lower));
+  const searchWords = lower.split(/\s+/).filter((w) => w.length > 1);
+
+  const match = rows.find((r) => r.message.toLowerCase().includes(lower))
+    || rows.find((r) => {
+      const msg = r.message.toLowerCase();
+      const matched = searchWords.filter((w) => msg.includes(w));
+      return matched.length >= Math.ceil(searchWords.length * 0.6);
+    });
 
   if (!match) {
     const list = rows.map((r) => `#${r.id} — ${r.message}`).join('\n');
