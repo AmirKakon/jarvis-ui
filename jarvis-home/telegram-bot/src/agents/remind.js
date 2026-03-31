@@ -128,6 +128,17 @@ Examples:
   }
 }
 
+const DAY_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function formatRecurrence(rec) {
+  if (!rec) return '';
+  const [type, ...parts] = rec.split(':');
+  if (type === 'daily') return `daily at ${parts[0]}:${parts[1]}`;
+  if (type === 'weekly') return `every ${DAY_NAMES[parseInt(parts[0])] || parts[0]} at ${parts[1]}:${parts[2]}`;
+  if (type === 'monthly') return `monthly on the ${parts[0]}th at ${parts[1]}:${parts[2]}`;
+  return rec;
+}
+
 export async function parseAndCreate(chatId, userMessage) {
   await ensureTable();
 
@@ -153,11 +164,11 @@ export async function parseAndCreate(chatId, userMessage) {
 
   const id = rows[0]?.id;
   const timeStr = fireAt.toLocaleString('en-GB', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' });
-  const recLabel = parsed.recurrence ? ` (recurring: ${parsed.recurrence})` : '';
+  const recLabel = parsed.recurrence ? ` (repeats ${formatRecurrence(parsed.recurrence)})` : '';
 
   return {
     ok: true,
-    output: `Reminder #${id} set: "${parsed.message}" — ${timeStr}${recLabel}`,
+    output: `Reminder set: "${parsed.message}" — ${timeStr}${recLabel}`,
     id,
     fireAt: fireAt.toISOString(),
     recurrence: parsed.recurrence || null,
@@ -178,7 +189,7 @@ export async function listReminders(chatId) {
 
   const lines = rows.map((r) => {
     const time = new Date(r.fire_at).toLocaleString('en-GB', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' });
-    const rec = r.recurrence ? ` 🔁 ${r.recurrence}` : '';
+    const rec = r.recurrence ? ` 🔁 ${formatRecurrence(r.recurrence)}` : '';
     return `#${r.id} — ${r.message} — ${time}${rec}`;
   });
 
@@ -188,16 +199,17 @@ export async function listReminders(chatId) {
 export async function cancelReminder(chatId, id) {
   await ensureTable();
 
-  const { rowCount } = await query(
-    'UPDATE reminders SET fired = TRUE WHERE id = $1 AND chat_id = $2 AND fired = FALSE',
+  const { rows } = await query(
+    'SELECT message FROM reminders WHERE id = $1 AND chat_id = $2 AND fired = FALSE',
     [id, chatId]
   );
 
-  if (rowCount === 0) {
-    return { ok: false, output: `Reminder #${id} not found or already cancelled.` };
+  if (!rows.length) {
+    return { ok: false, output: 'Reminder not found or already cancelled.' };
   }
 
-  return { ok: true, output: `Reminder #${id} cancelled.` };
+  await query('UPDATE reminders SET fired = TRUE WHERE id = $1', [id]);
+  return { ok: true, output: `Reminder cancelled: "${rows[0].message}"` };
 }
 
 export async function cancelByText(chatId, searchText) {
@@ -228,27 +240,30 @@ export async function cancelByText(chatId, searchText) {
   }
 
   await query('UPDATE reminders SET fired = TRUE WHERE id = $1', [match.id]);
-  return { ok: true, output: `Reminder #${match.id} ("${match.message}") cancelled.` };
+  return { ok: true, output: `Reminder cancelled: "${match.message}"` };
 }
 
 export async function snoozeReminder(id, minutes = 5) {
   await ensureTable();
 
-  const { rows } = await query('SELECT chat_id, message FROM reminders WHERE id = $1', [id]);
+  const { rows } = await query('SELECT chat_id, message, recurrence FROM reminders WHERE id = $1', [id]);
   if (!rows.length) {
     return { ok: false, output: 'Reminder not found.' };
   }
 
   const fireAt = new Date(Date.now() + minutes * 60_000);
-  const { rows: inserted } = await query(
-    'INSERT INTO reminders (chat_id, message, fire_at) VALUES ($1, $2, $3) RETURNING id',
-    [rows[0].chat_id, rows[0].message, fireAt.toISOString()]
-  );
-
-  const newId = inserted[0]?.id;
   const timeStr = fireAt.toLocaleString('en-GB', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' });
 
-  return { ok: true, output: `Snoozed for ${minutes}m — reminder #${newId} at ${timeStr}`, newId };
+  if (rows[0].recurrence) {
+    const { rows: inserted } = await query(
+      'INSERT INTO reminders (chat_id, message, fire_at) VALUES ($1, $2, $3) RETURNING id',
+      [rows[0].chat_id, rows[0].message, fireAt.toISOString()]
+    );
+    return { ok: true, output: `Snoozed for ${minutes}m — ${timeStr}`, newId: inserted[0]?.id };
+  }
+
+  await query('UPDATE reminders SET fire_at = $1, fired = FALSE WHERE id = $2', [fireAt.toISOString(), id]);
+  return { ok: true, output: `Snoozed for ${minutes}m — ${timeStr}`, newId: id };
 }
 
 export async function extendReminder(chatId, id, minutes) {
@@ -260,7 +275,7 @@ export async function extendReminder(chatId, id, minutes) {
   );
 
   if (!rows.length) {
-    return { ok: false, output: `Reminder #${id} not found or already fired.` };
+    return { ok: false, output: 'Reminder not found or already fired.' };
   }
 
   const currentFireAt = new Date(rows[0].fire_at);
@@ -270,7 +285,7 @@ export async function extendReminder(chatId, id, minutes) {
 
   const timeStr = newFireAt.toLocaleString('en-GB', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' });
 
-  return { ok: true, output: `Reminder #${id} extended by ${minutes}m — now at ${timeStr}` };
+  return { ok: true, output: `Reminder extended by ${minutes}m — now at ${timeStr}` };
 }
 
 export function computeNextFire(recurrence, lastFire) {

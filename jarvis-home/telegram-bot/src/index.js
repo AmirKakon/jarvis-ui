@@ -180,10 +180,33 @@ bot.action(/^snz:(\d+):(\d+)$/, async (ctx) => {
   if (result.ok) {
     await ctx.answerCbQuery(`Snoozed for ${minutes}m`);
     await editOrReply(ctx, ctx.callbackQuery.message.message_id,
-      `😴 Snoozed for ${minutes} minutes (reminder #${result.newId})`
+      `😴 ${result.output}`
     );
   } else {
     await ctx.answerCbQuery(result.output);
+  }
+});
+
+bot.action(/^snz_more:(\d+)$/, async (ctx) => {
+  const remId = parseInt(ctx.match[1]);
+  await ctx.answerCbQuery();
+  try {
+    await ctx.editMessageReplyMarkup({
+      inline_keyboard: [
+        [
+          { text: '5m', callback_data: `snz:${remId}:5` },
+          { text: '15m', callback_data: `snz:${remId}:15` },
+          { text: '30m', callback_data: `snz:${remId}:30` },
+        ],
+        [
+          { text: '1h', callback_data: `snz:${remId}:60` },
+          { text: '2h', callback_data: `snz:${remId}:120` },
+          { text: '4h', callback_data: `snz:${remId}:240` },
+        ],
+      ],
+    });
+  } catch (err) {
+    console.error('[snz_more] Failed to expand keyboard:', err.message);
   }
 });
 

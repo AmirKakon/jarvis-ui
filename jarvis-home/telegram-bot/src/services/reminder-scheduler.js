@@ -8,9 +8,12 @@ let intervalId = null;
 
 function snoozeKeyboard(reminderId) {
   return Markup.inlineKeyboard([
-    Markup.button.callback('Snooze 5m', `snz:${reminderId}:5`),
-    Markup.button.callback('Snooze 15m', `snz:${reminderId}:15`),
-    Markup.button.callback('Snooze 1h', `snz:${reminderId}:60`),
+    [
+      Markup.button.callback('5m', `snz:${reminderId}:5`),
+      Markup.button.callback('15m', `snz:${reminderId}:15`),
+      Markup.button.callback('1h', `snz:${reminderId}:60`),
+      Markup.button.callback('More...', `snz_more:${reminderId}`),
+    ],
   ]);
 }
 
@@ -24,8 +27,8 @@ async function pollReminders(bot, defaultChatId) {
 
     for (const reminder of due) {
       const chatId = reminder.chat_id || defaultChatId;
-      const rec = reminder.recurrence ? `\n🔁 Recurring: ${reminder.recurrence}` : '';
-      const text = `🔔 <b>Reminder #${reminder.id}</b>\n${escapeHtml(reminder.message)}${rec}`;
+      const rec = reminder.recurrence ? `\n🔁 Recurring` : '';
+      const text = `🔔 <b>Reminder</b>\n${escapeHtml(reminder.message)}${rec}`;
 
       try {
         await bot.telegram.sendMessage(chatId, text, {
