@@ -20,6 +20,8 @@ import { memoryCommand } from './commands/memory.js';
 import { securityCommand, securityRefresh } from './commands/security.js';
 import { searchCommand } from './commands/search.js';
 import { cronRerun } from './commands/cron-rerun.js';
+import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
+import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
 
 // --- Load environment from ~/jarvis/.env ---
 const ENV_PATH = (process.env.HOME || '/home/iot') + '/jarvis/.env';
@@ -95,6 +97,7 @@ const HELP_TEXT = [
   '/download  — torrent downloads',
   '/security  — security dashboard',
   '/search    — web search (AI-summarized)',
+  '/reminders — list active reminders',
   '/help      — this message',
   '',
   '<b>Memory (persistent across sessions):</b>',
@@ -128,6 +131,11 @@ bot.command('n8n', n8nCommand);
 bot.command('download', downloadCommand);
 bot.command('security', securityCommand);
 bot.command('search', searchCommand);
+bot.command('reminders', async (ctx) => {
+  const chatId = String(ctx.chat?.id || 'default');
+  const result = await listReminders(chatId);
+  await ctx.replyWithHTML(result.ok ? `⏰ ${escapeHtml(result.output)}` : `⚠️ ${escapeHtml(result.output)}`);
+});
 bot.command('deep', askOpusDirect);
 bot.command('voice', (ctx) => {
   const chatId = String(ctx.chat?.id || 'default');
@@ -162,6 +170,22 @@ bot.command('new', memoryCommand('new'));
 bot.action(/^d:([rsSl]):(.+)$/, dockerCallback);
 bot.action(/^h:(.+)$/, haCallback);
 bot.action(/^dl:(.+)$/, downloadCallback);
+
+// --- Reminder snooze callbacks ---
+bot.action(/^snz:(\d+):(\d+)$/, async (ctx) => {
+  const remId = parseInt(ctx.match[1]);
+  const minutes = parseInt(ctx.match[2]);
+  const result = await snoozeReminder(remId, minutes);
+
+  if (result.ok) {
+    await ctx.answerCbQuery(`Snoozed for ${minutes}m`);
+    await editOrReply(ctx, ctx.callbackQuery.message.message_id,
+      `😴 Snoozed for ${minutes} minutes (reminder #${result.newId})`
+    );
+  } else {
+    await ctx.answerCbQuery(result.output);
+  }
+});
 
 // --- Refresh callbacks ---
 const refreshHandlers = {
@@ -233,14 +257,17 @@ bot.on('text', askClaude);
 // --- Graceful shutdown ---
 async function shutdown(signal) {
   console.log(`Received ${signal}, shutting down...`);
+  stopScheduler();
   bot.stop(signal);
   await closePool();
+  await closeReminderPool();
 }
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 // --- Start ---
 bot.launch({ dropPendingUpdates: true }).then(() => {
+  startScheduler(bot, CHAT_ID);
   bot.telegram.setMyCommands([
     { command: 'status', description: 'System health summary' },
     { command: 'docker', description: 'List / manage containers' },
@@ -252,6 +279,7 @@ bot.launch({ dropPendingUpdates: true }).then(() => {
     { command: 'download', description: 'Torrent downloads' },
     { command: 'security', description: 'Security dashboard' },
     { command: 'search', description: 'Web search (AI-summarized)' },
+    { command: 'reminders', description: 'List active reminders' },
     { command: 'remember', description: 'Store a permanent fact' },
     { command: 'recall', description: 'Search past conversations' },
     { command: 'memory', description: 'Memory stats' },

@@ -14,6 +14,7 @@ import { runCodeExecution } from './agents/compute.js';
 import { runOpus } from './agents/opus.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
 import { resolveAndExecute } from './agents/ha.js';
+import { parseAndCreate, listReminders, cancelReminder, extendReminder } from './agents/remind.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
@@ -163,6 +164,9 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 5. Home Assistant device control (turn on/off lights, switches, fans, or other smart devices):
 {"ha": true, "command": "the full natural language command", "acknowledge": "brief message to user"}
 
+6. Reminders (set, list, cancel, or extend reminders and scheduled messages):
+{"remind": true, "action": "set|list|cancel|extend", "text": "the user's full message", "acknowledge": "brief message to user"}
+
 EXAMPLES:
 - User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
 - User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container", "acknowledge": "Restarting nginx now, Sir."}
@@ -171,8 +175,13 @@ EXAMPLES:
 - User: "call the forecast API at https://www.02ws.co.il/api/forecast" → {"delegate": true, "task": "Make an HTTP GET request to https://www.02ws.co.il/api/forecast and return the response", "acknowledge": "Calling that API now, Sir."}
 - User: "turn off the heater plug" → {"ha": true, "command": "turn off the heater plug", "acknowledge": "Switching it off now, Sir."}
 - User: "turn on the living room light" → {"ha": true, "command": "turn on the living room light", "acknowledge": "Lighting up the living room, Sir."}
+- User: "remind me to check the laundry in 30 minutes" → {"remind": true, "action": "set", "text": "remind me to check the laundry in 30 minutes", "acknowledge": "Setting that reminder, Sir."}
+- User: "what reminders do I have" → {"remind": true, "action": "list", "text": "list reminders", "acknowledge": "Let me check, Sir."}
+- User: "cancel reminder 3" → {"remind": true, "action": "cancel", "text": "cancel reminder 3", "acknowledge": "Cancelling that reminder, Sir."}
+- User: "extend reminder 2 by 20 minutes" → {"remind": true, "action": "extend", "text": "extend reminder 2 by 20 minutes", "acknowledge": "Extending that reminder, Sir."}
 
 RULES:
+- Set/list/cancel/extend reminders, alarms, scheduled messages → remind
 - Smart home device control (turn on/off, toggle lights/switches/plugs/fans/covers) → ha
 - Server operations (check status, read logs, restart services) → delegate
 - API calls, curl requests, HTTP endpoints that need headers/auth → delegate (server has full network access)
@@ -311,7 +320,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 // --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind'];
 
 function parseAction(text) {
   const normalize = (s) => s
@@ -573,6 +582,54 @@ export async function askClaude(ctx, textOverride = null) {
           console.error('Fact extraction failed:', err.message)
         );
       }
+    } else {
+      await ctx.replyWithHTML(`⚠️ ${escapeHtml(result.output)}`);
+    }
+    return;
+  }
+
+  // --- Reminder action ---
+  if (action?.remind) {
+    const ack = action.acknowledge || 'On it, Sir...';
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `⏰ <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+    ).catch(() => {});
+
+    const chatId = String(ctx.chat?.id || 'default');
+    let result;
+
+    switch (action.action) {
+      case 'list':
+        result = await listReminders(chatId);
+        break;
+      case 'cancel': {
+        const idMatch = action.text?.match(/\d+/);
+        const remId = idMatch ? parseInt(idMatch[0]) : null;
+        result = remId
+          ? await cancelReminder(chatId, remId)
+          : { ok: false, output: 'Please specify a reminder number to cancel (e.g. "cancel reminder 3").' };
+        break;
+      }
+      case 'extend': {
+        const nums = action.text?.match(/\d+/g) || [];
+        const remId = nums[0] ? parseInt(nums[0]) : null;
+        const mins = nums[1] ? parseInt(nums[1]) : null;
+        result = (remId && mins)
+          ? await extendReminder(chatId, remId, mins)
+          : { ok: false, output: 'Please specify the reminder number and minutes (e.g. "extend reminder 3 by 15 minutes").' };
+        break;
+      }
+      default:
+        result = await parseAndCreate(chatId, action.text || prompt);
+        break;
+    }
+
+    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
+
+    if (result.ok) {
+      await ctx.replyWithHTML(`⏰ ${escapeHtml(result.output)}`);
+      await maybeSendVoice(ctx, result.output);
     } else {
       await ctx.replyWithHTML(`⚠️ ${escapeHtml(result.output)}`);
     }

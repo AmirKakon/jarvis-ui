@@ -9,12 +9,12 @@
 - ~~calculations & code execution~~ — Anthropic sandbox (`code_execution_20250825`), front model routes `{"compute": true}`, supports chart images
 - ~~TTS voice replies~~ — OpenAI TTS (`tts-1`), `/voice` toggle with configurable voice (alloy, echo, nova, onyx, etc.)
 - ~~natural language HA control~~ — Haiku-based entity resolution + direct HA API calls (~2-3s vs ~60s via Opus), front model routes `{"ha": true}`
+- ~~reminders / scheduled messages~~ — Haiku NL parsing, PostgreSQL persistence, 30s polling loop, one-shot + recurring (daily/weekly/monthly), snooze inline buttons, `/reminders` command, front model routes `{"remind": true}`
 
 ## 🔧 Planned
 
 ### Core Capabilities
-1. reminders / scheduled messages — "remind me to check the laundry in 30 minutes"
-2. multi-tool research agent — a combined agent with access to web search + web fetch + code execution that can chain tools autonomously in a single request (e.g., "find Bitcoin price history and chart it" → search → fetch data → run code → return chart). Trades per-step user feedback for autonomous multi-step reasoning.
+1. multi-tool research agent — a combined agent with access to web search + web fetch + code execution that can chain tools autonomously in a single request (e.g., "find Bitcoin price history and chart it" → search → fetch data → run code → return chart). Trades per-step user feedback for autonomous multi-step reasoning.
 
 ### Automations
 
