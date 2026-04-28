@@ -281,7 +281,7 @@ bot.on('text', askClaude);
 async function shutdown(signal) {
   console.log(`Received ${signal}, shutting down...`);
   stopScheduler();
-  bot.stop(signal);
+  try { bot.stop(signal); } catch {}
   await closePool();
   await closeReminderPool();
   process.exit(0);
@@ -289,35 +289,50 @@ async function shutdown(signal) {
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
 
-// --- Start ---
-bot.launch({ dropPendingUpdates: true }).then(() => {
-  startScheduler(bot, CHAT_ID);
-  bot.telegram.setMyCommands([
-    { command: 'status', description: 'System health summary' },
-    { command: 'docker', description: 'List / manage containers' },
-    { command: 'services', description: 'Systemd service status' },
-    { command: 'storage', description: 'Disk usage overview' },
-    { command: 'network', description: 'Network interfaces & ports' },
-    { command: 'ha', description: 'Home Assistant control' },
-    { command: 'n8n', description: 'n8n workflow management' },
-    { command: 'download', description: 'Torrent downloads' },
-    { command: 'security', description: 'Security dashboard' },
-    { command: 'search', description: 'Web search (AI-summarized)' },
-    { command: 'reminders', description: 'List active reminders' },
-    { command: 'remember', description: 'Store a permanent fact' },
-    { command: 'recall', description: 'Search past conversations' },
-    { command: 'memory', description: 'Memory stats' },
-    { command: 'new', description: 'End session & start fresh' },
-    { command: 'voice', description: 'Toggle voice replies / change TTS voice' },
-    { command: 'deep', description: 'Send directly to Opus (bypasses front model)' },
-    { command: 'help', description: 'Show all commands' },
-  ]);
-  console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);
-}).catch((err) => {
-  console.error('Bot launch error:', err.message);
-});
+// --- Start with retry on transient failures (e.g. DNS not ready after reboot) ---
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 10_000;
 
-// Failsafe: start scheduler even if bot.launch().then() is delayed by Telegram conflicts
+async function launchWithRetry(attempt = 1) {
+  try {
+    await bot.launch({ dropPendingUpdates: true });
+    startScheduler(bot, CHAT_ID);
+    bot.telegram.setMyCommands([
+      { command: 'status', description: 'System health summary' },
+      { command: 'docker', description: 'List / manage containers' },
+      { command: 'services', description: 'Systemd service status' },
+      { command: 'storage', description: 'Disk usage overview' },
+      { command: 'network', description: 'Network interfaces & ports' },
+      { command: 'ha', description: 'Home Assistant control' },
+      { command: 'n8n', description: 'n8n workflow management' },
+      { command: 'download', description: 'Torrent downloads' },
+      { command: 'security', description: 'Security dashboard' },
+      { command: 'search', description: 'Web search (AI-summarized)' },
+      { command: 'reminders', description: 'List active reminders' },
+      { command: 'remember', description: 'Store a permanent fact' },
+      { command: 'recall', description: 'Search past conversations' },
+      { command: 'memory', description: 'Memory stats' },
+      { command: 'new', description: 'End session & start fresh' },
+      { command: 'voice', description: 'Toggle voice replies / change TTS voice' },
+      { command: 'deep', description: 'Send directly to Opus (bypasses front model)' },
+      { command: 'help', description: 'Show all commands' },
+    ]);
+    console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);
+  } catch (err) {
+    console.error(`Bot launch error (attempt ${attempt}/${MAX_RETRIES}):`, err.message);
+    if (attempt < MAX_RETRIES) {
+      console.log(`Retrying in ${RETRY_DELAY_MS / 1000}s...`);
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      return launchWithRetry(attempt + 1);
+    }
+    console.error('All launch attempts failed — exiting so systemd can restart us');
+    process.exit(1);
+  }
+}
+
+launchWithRetry();
+
+// Failsafe: start scheduler even if launch retries are in progress
 setTimeout(() => {
   startScheduler(bot, CHAT_ID);
 }, 10_000);
