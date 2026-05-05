@@ -762,7 +762,10 @@ async function offerFactExtraction(ctx, userMessage, assistantResponse) {
   const batchId = storePendingBatch(facts);
   const lines = ['💾 <b>Should I remember?</b>', ''];
   for (const f of facts) {
-    lines.push(`• <i>${escapeHtml(f)}</i>`);
+    const content = typeof f === 'string' ? f : f.content;
+    const category = typeof f === 'string' ? null : f.category;
+    const tag = category && category !== 'general' ? ` <code>[${escapeHtml(category)}]</code>` : '';
+    lines.push(`•${tag} <i>${escapeHtml(content)}</i>`);
   }
 
   await ctx.replyWithHTML(lines.join('\n'), Markup.inlineKeyboard([

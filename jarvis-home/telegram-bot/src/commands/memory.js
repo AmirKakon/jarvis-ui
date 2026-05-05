@@ -3,7 +3,7 @@
  */
 
 import { Markup } from 'telegraf';
-import { storeFact, searchMemory, getAllFacts, getMemoryStats } from '../memory.js';
+import { storeFact, searchMemory, getAllFacts, getMemoryStats, purgeJunkFacts } from '../memory.js';
 import { forceNewSession } from '../claude.js';
 import { escapeHtml, truncate } from '../utils.js';
 
@@ -27,10 +27,13 @@ async function handleRemember(ctx, args) {
     const result = await storeFact(fact, null, 'telegram', String(ctx.chat?.id));
 
     let response;
-    if (result.deduplicated) {
+    if (result.rejected) {
+      response = `🚫 Refused to remember (matched <code>${escapeHtml(result.reason)}</code>):\n<i>"${escapeHtml(fact)}"</i>\n\nMemory rejects credentials, transient state (PIDs, usage, uptime), reminders/scheduled items, and trivia. Rephrase as a stable fact about you or your setup.`;
+    } else if (result.deduplicated) {
       response = `⚠️ Similar fact already exists:\n<i>"${escapeHtml(result.existing)}"</i>\n\nSkipped to avoid duplicates.`;
     } else {
-      response = `✅ Remembered:\n<i>"${escapeHtml(fact)}"</i>\n\nThis fact will be included in all future conversations.`;
+      const cat = result.category && result.category !== 'general' ? ` <code>[${escapeHtml(result.category)}]</code>` : '';
+      response = `✅ Remembered${cat}:\n<i>"${escapeHtml(fact)}"</i>\n\nThis fact will be included in future conversations.`;
     }
 
     await ctx.telegram.editMessageText(
@@ -149,6 +152,60 @@ async function handleStats(ctx) {
 }
 
 /**
+ * /forget_junk — scan stored facts for credentials/transient state/reminders/trivia
+ * and delete the offenders. Pass `dry` as the first arg to preview without deleting.
+ */
+async function handleForgetJunk(ctx, args) {
+  const dryRun = /^(dry|preview)\b/i.test(args.trim());
+  const verb = dryRun ? 'Scanning' : 'Purging';
+  const thinking = await ctx.replyWithHTML(`🧹 <i>${verb} junk facts...</i>`);
+
+  try {
+    const result = await purgeJunkFacts({ dryRun });
+
+    const lines = [
+      `<b>🧹 Memory ${dryRun ? 'Scan (dry run)' : 'Purge'}</b>`,
+      '',
+      `📊 Scanned: <b>${result.scanned}</b>`,
+      `🎯 Matched as junk: <b>${result.candidates}</b>`,
+      `🗑️ ${dryRun ? 'Would delete' : 'Deleted'}: <b>${result.deleted}</b>`,
+    ];
+
+    const reasons = Object.entries(result.byReason);
+    if (reasons.length) {
+      lines.push('', '<b>By reason:</b>');
+      for (const [reason, count] of reasons.sort((a, b) => b[1] - a[1])) {
+        lines.push(`  • <code>${escapeHtml(reason)}</code>: ${count}`);
+      }
+    }
+
+    if (result.samples.length) {
+      lines.push('', `<b>Samples (${result.samples.length}):</b>`);
+      for (const s of result.samples) {
+        const snippet = s.content.length > 120 ? s.content.slice(0, 120) + '...' : s.content;
+        lines.push(`  • <code>[${escapeHtml(s.reason)}]</code> ${escapeHtml(snippet)}`);
+      }
+    }
+
+    if (dryRun && result.candidates > 0) {
+      lines.push('', '<i>Run <code>/forget_junk</code> (without "dry") to actually delete.</i>');
+    }
+
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      lines.join('\n'), { parse_mode: 'HTML' }
+    );
+  } catch (err) {
+    console.error('Forget-junk error:', err.message);
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `🔴 Purge failed: ${escapeHtml(err.message)}`,
+      { parse_mode: 'HTML' }
+    );
+  }
+}
+
+/**
  * /new — end current session, summarize it, start fresh.
  */
 async function handleNew(ctx) {
@@ -190,10 +247,13 @@ export function memoryCommand(commandName) {
     const args = text.replace(/^\/\w+(@\w+)?\s*/, '');
 
     switch (commandName) {
-      case 'remember': return handleRemember(ctx, args);
-      case 'recall':   return handleRecall(ctx, args);
-      case 'memory':   return handleStats(ctx);
-      case 'new':      return handleNew(ctx);
+      case 'remember':    return handleRemember(ctx, args);
+      case 'recall':      return handleRecall(ctx, args);
+      case 'memory':      return handleStats(ctx);
+      case 'new':         return handleNew(ctx);
+      case 'forget-junk':
+      case 'forget_junk':
+      case 'forgetjunk':  return handleForgetJunk(ctx, args);
     }
   };
 }

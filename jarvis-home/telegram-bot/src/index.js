@@ -165,6 +165,8 @@ bot.command('remember', memoryCommand('remember'));
 bot.command('recall', memoryCommand('recall'));
 bot.command('memory', memoryCommand('memory'));
 bot.command('new', memoryCommand('new'));
+bot.command('forget_junk', memoryCommand('forget-junk'));
+bot.command('forgetjunk', memoryCommand('forget-junk'));
 
 // --- Inline keyboard callbacks ---
 bot.action(/^d:([rsSl]):(.+)$/, dockerCallback);
@@ -242,15 +244,29 @@ bot.action(/^mem:([yn]):(.+)$/, async (ctx) => {
   }
 
   if (action === 'y') {
+    const accepted = [];
+    const rejected = [];
     for (const fact of facts) {
-      await storeFact(fact, null, 'telegram');
+      const content = typeof fact === 'string' ? fact : fact.content;
+      const category = typeof fact === 'string' ? null : fact.category;
+      const result = await storeFact(content, category, 'telegram');
+      if (result.rejected) rejected.push({ content, reason: result.reason });
+      else if (!result.deduplicated) accepted.push(content);
     }
     deletePendingBatch(batchId);
     await ctx.answerCbQuery('Saved!');
-    const saved = facts.map((f) => `• ${escapeHtml(f)}`).join('\n');
-    await editOrReply(ctx, ctx.callbackQuery.message.message_id,
-      `✅ <b>Remembered ${facts.length} fact(s):</b>\n${saved}`
-    );
+    const lines = [];
+    if (accepted.length) {
+      lines.push(`✅ <b>Remembered ${accepted.length} fact(s):</b>`);
+      for (const c of accepted) lines.push(`• ${escapeHtml(c)}`);
+    }
+    if (rejected.length) {
+      if (lines.length) lines.push('');
+      lines.push(`⚠️ <b>Skipped ${rejected.length} (looked like junk):</b>`);
+      for (const r of rejected) lines.push(`• <code>[${escapeHtml(r.reason)}]</code> ${escapeHtml(r.content)}`);
+    }
+    if (!lines.length) lines.push('ℹ️ Nothing new to save (all duplicates).');
+    await editOrReply(ctx, ctx.callbackQuery.message.message_id, lines.join('\n'));
   } else {
     deletePendingBatch(batchId);
     await ctx.answerCbQuery('Skipped');

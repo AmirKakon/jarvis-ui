@@ -30,28 +30,127 @@ const FACT_DEDUP_THRESHOLD = 0.92;
 const HAIKU_MODEL = 'claude-haiku-4-20250514';
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 
+// --- Fact categorization & context bounding ---
+
+const KNOWN_CATEGORIES = ['identity', 'preference', 'infrastructure', 'relationship', 'general'];
+const ALWAYS_INCLUDE_CATEGORIES = new Set(['identity', 'preference']);
+const MAX_FACTS_IN_CONTEXT = 25;
+const RETRIEVED_FACTS_LIMIT = 12;
+const FACT_RETRIEVAL_THRESHOLD = 0.20;
+const MAX_FACT_LENGTH = 300;
+
+// --- Junk patterns: facts we never want stored ---
+//
+// Each pattern has a name (for diagnostics) and a regex. Order matters only
+// for which `reason` is reported when multiple match. Add new patterns here
+// rather than spreading them across files.
+const JUNK_PATTERNS = [
+  // Credentials & secrets
+  { name: 'password', re: /\bpassword\s*[:=]/i },
+  { name: 'api_key',  re: /\b(api[_-]?key|access[_-]?token|bearer\s+token)\b\s*[:=]/i },
+  { name: 'secret',   re: /\bsecret\s*[:=]/i },
+  { name: 'env_secret_name', re: /\b[A-Z][A-Z0-9_]{2,}_(PASSWORD|PASS|KEY|SECRET|TOKEN|CREDENTIAL)\b/ },
+  { name: 'env_var_assignment', re: /\b[A-Z][A-Z0-9_]{3,}_[A-Z]+\s*[:=]\s*\S+/ },
+
+  // Transient runtime state
+  { name: 'pid',              re: /\bPID\s*[:=]\s*\d+/i },
+  { name: 'usage_metric',     re: /\b(memory|cpu|disk|ram|swap)\s+usage\s*[:=]/i },
+  { name: 'active_clients',   re: /\bactive\s+(clients?|connections?|sessions?)\b/i },
+  { name: 'running_since',    re: /\b(active|running|up)\s+(and\s+running\s+)?since\s+/i },
+  { name: 'uptime',           re: /\buptime\s+(is|of)\b/i },
+  { name: 'peak_value',       re: /\bpeak\s+\d+(\.\d+)?\s*(MB|GB|MiB|GiB|KB)\b/i },
+  { name: 'currently_state',  re: /\bis\s+(currently|now)\s+(running|active|connected|online|up|down)\b/i },
+  { name: 'recent_activity',  re: /\brecent\s+activity\s+(for|of|on)\b/i },
+  { name: 'load_average',     re: /\bload\s+average[s]?\b/i },
+
+  // Time-bound items / reminders
+  { name: 'reminder_subject',    re: /^reminder\b/i },
+  { name: 'has_reminder',        re: /^user\s+has\s+a\s+reminder\b/i },
+  { name: 'reminder_action',     re: /\breminder\s+(at|set|for|to)\s+/i },
+  { name: 'at_specific_time_to', re: /\bat\s+\d{1,2}:\d{2}\s+(to|for)\b/i },
+  { name: 'in_n_hours_to',       re: /\bin\s+\d+\s+(hour|minute|hr|min)s?\s+to\b/i },
+
+  // Trivia / common knowledge
+  { name: 'country_code_def', re: /^[+\d\s]+is\s+the\s+country\s+code\b/i },
+
+  // Self-references about the assistant
+  { name: 'about_assistant', re: /^(the\s+)?(assistant|jarvis|bot)\s+(runs|is|operates|lives)\b/i },
+];
+
+/**
+ * Decide whether a fact looks like junk that should never be persisted.
+ * Returns { junk: boolean, reason?: string }.
+ */
+export function looksLikeJunk(content) {
+  if (!content || typeof content !== 'string') return { junk: true, reason: 'empty' };
+  const trimmed = content.trim();
+  if (trimmed.length < 6) return { junk: true, reason: 'too_short' };
+  if (trimmed.length > MAX_FACT_LENGTH) return { junk: true, reason: 'too_long' };
+  for (const { name, re } of JUNK_PATTERNS) {
+    if (re.test(trimmed)) return { junk: true, reason: name };
+  }
+  return { junk: false };
+}
+
+function normalizeCategory(category) {
+  if (!category || typeof category !== 'string') return 'general';
+  const lower = category.toLowerCase();
+  return KNOWN_CATEGORIES.includes(lower) ? lower : 'general';
+}
+
 const SUMMARIZATION_PROMPT = `Analyze this conversation and provide:
 1. A concise summary (2-4 sentences) capturing the main topics and outcomes
 2. A list of 3-5 key topic tags
-3. Any durable facts worth remembering permanently (personal info like names, server IPs, passwords, setup details, user preferences, device names, relationships, locations, schedules)
+3. DURABLE facts about the USER worth remembering permanently, each tagged with a category
+
+Each fact MUST be tagged with exactly one category from: identity, preference, infrastructure, relationship.
+
+INCLUDE only stable facts about the USER:
+- identity: name, birthday, location, nationality, religion, employer, family members
+- preference: stable preferences ("user prefers X", "default behavior is Y", "user dislikes Z")
+- infrastructure: stable network/system topology — server IPs, hostnames, mount points, fixed file paths, service names, port numbers
+- relationship: contact details and named relationships
+
+NEVER EXTRACT (these are not facts):
+- Credentials of any kind: passwords, API keys, tokens, secrets, env-var values, "PASSWORD=", "_KEY:", "Bearer", connection strings
+- Transient state from tool output: PIDs, memory/CPU/disk usage, percentages, uptime, "active since", connection counts, "currently running", load averages, peak values
+- Time-bound or scheduled items: reminders, "remind me to...", "at HH:MM", "in N hours", one-time tasks, today/tonight tasks
+- Common knowledge the model already has: country codes, public general facts, dictionary definitions
+- Facts about the assistant/Jarvis itself, its location, capabilities, or session metadata
+- Troubleshooting steps, commands run, conversation filler, greetings, status reports
+
+If a fact straddles excluded ground or you are unsure, OMIT IT.
 
 Respond ONLY with valid JSON, no markdown:
-{"summary": "...", "topics": ["..."], "facts": ["..."]}
+{"summary": "...", "topics": ["..."], "facts": [{"content": "User's birthday is May 21st", "category": "identity"}]}
+If nothing worth remembering, return: {"summary": "...", "topics": ["..."], "facts": []}
 
 CONVERSATION:
 `;
 
-const EXTRACTION_PROMPT = `Extract any facts about the USER worth remembering permanently from this exchange.
+const EXTRACTION_PROMPT = `Extract DURABLE facts about the USER from this exchange. Each fact must be tagged with exactly one category from: identity, preference, infrastructure, relationship.
 
-Include: the user's name, personal info, preferences, device details, configurations, relationships, locations, schedules, account info, setup details.
-Exclude: facts about the assistant/bot itself (its name, capabilities, location), transient questions, troubleshooting steps, greetings, conversation filler, commands or actions.
-IMPORTANT: Only extract facts about the USER, not about the assistant.
+INCLUDE only stable facts about the USER:
+- identity: name, birthday, location, nationality, religion, employer, family
+- preference: stable preferences ("user prefers X", "default behavior is Y")
+- infrastructure: stable topology — IPs, hostnames, mount points, fixed paths, service names, port numbers
+- relationship: contact details and named relationships
+
+NEVER EXTRACT:
+- Credentials: passwords, API keys, tokens, secrets, "PASSWORD=", env-var values, connection strings
+- Transient state: PIDs, memory/CPU/disk usage, %, uptime, "active since", connection counts, "currently running", load averages, peak values
+- Time-bound items: reminders, "remind me", "at HH:MM", "in N hours", one-time tasks, today/tonight items
+- Common knowledge: country codes, public general facts, dictionary trivia
+- Facts about the assistant/Jarvis itself
+- Conversation filler, troubleshooting steps, commands run
+
+If unsure, OMIT.
 
 USER: {user}
 ASSISTANT: {assistant}
 
-Respond with ONLY valid JSON, no markdown:
-{"facts": ["The user's name is ...", "..."]}
+Respond ONLY with valid JSON, no markdown:
+{"facts": [{"content": "User lives in Jerusalem", "category": "identity"}]}
 If nothing worth remembering: {"facts": []}`;
 
 const pendingFactBatches = new Map();
@@ -250,16 +349,21 @@ export async function summarizeSession(sessionId, source = 'telegram') {
     ]
   );
 
-  // Auto-extract durable facts
-  for (const fact of facts) {
-    if (fact && fact.length > 5) {
-      await storeFact(fact, null, source);
-    }
+  // Auto-extract durable facts. Tolerate both shapes:
+  //   new: [{content, category}]
+  //   legacy: ["fact text", ...]
+  let stored = 0;
+  for (const item of facts) {
+    const content = typeof item === 'string' ? item : item?.content;
+    const category = typeof item === 'string' ? null : item?.category;
+    if (!content || content.length <= 5) continue;
+    const result = await storeFact(content, category, source);
+    if (!result.rejected && !result.deduplicated) stored++;
   }
 
   await deleteSession(sessionId);
 
-  return { summary, topics, facts: facts.length };
+  return { summary, topics, facts: stored };
 }
 
 async function deleteSession(sessionId) {
@@ -270,6 +374,13 @@ async function deleteSession(sessionId) {
 // --- Durable facts ---
 
 export async function storeFact(content, category = null, source = 'telegram', createdBy = null) {
+  // Reject obvious junk (secrets, transient state, reminders, trivia) before any DB work
+  const junkCheck = looksLikeJunk(content);
+  if (junkCheck.junk) {
+    return { rejected: true, reason: junkCheck.reason };
+  }
+
+  const cat = normalizeCategory(category);
   const embedding = await createEmbedding(content);
 
   // Deduplication: check if a very similar fact already exists
@@ -291,10 +402,44 @@ export async function storeFact(content, category = null, source = 'telegram', c
   await query(
     `INSERT INTO memory_facts (content, category, embedding, source, created_by, created_at, metadata)
      VALUES ($1, $2, $3::vector, $4, $5, NOW(), '{}')`,
-    [content, category, embedding ? vectorLiteral(embedding) : null, source, createdBy]
+    [content, cat, embedding ? vectorLiteral(embedding) : null, source, createdBy]
   );
 
-  return { deduplicated: false };
+  return { deduplicated: false, category: cat };
+}
+
+/**
+ * Scan all stored facts and delete rows whose content matches any junk pattern.
+ * Returns counts grouped by reason and a small sample of deleted contents.
+ *
+ * Pass `{ dryRun: true }` to preview without deleting.
+ */
+export async function purgeJunkFacts({ dryRun = false } = {}) {
+  const { rows } = await query('SELECT id, content FROM memory_facts');
+  const toDelete = [];
+  const samples = [];
+  const byReason = {};
+
+  for (const row of rows) {
+    const check = looksLikeJunk(row.content);
+    if (!check.junk) continue;
+    toDelete.push(row.id);
+    byReason[check.reason] = (byReason[check.reason] || 0) + 1;
+    if (samples.length < 10) samples.push({ content: row.content, reason: check.reason });
+  }
+
+  if (!dryRun && toDelete.length) {
+    await query('DELETE FROM memory_facts WHERE id = ANY($1)', [toDelete]);
+  }
+
+  return {
+    scanned: rows.length,
+    candidates: toDelete.length,
+    deleted: dryRun ? 0 : toDelete.length,
+    byReason,
+    samples,
+    dryRun,
+  };
 }
 
 export async function getAllFacts() {
@@ -396,12 +541,72 @@ function daysAgoLabel(date) {
 }
 
 /**
+ * Retrieve facts to inject into a Claude prompt:
+ *   - Always include facts in ALWAYS_INCLUDE_CATEGORIES (identity, preference)
+ *   - For other categories, semantic-rank by similarity to the current prompt,
+ *     keeping the top RETRIEVED_FACTS_LIMIT
+ *   - Total cap: MAX_FACTS_IN_CONTEXT
+ *
+ * Falls back to most-recent-first if no embedding can be generated.
+ */
+async function selectFactsForContext(currentPrompt) {
+  const alwaysIncludeList = Array.from(ALWAYS_INCLUDE_CATEGORIES);
+
+  const alwaysIncludeRows = await query(
+    `SELECT id, content, category, created_at
+       FROM memory_facts
+      WHERE category = ANY($1)
+      ORDER BY created_at`,
+    [alwaysIncludeList]
+  );
+
+  const embedding = await createEmbedding(currentPrompt);
+  let retrievedRows = [];
+
+  if (embedding) {
+    const { rows } = await query(
+      `SELECT id, content, category, created_at,
+              1 - (embedding <=> $1::vector) AS similarity
+         FROM memory_facts
+        WHERE (category IS NULL OR NOT (category = ANY($2)))
+          AND embedding IS NOT NULL
+          AND 1 - (embedding <=> $1::vector) >= $3
+        ORDER BY embedding <=> $1::vector
+        LIMIT $4`,
+      [vectorLiteral(embedding), alwaysIncludeList, FACT_RETRIEVAL_THRESHOLD, RETRIEVED_FACTS_LIMIT]
+    );
+    retrievedRows = rows;
+  } else {
+    const { rows } = await query(
+      `SELECT id, content, category, created_at
+         FROM memory_facts
+        WHERE (category IS NULL OR NOT (category = ANY($1)))
+        ORDER BY created_at DESC
+        LIMIT $2`,
+      [alwaysIncludeList, RETRIEVED_FACTS_LIMIT]
+    );
+    retrievedRows = rows;
+  }
+
+  // Combine, dedup by id, cap at MAX_FACTS_IN_CONTEXT
+  const seen = new Set();
+  const combined = [];
+  for (const row of [...alwaysIncludeRows.rows, ...retrievedRows]) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    combined.push(row);
+    if (combined.length >= MAX_FACTS_IN_CONTEXT) break;
+  }
+  return combined;
+}
+
+/**
  * Build the memory block to prepend to Claude prompts.
- * Includes durable facts, relevant past summaries, and current session history.
+ * Includes durable facts (bounded), relevant past summaries, and current session history.
  */
 export async function buildMemoryContext(currentPrompt, sessionId) {
   const [facts, memories, sessionMsgs] = await Promise.all([
-    getAllFacts(),
+    selectFactsForContext(currentPrompt),
     searchMemory(currentPrompt, 3),
     getSessionMessages(sessionId),
   ]);
@@ -446,6 +651,12 @@ export async function buildMemoryContext(currentPrompt, sessionId) {
 
 // --- Real-time fact extraction ---
 
+/**
+ * Extract durable, categorized facts from a user/assistant exchange.
+ * Returns Array<{content: string, category: string}>.
+ * Junk-pattern matches are silently dropped at this stage so the user
+ * is never asked to confirm something we'd reject anyway.
+ */
 export async function extractFactsFromExchange(userMessage, assistantResponse) {
   const prompt = EXTRACTION_PROMPT
     .replace('{user}', userMessage.slice(0, 1000))
@@ -459,21 +670,32 @@ export async function extractFactsFromExchange(userMessage, assistantResponse) {
   console.log('[memory] Extraction response:', raw.slice(0, 200));
   const parsed = parseJsonResponse(raw);
   if (!parsed) {
-    console.error('[memory] Failed to parse Haiku response as JSON');
+    console.error('[memory] Failed to parse extraction response as JSON');
     return [];
   }
-  return parsed?.facts?.filter((f) => f && f.length > 5) || [];
+  const rawFacts = parsed?.facts || [];
+  const normalized = [];
+  for (const item of rawFacts) {
+    const content = typeof item === 'string' ? item : item?.content;
+    const category = typeof item === 'string' ? null : item?.category;
+    if (!content || content.length <= 5) continue;
+    if (looksLikeJunk(content).junk) continue;
+    normalized.push({ content, category: normalizeCategory(category) });
+  }
+  return normalized;
 }
 
 /**
  * Filter out candidate facts that already exist in memory_facts
  * by embedding each candidate and checking PGVector similarity.
- * Returns only genuinely novel facts.
+ * Operates on Array<{content, category}> and returns only genuinely novel facts.
  */
 export async function deduplicateFacts(candidateFacts) {
   const novel = [];
   for (const fact of candidateFacts) {
-    const embedding = await createEmbedding(fact);
+    const content = typeof fact === 'string' ? fact : fact?.content;
+    if (!content) continue;
+    const embedding = await createEmbedding(content);
     if (!embedding) {
       novel.push(fact);
       continue;
