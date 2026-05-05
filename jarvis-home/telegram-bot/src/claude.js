@@ -291,7 +291,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
   const { ok, output } = await new Promise((resolve) => {
     const escaped = prompt.replace(/'/g, "'\\''");
     const modelFlag = MODELS[model] ? `--model ${MODELS[model]}` : '';
-    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions ${modelFlag} -p '${escaped}' 2>/dev/null`;
+    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions ${modelFlag} -p '${escaped}'`;
     exec(cmd, { timeout, shell: '/bin/bash', maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
         if (err.killed) {

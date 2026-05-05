@@ -453,7 +453,7 @@ Omit year for TV, omit season/episode for movies.`;
 
   const escaped = prompt.replace(/'/g, "'\\''");
   const { ok, output } = await run(
-    `cd ${HOME}/jarvis && claude --dangerously-skip-permissions --model claude-haiku-4-20250514 -p '${escaped}' 2>/dev/null`,
+    `cd ${HOME}/jarvis && claude --dangerously-skip-permissions --model claude-haiku-4-20250514 -p '${escaped}'`,
     { timeout: 60_000 }
   );
 

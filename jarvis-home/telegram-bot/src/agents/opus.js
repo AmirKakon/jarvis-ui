@@ -6,7 +6,7 @@ const OPUS_TIMEOUT = 360_000; // 6 minutes
 export function runOpus(prompt) {
   return new Promise((resolve) => {
     const escaped = prompt.replace(/'/g, "'\\''");
-    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model claude-opus-4-20250514 -p '${escaped}' 2>/dev/null`;
+    const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model claude-opus-4-20250514 -p '${escaped}'`;
 
     exec(cmd, { timeout: OPUS_TIMEOUT, shell: '/bin/bash', maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
