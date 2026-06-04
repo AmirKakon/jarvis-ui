@@ -114,6 +114,25 @@ if command -v node &>/dev/null; then
     SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
     mkdir -p "$SYSTEMD_USER_DIR"
     cp "$SCRIPT_DIR/telegram-bot/jarvis-telegram-bot.service" "$SYSTEMD_USER_DIR/"
+
+    # The bot shells out to the `claude` CLI, but systemd user services start
+    # with a minimal PATH that excludes nvm/npm bin dirs. Inject the dir that
+    # actually contains `claude` (resolved from the deploying user's shell) via
+    # a drop-in so the bot can find it. Drop-in survives future `cp` of the unit.
+    DROPIN_DIR="$SYSTEMD_USER_DIR/jarvis-telegram-bot.service.d"
+    CLAUDE_BIN="$(command -v claude 2>/dev/null)"
+    if [ -n "$CLAUDE_BIN" ]; then
+        CLAUDE_DIR="$(dirname "$CLAUDE_BIN")"
+        mkdir -p "$DROPIN_DIR"
+        cat > "$DROPIN_DIR/path.conf" <<EOF
+[Service]
+Environment=PATH=${CLAUDE_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EOF
+        echo "  PATH drop-in written (claude found at $CLAUDE_BIN)."
+    else
+        echo -e "  ${YELLOW}'claude' CLI not found on PATH — bot delegation will fail until it is installed.${NC}"
+    fi
+
     systemctl --user daemon-reload
     systemctl --user enable jarvis-telegram-bot.service 2>/dev/null
     systemctl --user restart jarvis-telegram-bot.service 2>/dev/null
