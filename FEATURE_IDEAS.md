@@ -10,6 +10,7 @@
 - ~~TTS voice replies~~ — OpenAI TTS (`tts-1`), `/voice` toggle with configurable voice (alloy, echo, nova, onyx, etc.)
 - ~~natural language HA control~~ — Haiku-based entity resolution + direct HA API calls (~2-3s vs ~60s via Opus), front model routes `{"ha": true}`
 - ~~reminders / scheduled messages~~ — Haiku NL parsing, PostgreSQL persistence, 30s polling loop, one-shot + recurring (daily/weekly/monthly), snooze inline buttons, `/reminders` command, front model routes `{"remind": true}`
+- ~~daily morning briefing~~ — scheduled daily digest with best-effort sections: Hebrew calendar (date/parsha/Omer/Shabbat times via `jewish_calendar`), weather (HA weather entity), today's calendar events (HA calendar API), today's reminders, Garmin health (body battery/sleep/RHR/steps/training/stress), HA device summary, system health. Configurable time via `BRIEFING_TIME`, per-section toggles, on-demand `/briefing` command (`services/briefing.js`, `agents/{weather,garmin,jewish,calendar}.js`)
 
 ## 🔧 Planned
 
@@ -19,13 +20,12 @@
 
 ### Automations
 
-1. daily morning briefing (weather, calendar, HA status, system health, reminders)
-2. HA improvements recommendations (analyze entities and suggest automations)
-3. n8n automations recommendations
-4. pre-shabbat checklist
-5. shabbat timers setup (HA automations for candle lighting / havdalah times)
-6. daily / weekly digest — system health trends, security events, disk growth, media additions
-7. proactive anomaly alerts — pattern detection beyond simple thresholds (disk growth rate, repeated SSH failures, container restart loops)
+1. HA improvements recommendations (analyze entities and suggest automations)
+2. n8n automations recommendations
+3. pre-shabbat checklist
+4. shabbat timers setup (HA automations for candle lighting / havdalah times)
+5. daily / weekly digest — system health trends, security events, disk growth, media additions
+6. proactive anomaly alerts — pattern detection beyond simple thresholds (disk growth rate, repeated SSH failures, container restart loops)
 
 ### Integrations
 

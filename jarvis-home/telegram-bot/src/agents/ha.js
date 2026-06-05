@@ -5,7 +5,7 @@ const DOMAIN_SERVICE_MAP = {
   script: { toggle: 'turn_on', turn_off: 'turn_on' },
 };
 
-async function fetchHA(endpoint, method = 'GET', body = null) {
+export async function fetchHA(endpoint, method = 'GET', body = null) {
   const url = process.env.HA_URL;
   const token = process.env.HA_TOKEN;
   if (!url || !token) return { ok: false, output: 'HA_URL or HA_TOKEN not configured' };
@@ -31,6 +31,54 @@ async function fetchHA(endpoint, method = 'GET', body = null) {
     console.error(`[ha] API error (${endpoint}):`, err.message);
     return { ok: false, output: err.message };
   }
+}
+
+/**
+ * Fetch all Home Assistant entity states once. Returns { ok, data: [...] }.
+ * Callers that need several derived summaries should fetch once and pass the
+ * array down to avoid hammering the /api/states endpoint.
+ */
+export async function getStates() {
+  return fetchHA('states');
+}
+
+/**
+ * Summarise the state of controllable Home Assistant devices.
+ * Returns counts of what's on, names of active lights/switches, and any
+ * unavailable entities — used by the morning briefing.
+ * Accepts an optional pre-fetched states array.
+ */
+export async function getHomeSummary(states = null) {
+  let data = states;
+  if (!data) {
+    const statesResult = await fetchHA('states');
+    if (!statesResult.ok) return { ok: false, output: statesResult.output };
+    data = statesResult.data;
+  }
+
+  const onByDomain = {};
+  const onNames = [];
+  let unavailable = 0;
+
+  for (const s of data) {
+    const domain = s.entity_id.split('.')[0];
+    if (!['light', 'switch', 'fan', 'cover', 'climate', 'media_player'].includes(domain)) continue;
+
+    if (s.state === 'unavailable' || s.state === 'unknown') {
+      unavailable++;
+      continue;
+    }
+
+    const isActive = ['on', 'open', 'playing', 'heat', 'cool', 'auto'].includes(s.state);
+    if (isActive) {
+      onByDomain[domain] = (onByDomain[domain] || 0) + 1;
+      if (['light', 'switch', 'fan'].includes(domain) && onNames.length < 8) {
+        onNames.push(s.attributes?.friendly_name || s.entity_id.split('.')[1].replace(/_/g, ' '));
+      }
+    }
+  }
+
+  return { ok: true, onByDomain, onNames, unavailable };
 }
 
 function buildEntityList(states) {

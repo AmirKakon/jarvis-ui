@@ -211,6 +211,33 @@ export async function listReminders(chatId) {
   return { ok: true, output: `Active reminders:\n${lines.join('\n')}` };
 }
 
+/**
+ * Reminders scheduled to fire today (Jerusalem local date), not yet fired.
+ * Used by the morning briefing. Returns { ok, items: [{id, message, time, recurrence}] }.
+ */
+export async function getTodayReminders(chatId) {
+  await ensureTable();
+
+  const { rows } = await query(
+    `SELECT id, message, fire_at, recurrence
+     FROM reminders
+     WHERE chat_id = $1
+       AND fired = FALSE
+       AND (fire_at AT TIME ZONE $2)::date = (NOW() AT TIME ZONE $2)::date
+     ORDER BY fire_at ASC`,
+    [chatId, TZ]
+  );
+
+  const items = rows.map((r) => ({
+    id: r.id,
+    message: r.message,
+    time: new Date(r.fire_at).toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }),
+    recurrence: r.recurrence ? formatRecurrence(r.recurrence) : null,
+  }));
+
+  return { ok: true, items };
+}
+
 export async function cancelReminder(chatId, id) {
   await ensureTable();
 

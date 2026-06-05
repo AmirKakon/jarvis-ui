@@ -22,6 +22,8 @@ import { searchCommand } from './commands/search.js';
 import { cronRerun } from './commands/cron-rerun.js';
 import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
+import { startBriefingScheduler, stopBriefingScheduler } from './services/briefing-scheduler.js';
+import { buildBriefing } from './services/briefing.js';
 
 // --- Load environment from ~/jarvis/.env ---
 const ENV_PATH = (process.env.HOME || '/home/iot') + '/jarvis/.env';
@@ -98,6 +100,7 @@ const HELP_TEXT = [
   '/security  — security dashboard',
   '/search    — web search (AI-summarized)',
   '/reminders — list active reminders',
+  '/briefing  — daily briefing (weather, system, home, reminders)',
   '/help      — this message',
   '',
   '<b>Memory (persistent across sessions):</b>',
@@ -135,6 +138,17 @@ bot.command('reminders', async (ctx) => {
   const chatId = String(ctx.chat?.id || 'default');
   const result = await listReminders(chatId);
   await ctx.replyWithHTML(result.ok ? `⏰ ${escapeHtml(result.output)}` : `⚠️ ${escapeHtml(result.output)}`);
+});
+bot.command('briefing', async (ctx) => {
+  const chatId = String(ctx.chat?.id || 'default');
+  const placeholder = await ctx.replyWithHTML('<i>Compiling your briefing, Sir...</i>');
+  try {
+    const html = await buildBriefing(chatId);
+    await editOrReply(ctx, placeholder.message_id, html);
+  } catch (err) {
+    console.error('[briefing] On-demand build failed:', err.message);
+    await editOrReply(ctx, placeholder.message_id, `🔴 Failed to build briefing: ${escapeHtml(err.message)}`);
+  }
 });
 bot.command('deep', askOpusDirect);
 bot.command('voice', (ctx) => {
@@ -297,6 +311,7 @@ bot.on('text', askClaude);
 async function shutdown(signal) {
   console.log(`Received ${signal}, shutting down...`);
   stopScheduler();
+  stopBriefingScheduler();
   try { bot.stop(signal); } catch {}
   await closePool();
   await closeReminderPool();
@@ -313,6 +328,7 @@ async function launchWithRetry(attempt = 1) {
   try {
     await bot.launch({ dropPendingUpdates: true });
     startScheduler(bot, CHAT_ID);
+    startBriefingScheduler(bot, CHAT_ID);
     bot.telegram.setMyCommands([
       { command: 'status', description: 'System health summary' },
       { command: 'docker', description: 'List / manage containers' },
@@ -325,6 +341,7 @@ async function launchWithRetry(attempt = 1) {
       { command: 'security', description: 'Security dashboard' },
       { command: 'search', description: 'Web search (AI-summarized)' },
       { command: 'reminders', description: 'List active reminders' },
+      { command: 'briefing', description: 'Daily briefing (weather, system, home)' },
       { command: 'remember', description: 'Store a permanent fact' },
       { command: 'recall', description: 'Search past conversations' },
       { command: 'memory', description: 'Memory stats' },
@@ -348,7 +365,8 @@ async function launchWithRetry(attempt = 1) {
 
 launchWithRetry();
 
-// Failsafe: start scheduler even if launch retries are in progress
+// Failsafe: start schedulers even if launch retries are in progress
 setTimeout(() => {
   startScheduler(bot, CHAT_ID);
+  startBriefingScheduler(bot, CHAT_ID);
 }, 10_000);
