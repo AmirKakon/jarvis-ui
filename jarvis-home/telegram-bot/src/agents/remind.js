@@ -117,6 +117,8 @@ Return ONLY a JSON object:
 
 CRITICAL: For relative times ("in 30 minutes", "in 2 hours"), add the duration to CURRENT TIME directly. Keep the same UTC offset. Example: if CURRENT TIME is 2026-03-31T09:39:00+03:00 and user says "in 2 minutes", fire_at = 2026-03-31T09:41:00+03:00.
 
+DEFAULT TIME: If the user gives a day or date but NO time of day (e.g. "tomorrow", "on Tuesday", "every Sunday", "on the 15th"), default the time to 08:00 Jerusalem local time on that date. Do NOT use the current time-of-day. Keep the same UTC offset as CURRENT TIME. For recurring patterns with no stated time, use 08:00 as the HH:MM (e.g. "weekly:2:08:00").
+
 Recurrence patterns (null for one-shot):
 - "interval:N:min" — every N minutes (e.g. every 5 minutes)
 - "interval:N:hour" — every N hours (e.g. every 2 hours)
@@ -130,6 +132,9 @@ IMPORTANT: You MUST use ONLY these exact patterns. Never invent your own format.
 Examples:
 - "in 30 minutes" → fire_at = CURRENT TIME + 30min, recurrence = null
 - "tomorrow at 9am" → fire_at = tomorrow 09:00 same offset, recurrence = null
+- "tomorrow" (no time) → fire_at = tomorrow 08:00 same offset, recurrence = null
+- "on Tuesday" (no time) → fire_at = next Tuesday 08:00 same offset, recurrence = null
+- "every Sunday" (no time) → fire_at = next Sunday 08:00, recurrence = "weekly:7:08:00"
 - "every minute" → fire_at = CURRENT TIME + 1min, recurrence = "interval:1:min"
 - "every 5 minutes" → fire_at = CURRENT TIME + 5min, recurrence = "interval:5:min"
 - "every 2 hours" → fire_at = CURRENT TIME + 2h, recurrence = "interval:2:hour"
