@@ -1,7 +1,12 @@
 import pg from 'pg';
+import { createCalendarEvent } from '../services/calendar-sync.js';
 const { Pool } = pg;
 
 const TZ = 'Asia/Jerusalem';
+
+// One-shot reminders firing further out than this (and all dated recurring ones)
+// are treated as calendar-worthy "scheduled" reminders rather than ephemeral timers.
+const SCHEDULED_HORIZON_MS = 4 * 3600_000;
 
 let pool = null;
 
@@ -40,7 +45,26 @@ async function ensureTable() {
     CREATE INDEX IF NOT EXISTS idx_reminders_pending
     ON reminders (fire_at) WHERE fired = FALSE
   `);
+  // Calendar-sync columns (added idempotently for pre-existing tables):
+  //   kind              — 'timer' (ephemeral) or 'scheduled' (calendar-worthy)
+  //   calendar_event_id — Google Calendar event id when mirrored, else NULL
+  await query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS kind TEXT`);
+  await query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS calendar_event_id TEXT`);
   tableReady = true;
+}
+
+/**
+ * Classify a reminder as an ephemeral "timer" or a calendar-worthy "scheduled" item.
+ * - Recurring daily/weekly/monthly → scheduled (these are the "every Sunday 8am" kind).
+ * - interval/hourly recurrence → timer (short-cycle, calendar clutter).
+ * - One-shot → scheduled only if it fires beyond the near-term horizon.
+ */
+function classifyKind(fireAt, recurrence) {
+  if (recurrence) {
+    const type = recurrence.split(':')[0];
+    return (type === 'daily' || type === 'weekly' || type === 'monthly') ? 'scheduled' : 'timer';
+  }
+  return (fireAt.getTime() - Date.now() > SCHEDULED_HORIZON_MS) ? 'scheduled' : 'timer';
 }
 
 function nowJerusalemISO() {
@@ -172,21 +196,46 @@ export async function parseAndCreate(chatId, userMessage) {
     return { ok: false, output: 'That time is in the past, Sir.' };
   }
 
+  const recurrence = parsed.recurrence || null;
+  const kind = classifyKind(fireAt, recurrence);
+
   const { rows } = await query(
-    'INSERT INTO reminders (chat_id, message, fire_at, recurrence) VALUES ($1, $2, $3, $4) RETURNING id',
-    [chatId, parsed.message, fireAt.toISOString(), parsed.recurrence || null]
+    'INSERT INTO reminders (chat_id, message, fire_at, recurrence, kind) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [chatId, parsed.message, fireAt.toISOString(), recurrence, kind]
   );
 
   const id = rows[0]?.id;
   const timeStr = fireAt.toLocaleString('en-GB', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' });
-  const recLabel = parsed.recurrence ? ` (repeats ${formatRecurrence(parsed.recurrence)})` : '';
+  const recLabel = recurrence ? ` (repeats ${formatRecurrence(recurrence)})` : '';
+
+  // Scheduled reminders are mirrored to Google Calendar (via n8n) — calendar-only
+  // delivery: Google Calendar owns the notification and the long-term record. On a
+  // successful sync we retire the local row (mark fired) so the Telegram poller does
+  // NOT double-notify. If the sync fails, we keep the local row so the poller still
+  // delivers it via Telegram — a reminder is never silently lost.
+  let calendarNote = '';
+  if (kind === 'scheduled') {
+    const cal = await createCalendarEvent({ summary: parsed.message, fireAt, recurrence });
+    if (cal.ok) {
+      await query(
+        'UPDATE reminders SET calendar_event_id = $1, fired = TRUE WHERE id = $2',
+        [cal.eventId || null, id]
+      );
+      calendarNote = recurrence
+        ? "\n📅 On your Google Calendar (recurring) — it'll notify you there"
+        : "\n📅 On your Google Calendar — it'll notify you there";
+    } else if (cal.error !== 'disabled' && cal.error !== 'n8n webhook not configured') {
+      calendarNote = '\n⚠️ Calendar sync failed — keeping it as a Telegram reminder';
+    }
+  }
 
   return {
     ok: true,
-    output: `Reminder set: "${parsed.message}" — ${timeStr}${recLabel}`,
+    output: `Reminder set: "${parsed.message}" — ${timeStr}${recLabel}${calendarNote}`,
     id,
     fireAt: fireAt.toISOString(),
-    recurrence: parsed.recurrence || null,
+    recurrence,
+    kind,
   };
 }
 

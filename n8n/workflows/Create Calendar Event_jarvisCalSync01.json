@@ -1,0 +1,64 @@
+{
+  "name": "JARVIS - Create Calendar Event",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jarvis-create-calendar-event",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "id": "a1b2c3d4-0001-4a01-9c01-000000000001",
+      "name": "Reminder Webhook",
+      "webhookId": "jarvis-create-calendar-event"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/{{ encodeURIComponent($json.body.calendarId || 'primary') }}/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ summary: $json.body.summary, description: $json.body.description, start: { dateTime: $json.body.start, timeZone: $json.body.timezone || 'Asia/Jerusalem' }, end: { dateTime: $json.body.end, timeZone: $json.body.timezone || 'Asia/Jerusalem' }, ...($json.body.rrule ? { recurrence: [$json.body.rrule] } : {}) }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0],
+      "id": "a1b2c3d4-0002-4a02-9c02-000000000002",
+      "name": "Create Calendar Event (Service Account)",
+      "credentials": {
+        "googleApi": {
+          "id": "REPLACE_WITH_SERVICE_ACCOUNT_CREDENTIAL_ID",
+          "name": "Google Service Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Reminder Webhook": {
+      "main": [
+        [
+          {
+            "node": "Create Calendar Event (Service Account)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
