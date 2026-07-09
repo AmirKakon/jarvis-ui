@@ -193,7 +193,7 @@ USER: {user}
 ASSISTANT: {assistant}
 
 Respond ONLY with valid JSON, no markdown:
-{"facts": [{"content": "User lives in Jerusalem", "category": "identity"}]}
+{"facts": [{"content": "User lives in Netanya", "category": "identity"}]}
 If nothing worth remembering: {"facts": []}`;
 
 const pendingFactBatches = new Map();

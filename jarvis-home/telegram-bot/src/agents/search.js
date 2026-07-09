@@ -23,7 +23,7 @@ export async function runWebSearch(query) {
           max_uses: 3,
           user_location: {
             type: 'approximate',
-            city: 'Jerusalem',
+            city: 'Netanya',
             country: 'IL',
             timezone: 'Asia/Jerusalem',
           },

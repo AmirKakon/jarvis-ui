@@ -39,7 +39,7 @@ export async function searchCommand(ctx) {
           max_uses: 5,
           user_location: {
             type: 'approximate',
-            city: 'Jerusalem',
+            city: 'Netanya',
             country: 'IL',
             timezone: 'Asia/Jerusalem',
           },

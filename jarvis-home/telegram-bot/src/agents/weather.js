@@ -193,7 +193,7 @@ export function formatForecast(data, days = 5) {
   const { current, forecast } = data;
   const lines = [];
 
-  lines.push(`${current.emoji} <b>${prettyCondition(current.condition)}</b> — Jerusalem`);
+  lines.push(`${current.emoji} <b>${prettyCondition(current.condition)}</b> — Netanya`);
   if (current.temp != null) {
     const extras = [];
     if (current.humidity != null) extras.push(`💧 ${current.humidity}%`);
@@ -219,7 +219,7 @@ export function formatForecast(data, days = 5) {
   return lines.join('\n');
 }
 
-const WEATHER_QUERY_SYSTEM = `You are a concise weather assistant for Jerusalem, Israel. Answer the user's question using ONLY the Home Assistant weather data provided (current conditions + daily forecast). Be brief and direct. Use British English and metric units. If the question asks about a time or place not covered by the data, say so plainly rather than guessing.`;
+const WEATHER_QUERY_SYSTEM = `You are a concise weather assistant for Netanya, Israel. Answer the user's question using ONLY the Home Assistant weather data provided (current conditions + daily forecast). Be brief and direct. Use British English and metric units. If the question asks about a time or place not covered by the data, say so plainly rather than guessing.`;
 
 /**
  * Answer a natural-language weather question over HA data.
@@ -243,7 +243,7 @@ export async function runWeatherQuery(question) {
   }
 
   const context = JSON.stringify({
-    location: 'Jerusalem, Israel',
+    location: 'Netanya, Israel',
     now: new Date().toISOString(),
     current: data.current,
     forecast: data.forecast,
