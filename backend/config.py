@@ -52,9 +52,14 @@ class Settings(BaseSettings):
     graph_entity_merge_threshold: float = 0.90  # embedding similarity to merge entities
     graph_max_related_facts: int = 10  # cap on graph-expanded facts added to context
     graph_max_relations_in_context: int = 15  # cap on relation triples surfaced
+    # Entities mentioned by more than this many facts are "hubs" (e.g. "User")
+    # and are not used to pull in connected facts (they link to nearly everything).
+    graph_hub_degree_threshold: int = 8
 
     # Memory retrieval similarity threshold (shared across summary/fact search)
     memory_similarity_threshold: float = 0.25
+    # Minimum decayed score for a past-conversation summary to be injected.
+    summary_score_floor: float = 0.08
     
     # CORS settings
     cors_origins: str = "*"

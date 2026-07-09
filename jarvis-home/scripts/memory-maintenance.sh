@@ -33,7 +33,7 @@ send_telegram() {
 
 echo "=== Memory Maintenance $(date -Iseconds) ==="
 
-# --- 1. Deduplicate facts (embedding similarity > 0.92) ---
+# --- 1. Deduplicate facts (embedding similarity > 0.90) ---
 DEDUP_COUNT=$(psql "$DATABASE_URL" -t -A -c "
   WITH duplicates AS (
     SELECT f2.id
@@ -41,7 +41,7 @@ DEDUP_COUNT=$(psql "$DATABASE_URL" -t -A -c "
     JOIN memory_facts f2 ON f1.id < f2.id
     WHERE f1.embedding IS NOT NULL
       AND f2.embedding IS NOT NULL
-      AND 1 - (f1.embedding <=> f2.embedding) > 0.92
+      AND 1 - (f1.embedding <=> f2.embedding) > 0.90
   )
   DELETE FROM memory_facts WHERE id IN (SELECT id FROM duplicates)
   RETURNING id;

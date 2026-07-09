@@ -3,7 +3,7 @@
  */
 
 import { Markup } from 'telegraf';
-import { storeFact, searchMemory, getAllFacts, getMemoryStats, purgeJunkFacts, expandFactsViaGraph } from '../memory.js';
+import { storeFact, searchMemory, getAllFacts, getMemoryStats, purgeJunkFacts, expandFactsViaGraph, dedupFactsByContent, factDedupKey } from '../memory.js';
 import { forceNewSession } from '../claude.js';
 import { escapeHtml, truncate } from '../utils.js';
 
@@ -74,10 +74,10 @@ async function handleRecall(ctx, args) {
 
     const parts = [];
 
-    // Filter facts by simple keyword match for display
+    // Filter facts by simple keyword match, then collapse near-identical dupes
     const queryWords = query.toLowerCase().split(/\s+/);
-    const matchingFacts = facts.filter((f) =>
-      queryWords.some((w) => f.content.toLowerCase().includes(w))
+    const matchingFacts = dedupFactsByContent(
+      facts.filter((f) => queryWords.some((w) => f.content.toLowerCase().includes(w)))
     );
 
     if (matchingFacts.length) {
@@ -92,9 +92,12 @@ async function handleRecall(ctx, args) {
     if (matchingFacts.length) {
       try {
         const seedIds = matchingFacts.map((f) => f.id).filter((id) => id != null);
-        const expansion = await expandFactsViaGraph(seedIds);
-        const matchedIds = new Set(matchingFacts.map((f) => f.id));
-        const relatedFacts = expansion.facts.filter((f) => !matchedIds.has(f.id));
+        const expansion = await expandFactsViaGraph(seedIds, { queryText: query });
+
+        // Exclude anything already shown under Matching Facts, then dedup
+        const shownKeys = new Set(matchingFacts.map((f) => factDedupKey(f.content)));
+        const relatedFacts = dedupFactsByContent(expansion.facts)
+          .filter((f) => !shownKeys.has(factDedupKey(f.content)));
 
         if (expansion.relations.length) {
           parts.push('<b>🕸️ Related Knowledge:</b>');
@@ -120,7 +123,8 @@ async function handleRecall(ctx, args) {
       for (const m of memories) {
         const age = m.age_days === 0 ? 'today' : m.age_days === 1 ? 'yesterday' : `${m.age_days}d ago`;
         const score = (m.score * 100).toFixed(0);
-        const topics = m.topics?.length ? ` <i>(${m.topics.join(', ')})</i>` : '';
+        const topicList = (m.topics || []).slice(0, 4);
+        const topics = topicList.length ? ` <i>(${escapeHtml(topicList.join(', '))})</i>` : '';
         parts.push(`• [${age}, ${score}%]${topics}\n  ${escapeHtml(truncate(m.summary, 200))}`);
       }
     }

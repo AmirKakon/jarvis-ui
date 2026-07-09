@@ -47,6 +47,13 @@ const GRAPH_RELATION_MIN_CONFIDENCE = Number(process.env.GRAPH_RELATION_MIN_CONF
 const GRAPH_ENTITY_MERGE_THRESHOLD = Number(process.env.GRAPH_ENTITY_MERGE_THRESHOLD || 0.90);
 const GRAPH_MAX_RELATED_FACTS = Number(process.env.GRAPH_MAX_RELATED_FACTS || 10);
 const GRAPH_MAX_RELATIONS_IN_CONTEXT = Number(process.env.GRAPH_MAX_RELATIONS_IN_CONTEXT || 15);
+// Entities mentioned by more than this many facts are "hubs" (e.g. "User").
+// They still anchor relation triples, but are not used to pull in connected
+// facts, which otherwise floods retrieval with everything linked to the user.
+const GRAPH_HUB_DEGREE_THRESHOLD = Number(process.env.GRAPH_HUB_DEGREE_THRESHOLD || 8);
+// Minimum decayed score for a past-conversation summary to be shown.
+const SUMMARY_SCORE_FLOOR = Number(process.env.SUMMARY_SCORE_FLOOR || 0.08);
+const SUMMARY_TOPICS_LIMIT = 4;
 const ENTITY_TYPES = ['person', 'org', 'place', 'service', 'device', 'concept', 'other'];
 
 const TRIPLE_EXTRACTION_PROMPT = `Extract a small knowledge graph from this single fact about the USER or their setup.
@@ -61,6 +68,10 @@ Rules:
 - Refer to the user as "User".
 - confidence is a number in [0,1] reflecting how clearly the relation is stated.
 - If there are no meaningful relations, return "relations": [] but still list the entities.
+- Direction matters. subject-predicate-object reads left to right:
+  * located_in: "X located_in Y" means X is inside Y (e.g. Jerusalem located_in Israel).
+  * part_of: "X part_of Y" means X is a component of Y (e.g. Camera part_of shared-storage).
+  * The more specific/contained thing is the SUBJECT; the container is the OBJECT.
 
 FACT: {fact}
 
@@ -97,6 +108,10 @@ const JUNK_PATTERNS = [
   { name: 'reminder_action',     re: /\breminder\s+(at|set|for|to)\s+/i },
   { name: 'at_specific_time_to', re: /\bat\s+\d{1,2}:\d{2}\s+(to|for)\b/i },
   { name: 'in_n_hours_to',       re: /\bin\s+\d+\s+(hour|minute|hr|min)s?\s+to\b/i },
+
+  // Imperative / instructional device state (not a durable fact)
+  { name: 'should_be_toggled', re: /\bshould\s+be\s+(turned\s+)?(on|off|enabled|disabled)\b/i },
+  { name: 'imperative_toggle', re: /^(please\s+)?(turn|switch|set)\s+(on|off|the|it)\b/i },
 
   // Trivia / common knowledge
   { name: 'country_code_def', re: /^[+\d\s]+is\s+the\s+country\s+code\b/i },
@@ -562,16 +577,19 @@ export async function searchMemory(queryText, limit = 3) {
     );
   }
 
-  return rows.map((r) => ({
-    id: r.id,
-    summary: r.summary,
-    topics: r.topics,
-    session_ended_at: r.session_ended_at,
-    source: r.source,
-    score: Number(r.final_score),
-    similarity: Number(r.similarity),
-    age_days: Math.round(Number(r.age_days)),
-  }));
+  return rows
+    .map((r) => ({
+      id: r.id,
+      summary: r.summary,
+      topics: r.topics,
+      session_ended_at: r.session_ended_at,
+      source: r.source,
+      score: Number(r.final_score),
+      similarity: Number(r.similarity),
+      age_days: Math.round(Number(r.age_days)),
+    }))
+    // Drop matches that have decayed into noise (old + weakly relevant).
+    .filter((r) => r.score >= SUMMARY_SCORE_FLOOR);
 }
 
 // --- Context builder ---
@@ -661,27 +679,24 @@ export async function buildMemoryContext(currentPrompt, sessionId) {
   if (GRAPH_ENABLED && facts.length) {
     try {
       const seedIds = facts.map((f) => f.id).filter((id) => id != null);
-      const expansion = await expandFactsViaGraph(seedIds);
+      const expansion = await expandFactsViaGraph(seedIds, { queryText: currentPrompt });
       graphRelations = expansion.relations;
-      // Merge connected facts, dedup against already-selected facts, respect cap
-      const seen = new Set(facts.map((f) => f.id));
-      for (const gf of expansion.facts) {
-        if (seen.has(gf.id)) continue;
-        seen.add(gf.id);
-        graphFacts.push(gf);
-        if (facts.length + graphFacts.length >= MAX_FACTS_IN_CONTEXT) break;
-      }
+      graphFacts = expansion.facts;
     } catch (err) {
       console.error('[graph] expandFactsViaGraph failed:', err.message);
     }
   }
 
+  // Merge selected + graph-connected facts, dedup by near-identical content
+  // (not just id), and cap the total.
+  const mergedFacts = dedupFactsByContent([...facts, ...graphFacts]).slice(0, MAX_FACTS_IN_CONTEXT);
+
   const parts = [];
 
-  if (facts.length || graphFacts.length) {
+  if (mergedFacts.length) {
     parts.push('## Your Memory\n');
     parts.push('### Permanent Facts');
-    for (const f of [...facts, ...graphFacts]) {
+    for (const f of mergedFacts) {
       parts.push(`- ${f.content}`);
     }
     parts.push('');
@@ -700,7 +715,8 @@ export async function buildMemoryContext(currentPrompt, sessionId) {
     parts.push('### Relevant Past Conversations');
     for (const m of memories) {
       const when = daysAgoLabel(m.session_ended_at);
-      const topicStr = m.topics?.length ? ` (${m.topics.join(', ')})` : '';
+      const topics = (m.topics || []).slice(0, SUMMARY_TOPICS_LIMIT);
+      const topicStr = topics.length ? ` (${topics.join(', ')})` : '';
       parts.push(`- [${when}]${topicStr} ${m.summary}`);
     }
     parts.push('');
@@ -807,6 +823,36 @@ function normalizePredicate(pred) {
 function normalizeEntityType(type) {
   const lower = String(type || '').toLowerCase().trim();
   return ENTITY_TYPES.includes(lower) ? lower : 'other';
+}
+
+/**
+ * Collapse near-identical fact phrasings to a single key for display dedup,
+ * e.g. "The user lives in Jerusalem, Israel." and "User lives in Jerusalem,
+ * Israel" both map to "user lives in jerusalem israel".
+ */
+export function factDedupKey(content) {
+  return String(content || '')
+    .toLowerCase()
+    .replace(/^the\s+/, '')
+    .replace(/\buser['’]s\b/g, 'user')
+    .replace(/[.,;:!?"'`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Dedup a list of fact rows by their normalized content key, preserving order.
+ */
+export function dedupFactsByContent(facts) {
+  const seen = new Set();
+  const out = [];
+  for (const f of facts) {
+    const key = factDedupKey(f.content);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(f);
+  }
+  return out;
 }
 
 /**
@@ -946,7 +992,7 @@ export async function linkFactToGraph(factId, content) {
  *
  * Returns { facts: [{id, content, category}], relations: [{subject, predicate, object}] }.
  */
-export async function expandFactsViaGraph(seedFactIds, { maxHops = GRAPH_MAX_HOPS } = {}) {
+export async function expandFactsViaGraph(seedFactIds, { maxHops = GRAPH_MAX_HOPS, queryText = null } = {}) {
   if (!GRAPH_ENABLED || !seedFactIds?.length) return { facts: [], relations: [] };
 
   // Recursive traversal from the seed facts' entities out to maxHops:
@@ -980,31 +1026,79 @@ export async function expandFactsViaGraph(seedFactIds, { maxHops = GRAPH_MAX_HOP
     [seedFactIds, GRAPH_RELATION_MIN_CONFIDENCE, maxHops, GRAPH_MAX_RELATIONS_IN_CONTEXT]
   );
 
-  const { rows: factRows } = await query(
-    `WITH RECURSIVE seed_entities AS (
-        SELECT DISTINCT entity_id AS id FROM fact_entities WHERE fact_id = ANY($1)
-     ),
-     reachable AS (
-        SELECT id, 0 AS depth FROM seed_entities
-        UNION
-        SELECT CASE WHEN r.subject_entity_id = rc.id THEN r.object_entity_id
-                    ELSE r.subject_entity_id END AS id,
-               rc.depth + 1 AS depth
-          FROM reachable rc
-          JOIN graph_relations r
-            ON (r.subject_entity_id = rc.id OR r.object_entity_id = rc.id)
-           AND r.confidence >= $2
-         WHERE rc.depth < $3
-     )
-     SELECT DISTINCT f.id, f.content, f.category
-       FROM memory_facts f
-       JOIN fact_entities fe ON fe.fact_id = f.id
-       JOIN reachable rc ON rc.id = fe.entity_id
-      WHERE NOT (f.id = ANY($1))
-      ORDER BY f.id
-      LIMIT $4`,
-    [seedFactIds, GRAPH_RELATION_MIN_CONFIDENCE, maxHops, GRAPH_MAX_RELATED_FACTS]
-  );
+  // Connected facts: only pull facts that share a NON-HUB entity with the
+  // reachable set (hub entities like "User" link to nearly everything, so they
+  // would flood retrieval). When a query is provided, rank the candidates by
+  // embedding similarity to the query rather than arbitrary id order.
+  const queryEmbedding = queryText ? await createEmbedding(queryText) : null;
+
+  let factRows;
+  if (queryEmbedding) {
+    ({ rows: factRows } = await query(
+      `WITH RECURSIVE seed_entities AS (
+          SELECT DISTINCT entity_id AS id FROM fact_entities WHERE fact_id = ANY($1)
+       ),
+       reachable AS (
+          SELECT id, 0 AS depth FROM seed_entities
+          UNION
+          SELECT CASE WHEN r.subject_entity_id = rc.id THEN r.object_entity_id
+                      ELSE r.subject_entity_id END AS id,
+                 rc.depth + 1 AS depth
+            FROM reachable rc
+            JOIN graph_relations r
+              ON (r.subject_entity_id = rc.id OR r.object_entity_id = rc.id)
+             AND r.confidence >= $2
+           WHERE rc.depth < $3
+       ),
+       non_hub AS (
+          SELECT rc.id FROM reachable rc
+          WHERE (SELECT COUNT(*) FROM fact_entities fe WHERE fe.entity_id = rc.id) <= $5
+       )
+       SELECT DISTINCT f.id, f.content, f.category,
+              1 - (f.embedding <=> $6::vector) AS similarity
+         FROM memory_facts f
+         JOIN fact_entities fe ON fe.fact_id = f.id
+         JOIN non_hub rc ON rc.id = fe.entity_id
+        WHERE NOT (f.id = ANY($1))
+          AND f.embedding IS NOT NULL
+          AND 1 - (f.embedding <=> $6::vector) >= $7
+        ORDER BY similarity DESC
+        LIMIT $4`,
+      [seedFactIds, GRAPH_RELATION_MIN_CONFIDENCE, maxHops, GRAPH_MAX_RELATED_FACTS,
+       GRAPH_HUB_DEGREE_THRESHOLD, vectorLiteral(queryEmbedding), FACT_RETRIEVAL_THRESHOLD]
+    ));
+  } else {
+    ({ rows: factRows } = await query(
+      `WITH RECURSIVE seed_entities AS (
+          SELECT DISTINCT entity_id AS id FROM fact_entities WHERE fact_id = ANY($1)
+       ),
+       reachable AS (
+          SELECT id, 0 AS depth FROM seed_entities
+          UNION
+          SELECT CASE WHEN r.subject_entity_id = rc.id THEN r.object_entity_id
+                      ELSE r.subject_entity_id END AS id,
+                 rc.depth + 1 AS depth
+            FROM reachable rc
+            JOIN graph_relations r
+              ON (r.subject_entity_id = rc.id OR r.object_entity_id = rc.id)
+             AND r.confidence >= $2
+           WHERE rc.depth < $3
+       ),
+       non_hub AS (
+          SELECT rc.id FROM reachable rc
+          WHERE (SELECT COUNT(*) FROM fact_entities fe WHERE fe.entity_id = rc.id) <= $5
+       )
+       SELECT DISTINCT f.id, f.content, f.category
+         FROM memory_facts f
+         JOIN fact_entities fe ON fe.fact_id = f.id
+         JOIN non_hub rc ON rc.id = fe.entity_id
+        WHERE NOT (f.id = ANY($1))
+        ORDER BY f.id
+        LIMIT $4`,
+      [seedFactIds, GRAPH_RELATION_MIN_CONFIDENCE, maxHops, GRAPH_MAX_RELATED_FACTS,
+       GRAPH_HUB_DEGREE_THRESHOLD]
+    ));
+  }
 
   return {
     facts: factRows,

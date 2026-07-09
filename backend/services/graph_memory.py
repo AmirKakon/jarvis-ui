@@ -33,10 +33,12 @@ class GraphMemoryService:
     """Graph-augmented retrieval over memory_facts + graph_relations."""
 
     async def _vector_seed_facts(
-        self, db: AsyncSession, query_text: str
+        self, db: AsyncSession, query_text: str,
+        embedding: Optional[list[float]] = None,
     ) -> list[dict]:
         """Return facts most semantically similar to the query."""
-        embedding = await embedding_service.create_embedding(query_text)
+        if embedding is None:
+            embedding = await embedding_service.create_embedding(query_text)
         if not embedding:
             # Fallback: most recent non-always-include facts
             result = await db.execute(
@@ -89,11 +91,16 @@ class GraphMemoryService:
         return [dict(r._mapping) for r in result.fetchall()]
 
     async def expand_facts_via_graph(
-        self, db: AsyncSession, seed_fact_ids: list[int]
+        self, db: AsyncSession, seed_fact_ids: list[int],
+        query_embedding: Optional[list[float]] = None,
     ) -> dict:
         """
         Expand from seed facts' entities out to graph_max_hops, returning
         connected facts and the relation triples traversed.
+
+        Connected facts are pulled only through NON-HUB entities (hubs like
+        "User" link to nearly everything) and, when a query embedding is given,
+        ranked by similarity to the query instead of arbitrary id order.
         """
         settings = get_settings()
         if not seed_fact_ids:
@@ -139,9 +146,16 @@ class GraphMemoryService:
         )
         relations = [dict(r._mapping) for r in rel_result.fetchall()]
 
-        fact_result = await db.execute(
-            text(
-                """
+        fact_params = {
+            **params,
+            "limit": settings.graph_max_related_facts,
+            "hub": settings.graph_hub_degree_threshold,
+        }
+
+        if query_embedding:
+            fact_params["embedding"] = f"[{','.join(str(x) for x in query_embedding)}]"
+            fact_params["fact_threshold"] = FACT_RETRIEVAL_THRESHOLD
+            fact_sql = """
                 WITH RECURSIVE seed_entities AS (
                     SELECT DISTINCT entity_id AS id FROM fact_entities WHERE fact_id = ANY(:ids)
                 ),
@@ -156,18 +170,53 @@ class GraphMemoryService:
                       ON (r.subject_entity_id = rc.id OR r.object_entity_id = rc.id)
                      AND r.confidence >= :min_conf
                     WHERE rc.depth < :max_hops
+                ),
+                non_hub AS (
+                    SELECT rc.id FROM reachable rc
+                    WHERE (SELECT COUNT(*) FROM fact_entities fe WHERE fe.entity_id = rc.id) <= :hub
+                )
+                SELECT DISTINCT f.id, f.content, f.category,
+                       1 - (f.embedding <=> :embedding::vector) AS similarity
+                FROM memory_facts f
+                JOIN fact_entities fe ON fe.fact_id = f.id
+                JOIN non_hub rc ON rc.id = fe.entity_id
+                WHERE NOT (f.id = ANY(:ids))
+                  AND f.embedding IS NOT NULL
+                  AND 1 - (f.embedding <=> :embedding::vector) >= :fact_threshold
+                ORDER BY similarity DESC
+                LIMIT :limit
+            """
+        else:
+            fact_sql = """
+                WITH RECURSIVE seed_entities AS (
+                    SELECT DISTINCT entity_id AS id FROM fact_entities WHERE fact_id = ANY(:ids)
+                ),
+                reachable AS (
+                    SELECT id, 0 AS depth FROM seed_entities
+                    UNION
+                    SELECT CASE WHEN r.subject_entity_id = rc.id THEN r.object_entity_id
+                                ELSE r.subject_entity_id END AS id,
+                           rc.depth + 1 AS depth
+                    FROM reachable rc
+                    JOIN graph_relations r
+                      ON (r.subject_entity_id = rc.id OR r.object_entity_id = rc.id)
+                     AND r.confidence >= :min_conf
+                    WHERE rc.depth < :max_hops
+                ),
+                non_hub AS (
+                    SELECT rc.id FROM reachable rc
+                    WHERE (SELECT COUNT(*) FROM fact_entities fe WHERE fe.entity_id = rc.id) <= :hub
                 )
                 SELECT DISTINCT f.id, f.content, f.category
                 FROM memory_facts f
                 JOIN fact_entities fe ON fe.fact_id = f.id
-                JOIN reachable rc ON rc.id = fe.entity_id
+                JOIN non_hub rc ON rc.id = fe.entity_id
                 WHERE NOT (f.id = ANY(:ids))
                 ORDER BY f.id
                 LIMIT :limit
-                """
-            ),
-            {**params, "limit": settings.graph_max_related_facts},
-        )
+            """
+
+        fact_result = await db.execute(text(fact_sql), fact_params)
         facts = [dict(r._mapping) for r in fact_result.fetchall()]
 
         return {"facts": facts, "relations": relations}
@@ -181,15 +230,18 @@ class GraphMemoryService:
         """
         settings = get_settings()
 
+        # Embed the query once; reuse for vector seeding and graph fact ranking.
+        query_embedding = await embedding_service.create_embedding(query_text)
+
         always_facts = await self._always_include_facts(db)
-        seed_facts = await self._vector_seed_facts(db, query_text)
+        seed_facts = await self._vector_seed_facts(db, query_text, query_embedding)
 
         # Seed the graph traversal from always-include + vector-seed facts
         seed_ids = list({f["id"] for f in always_facts} | {f["id"] for f in seed_facts})
         expansion = {"facts": [], "relations": []}
         if settings.graph_enabled and seed_ids:
             try:
-                expansion = await self.expand_facts_via_graph(db, seed_ids)
+                expansion = await self.expand_facts_via_graph(db, seed_ids, query_embedding)
             except Exception as e:
                 logger.warning(f"Graph expansion failed, using vector facts only: {e}")
 

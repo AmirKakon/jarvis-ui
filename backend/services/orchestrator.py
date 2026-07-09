@@ -86,13 +86,20 @@ class Orchestrator:
                     use_recency_decay=True,
                 )
                 
+                # Drop matches that have decayed into noise (old + weakly relevant)
+                floor = get_settings().summary_score_floor
+                summaries_with_scores = [
+                    (s, score) for s, score in summaries_with_scores if score >= floor
+                ]
+
                 if not summaries_with_scores:
                     return ""
                 
                 context_parts = ["\n\n## Relevant Past Conversations\n"]
                 
                 for summary, score in summaries_with_scores:
-                    topics_str = ", ".join(summary.topics) if summary.topics else "General"
+                    topics_list = (summary.topics or [])[:4]
+                    topics_str = ", ".join(topics_list) if topics_list else "General"
                     date_str = summary.session_created_at.strftime('%Y-%m-%d')
                     context_parts.append(
                         f"- **{date_str}** ({topics_str}): {summary.summary}"
