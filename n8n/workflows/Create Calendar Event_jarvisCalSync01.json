@@ -24,7 +24,7 @@
         "nodeCredentialType": "googleApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ summary: $json.body.summary, description: $json.body.description, start: { dateTime: $json.body.start, timeZone: $json.body.timezone || 'Asia/Jerusalem' }, end: { dateTime: $json.body.end, timeZone: $json.body.timezone || 'Asia/Jerusalem' }, ...($json.body.rrule ? { recurrence: [$json.body.rrule] } : {}) }) }}",
+        "jsonBody": "={{ JSON.stringify({ summary: $json.body.summary, description: $json.body.description, start: { dateTime: $json.body.start, timeZone: $json.body.timezone || 'Asia/Jerusalem' }, end: { dateTime: $json.body.end, timeZone: $json.body.timezone || 'Asia/Jerusalem' }, ...($json.body.location ? { location: $json.body.location } : {}), ...($json.body.rrule ? { recurrence: [$json.body.rrule] } : {}) }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

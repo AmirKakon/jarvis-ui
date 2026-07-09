@@ -20,6 +20,7 @@ import { memoryCommand } from './commands/memory.js';
 import { securityCommand, securityRefresh } from './commands/security.js';
 import { searchCommand } from './commands/search.js';
 import { weatherCommand } from './commands/weather.js';
+import { eventCommand, agendaCommand } from './commands/calendar.js';
 import { cronRerun } from './commands/cron-rerun.js';
 import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
@@ -101,6 +102,8 @@ const HELP_TEXT = [
   '/security  — security dashboard',
   '/search    — web search (AI-summarized)',
   '/weather   — local weather &amp; forecast',
+  '/event     — add a calendar event (NL)',
+  '/agenda    — show your schedule',
   '/reminders — list active reminders',
   '/briefing  — daily briefing (weather, system, home, reminders)',
   '/help      — this message',
@@ -137,6 +140,8 @@ bot.command('download', downloadCommand);
 bot.command('security', securityCommand);
 bot.command('search', searchCommand);
 bot.command('weather', weatherCommand);
+bot.command('event', eventCommand);
+bot.command('agenda', agendaCommand);
 bot.command('reminders', async (ctx) => {
   const chatId = String(ctx.chat?.id || 'default');
   const result = await listReminders(chatId);
@@ -344,6 +349,8 @@ async function launchWithRetry(attempt = 1) {
       { command: 'security', description: 'Security dashboard' },
       { command: 'search', description: 'Web search (AI-summarized)' },
       { command: 'weather', description: 'Local weather & forecast' },
+      { command: 'event', description: 'Add a calendar event (natural language)' },
+      { command: 'agenda', description: 'Show your calendar schedule' },
       { command: 'reminders', description: 'List active reminders' },
       { command: 'briefing', description: 'Daily briefing (weather, system, home)' },
       { command: 'remember', description: 'Store a permanent fact' },

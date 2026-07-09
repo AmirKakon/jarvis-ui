@@ -16,6 +16,7 @@ import { runOpus } from './agents/opus.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
 import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
+import { createEvent, listEvents } from './agents/calendar.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
@@ -171,6 +172,9 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 7. Local weather (current conditions or forecast for HERE/Netanya — "the weather", "will it rain", "forecast", "this weekend", "tomorrow"):
 {"weather": true, "question": "the user's weather question", "acknowledge": "brief message to user"}
 
+8. Calendar events (schedule/add a meeting, appointment, or event; or list what's on the calendar for a day/range):
+{"calendar": true, "action": "create|list", "text": "the user's full message", "acknowledge": "brief message to user"}
+
 EXAMPLES:
 - User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
 - User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container", "acknowledge": "Restarting nginx now, Sir."}
@@ -184,12 +188,18 @@ EXAMPLES:
 - User: "turn on the living room light" → {"ha": true, "command": "turn on the living room light", "acknowledge": "Lighting up the living room, Sir."}
 - User: "remind me to check the laundry in 30 minutes" → {"remind": true, "action": "set", "text": "remind me to check the laundry in 30 minutes", "acknowledge": "Setting that reminder, Sir."}
 - User: "reminder for every 5 minutes to stretch" → {"remind": true, "action": "set", "text": "reminder for every 5 minutes to stretch", "acknowledge": "Setting that recurring reminder, Sir."}
+- User: "schedule a meeting with Dana tomorrow 3pm for an hour" → {"calendar": true, "action": "create", "text": "schedule a meeting with Dana tomorrow 3pm for an hour", "acknowledge": "Adding that to your calendar, Sir."}
+- User: "add a dentist appointment on Friday 10am" → {"calendar": true, "action": "create", "text": "add a dentist appointment on Friday 10am", "acknowledge": "Putting that on your calendar, Sir."}
+- User: "what's on my calendar Friday" → {"calendar": true, "action": "list", "text": "what's on my calendar Friday", "acknowledge": "Checking your calendar, Sir."}
+- User: "what do I have this week" → {"calendar": true, "action": "list", "text": "what do I have this week", "acknowledge": "Let me check your schedule, Sir."}
 - User: "what reminders do I have" → {"remind": true, "action": "list", "text": "list reminders", "acknowledge": "Let me check, Sir."}
 - User: "cancel reminder 3" → {"remind": true, "action": "cancel", "text": "cancel reminder 3", "acknowledge": "Cancelling that reminder, Sir."}
 - User: "extend reminder 2 by 20 minutes" → {"remind": true, "action": "extend", "text": "extend reminder 2 by 20 minutes", "acknowledge": "Extending that reminder, Sir."}
 
 RULES:
 - Set/list/cancel/extend reminders, alarms, scheduled messages (including recurring like "every X minutes") → remind
+- "Remind me to..." (a nudge/notification) → remind
+- "Schedule/add a meeting/appointment/event", "put X on my calendar", or asking what's on the calendar for a day/range → calendar
 - NEVER refuse a reminder request — always route to remind and let the reminder system handle it
 - Smart home device control (turn on/off, toggle lights/switches/plugs/fans/covers) → ha
 - Server operations (check status, read logs, restart services) → delegate
@@ -331,7 +341,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 // --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar'];
 
 function parseAction(text) {
   const normalize = (s) => s
@@ -449,6 +459,39 @@ export async function askClaude(ctx, textOverride = null) {
     }
 
     if (weatherOk) await maybeSendVoice(ctx, weatherOutput);
+    return;
+  }
+
+  // --- Calendar action (create event / list schedule) ---
+  if (action?.calendar) {
+    const ack = action.acknowledge || 'Checking your calendar, Sir...';
+    console.log(`[front] Calendar ${action.action}: ${action.text?.slice(0, 100)}`);
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `📅 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+    ).catch(() => {});
+
+    const chatId = String(ctx.chat?.id || 'default');
+    const result = action.action === 'list'
+      ? await listEvents(action.text || prompt)
+      : await createEvent(chatId, action.text || prompt);
+
+    await storeMessage(sessionId, 'assistant', result.ok ? result.output : `Calendar failed: ${result.output}`);
+
+    const response = result.ok
+      ? truncate(mdToHtml(result.output), 3700)
+      : `🔴 ${escapeHtml(result.output)}`;
+
+    try {
+      await ctx.telegram.editMessageText(
+        thinking.chat.id, thinking.message_id, undefined,
+        response, { parse_mode: 'HTML', disable_web_page_preview: true }
+      );
+    } catch {
+      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+    }
+
+    if (result.ok) await maybeSendVoice(ctx, result.output);
     return;
   }
 

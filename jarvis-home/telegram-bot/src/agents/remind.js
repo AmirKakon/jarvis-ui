@@ -67,7 +67,7 @@ function classifyKind(fireAt, recurrence) {
   return (fireAt.getTime() - Date.now() > SCHEDULED_HORIZON_MS) ? 'scheduled' : 'timer';
 }
 
-function nowJerusalemISO() {
+export function nowJerusalemISO() {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: TZ,
@@ -242,6 +242,22 @@ export async function parseAndCreate(chatId, userMessage) {
     recurrence,
     kind,
   };
+}
+
+/**
+ * Insert a one-shot local reminder directly (no NL parsing). Used as a
+ * fallback when a calendar event fails to sync to Google Calendar, so the
+ * item still fires via Telegram and is never silently lost.
+ */
+export async function insertReminder(chatId, message, fireAt) {
+  await ensureTable();
+  const when = fireAt instanceof Date ? fireAt : new Date(fireAt);
+  if (isNaN(when.getTime())) return { ok: false, output: 'invalid time' };
+  const { rows } = await query(
+    'INSERT INTO reminders (chat_id, message, fire_at, kind) VALUES ($1, $2, $3, $4) RETURNING id',
+    [chatId, message, when.toISOString(), 'timer']
+  );
+  return { ok: true, id: rows[0]?.id };
 }
 
 export async function listReminders(chatId) {

@@ -48,7 +48,7 @@ function authHeaders() {
  * Never throws — returns { ok, eventId, error } so the caller can degrade gracefully
  * (the local reminder still fires regardless).
  */
-export async function createCalendarEvent({ summary, fireAt, recurrence = null, durationMin = DEFAULT_DURATION_MIN }) {
+export async function createCalendarEvent({ summary, fireAt, recurrence = null, durationMin = DEFAULT_DURATION_MIN, location = null, description = null }) {
   if (process.env.CALENDAR_SYNC_ENABLED === 'false') {
     return { ok: false, error: 'disabled' };
   }
@@ -60,13 +60,19 @@ export async function createCalendarEvent({ summary, fireAt, recurrence = null, 
   if (isNaN(start.getTime())) return { ok: false, error: 'invalid start time' };
   const end = new Date(start.getTime() + durationMin * 60_000);
 
+  // Fold location into the description too, so it survives even if the n8n
+  // workflow hasn't been re-imported to forward the native `location` field.
+  let desc = description || 'Created by JARVIS';
+  if (location) desc += `\nLocation: ${location}`;
+
   const payload = {
     summary,
-    description: 'Created by JARVIS',
+    description: desc,
     start: start.toISOString(),
     end: end.toISOString(),
     timezone: TZ,
     rrule: recurrenceToRRule(recurrence),
+    location: location || undefined,
     // Which calendar to write to. With a service account, the SA's own "primary"
     // is not your calendar, so we must pass your calendar id explicitly (the calendar
     // you shared with the service account — usually your Gmail address).
