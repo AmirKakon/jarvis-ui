@@ -11,6 +11,7 @@ import { extractResponseContent } from './agents/shared.js';
 import { runWebSearch } from './agents/search.js';
 import { runWebFetch } from './agents/fetch.js';
 import { runCodeExecution } from './agents/compute.js';
+import { runWeatherQuery } from './agents/weather.js';
 import { runOpus } from './agents/opus.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
 import { resolveAndExecute } from './agents/ha.js';
@@ -152,7 +153,7 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 1. Server tasks (Docker, systemctl, SSH, logs, deploys, disk/network diagnostics, file ops, n8n, HA device actions, qBittorrent, system health, curl/HTTP API calls):
 {"delegate": true, "task": "full description of what to do, with context", "acknowledge": "brief message to user"}
 
-2. Web search (current events, real-time info, news, prices, weather, anything needing up-to-date knowledge):
+2. Web search (current events, real-time info, news, prices, weather in OTHER cities, anything needing up-to-date knowledge):
 {"search": true, "query": "concise search query", "acknowledge": "brief message to user"}
 
 3. Read a public web page or PDF (user shares a URL and wants its content read or summarised):
@@ -167,10 +168,16 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 6. Reminders (set, list, cancel, or extend reminders — supports one-shot, recurring daily/weekly/monthly, and interval-based like "every N minutes/hours"):
 {"remind": true, "action": "set|list|cancel|extend", "text": "the user's full message", "acknowledge": "brief message to user"}
 
+7. Local weather (current conditions or forecast for HERE/Jerusalem — "the weather", "will it rain", "forecast", "this weekend", "tomorrow"):
+{"weather": true, "question": "the user's weather question", "acknowledge": "brief message to user"}
+
 EXAMPLES:
 - User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
 - User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container", "acknowledge": "Restarting nginx now, Sir."}
-- User: "what's the weather in Jerusalem" → {"search": true, "query": "weather Jerusalem Israel today", "acknowledge": "Checking the weather, Sir."}
+- User: "what's the weather" → {"weather": true, "question": "current weather", "acknowledge": "Checking the weather, Sir."}
+- User: "will it rain tomorrow" → {"weather": true, "question": "will it rain tomorrow?", "acknowledge": "Let me check the forecast, Sir."}
+- User: "what's the weather this weekend" → {"weather": true, "question": "weather this weekend", "acknowledge": "Checking the weekend forecast, Sir."}
+- User: "what's the weather in Paris" → {"search": true, "query": "weather Paris France today", "acknowledge": "Checking the weather in Paris, Sir."}
 - User: "calculate 15% tip on 230 shekels" → {"compute": true, "task": "Calculate 15% tip on 230 ILS", "acknowledge": "Let me work that out, Sir."}
 - User: "call the forecast API at https://www.02ws.co.il/api/forecast" → {"delegate": true, "task": "Make an HTTP GET request to https://www.02ws.co.il/api/forecast and return the response", "acknowledge": "Calling that API now, Sir."}
 - User: "turn off the heater plug" → {"ha": true, "command": "turn off the heater plug", "acknowledge": "Switching it off now, Sir."}
@@ -187,6 +194,8 @@ RULES:
 - Smart home device control (turn on/off, toggle lights/switches/plugs/fans/covers) → ha
 - Server operations (check status, read logs, restart services) → delegate
 - API calls, curl requests, HTTP endpoints that need headers/auth → delegate (server has full network access)
+- Local weather / forecast (here, Jerusalem, "the weather", rain, temperature outlook) → weather
+- Weather for a DIFFERENT city → search
 - Current info, news, prices, live data → search
 - Read/summarise a public web page or PDF → fetch
 - Math, conversions, data analysis, generate charts → compute (NO internet — cannot make HTTP requests)
@@ -322,7 +331,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 // --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather'];
 
 function parseAction(text) {
   const normalize = (s) => s
@@ -411,6 +420,36 @@ export async function askClaude(ctx, textOverride = null) {
         acknowledge: 'Reading the page, Sir...',
       };
     }
+  }
+
+  // --- Local weather action (Home Assistant) ---
+  if (action?.weather) {
+    const ack = action.acknowledge || 'Checking the weather, Sir...';
+    console.log(`[front] Weather: ${action.question?.slice(0, 100) || '(current)'}`);
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `🌤️ <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+    ).catch(() => {});
+
+    const { ok: weatherOk, output: weatherOutput } = await runWeatherQuery(action.question);
+
+    await storeMessage(sessionId, 'assistant', weatherOk ? weatherOutput : `Weather failed: ${weatherOutput}`);
+
+    const response = weatherOk
+      ? truncate(mdToHtml(weatherOutput), 3700)
+      : `🔴 ${escapeHtml(weatherOutput)}`;
+
+    try {
+      await ctx.telegram.editMessageText(
+        thinking.chat.id, thinking.message_id, undefined,
+        response, { parse_mode: 'HTML', disable_web_page_preview: true }
+      );
+    } catch {
+      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+    }
+
+    if (weatherOk) await maybeSendVoice(ctx, weatherOutput);
+    return;
   }
 
   // --- Web search action ---

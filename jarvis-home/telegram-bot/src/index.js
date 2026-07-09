@@ -19,6 +19,7 @@ import {
 import { memoryCommand } from './commands/memory.js';
 import { securityCommand, securityRefresh } from './commands/security.js';
 import { searchCommand } from './commands/search.js';
+import { weatherCommand } from './commands/weather.js';
 import { cronRerun } from './commands/cron-rerun.js';
 import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
@@ -99,6 +100,7 @@ const HELP_TEXT = [
   '/download  — torrent downloads',
   '/security  — security dashboard',
   '/search    — web search (AI-summarized)',
+  '/weather   — local weather &amp; forecast',
   '/reminders — list active reminders',
   '/briefing  — daily briefing (weather, system, home, reminders)',
   '/help      — this message',
@@ -134,6 +136,7 @@ bot.command('n8n', n8nCommand);
 bot.command('download', downloadCommand);
 bot.command('security', securityCommand);
 bot.command('search', searchCommand);
+bot.command('weather', weatherCommand);
 bot.command('reminders', async (ctx) => {
   const chatId = String(ctx.chat?.id || 'default');
   const result = await listReminders(chatId);
@@ -340,6 +343,7 @@ async function launchWithRetry(attempt = 1) {
       { command: 'download', description: 'Torrent downloads' },
       { command: 'security', description: 'Security dashboard' },
       { command: 'search', description: 'Web search (AI-summarized)' },
+      { command: 'weather', description: 'Local weather & forecast' },
       { command: 'reminders', description: 'List active reminders' },
       { command: 'briefing', description: 'Daily briefing (weather, system, home)' },
       { command: 'remember', description: 'Store a permanent fact' },
