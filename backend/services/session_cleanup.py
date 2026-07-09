@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 # Similarity threshold for including summaries in context
 # Higher = more selective (0.0 to 1.0)
-SIMILARITY_THRESHOLD = 0.3
+# Kept consistent with the orchestrator and Telegram bot (0.25).
+SIMILARITY_THRESHOLD = 0.25
 
 # Prompt for summarizing chat sessions
 SUMMARIZATION_PROMPT = """You are a conversation summarizer. Analyze the following chat conversation and provide:

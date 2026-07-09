@@ -3,7 +3,7 @@
  */
 
 import { Markup } from 'telegraf';
-import { storeFact, searchMemory, getAllFacts, getMemoryStats, purgeJunkFacts } from '../memory.js';
+import { storeFact, searchMemory, getAllFacts, getMemoryStats, purgeJunkFacts, expandFactsViaGraph } from '../memory.js';
 import { forceNewSession } from '../claude.js';
 import { escapeHtml, truncate } from '../utils.js';
 
@@ -88,6 +88,33 @@ async function handleRecall(ctx, args) {
       parts.push('');
     }
 
+    // Graph expansion: surface facts/relations connected to the matched facts
+    if (matchingFacts.length) {
+      try {
+        const seedIds = matchingFacts.map((f) => f.id).filter((id) => id != null);
+        const expansion = await expandFactsViaGraph(seedIds);
+        const matchedIds = new Set(matchingFacts.map((f) => f.id));
+        const relatedFacts = expansion.facts.filter((f) => !matchedIds.has(f.id));
+
+        if (expansion.relations.length) {
+          parts.push('<b>🕸️ Related Knowledge:</b>');
+          for (const r of expansion.relations) {
+            parts.push(`• ${escapeHtml(r.subject)} <i>${escapeHtml(r.predicate.replace(/_/g, ' '))}</i> ${escapeHtml(r.object)}`);
+          }
+          parts.push('');
+        }
+        if (relatedFacts.length) {
+          parts.push('<b>🔗 Connected Facts:</b>');
+          for (const f of relatedFacts) {
+            parts.push(`• ${escapeHtml(f.content)}`);
+          }
+          parts.push('');
+        }
+      } catch (err) {
+        console.error('Recall graph expansion error:', err.message);
+      }
+    }
+
     if (memories.length) {
       parts.push('<b>🧠 Relevant Conversations:</b>');
       for (const m of memories) {
@@ -128,6 +155,7 @@ async function handleStats(ctx) {
       '',
       `📌 Durable facts: <b>${stats.facts}</b>`,
       `📝 Session summaries: <b>${stats.summaries}</b>`,
+      `🕸️ Graph: <b>${stats.entities}</b> entities, <b>${stats.relations}</b> relations`,
     ];
 
     if (stats.oldest) {

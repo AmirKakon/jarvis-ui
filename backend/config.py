@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     
     # Session settings
     session_ttl_days: int = 30
+
+    # Knowledge graph settings
+    graph_enabled: bool = True  # master toggle for graph-augmented retrieval
+    graph_max_hops: int = 2  # relation traversal depth from seed entities
+    graph_relation_min_confidence: float = 0.5  # ignore low-confidence edges on retrieval
+    graph_entity_merge_threshold: float = 0.90  # embedding similarity to merge entities
+    graph_max_related_facts: int = 10  # cap on graph-expanded facts added to context
+    graph_max_relations_in_context: int = 15  # cap on relation triples surfaced
+
+    # Memory retrieval similarity threshold (shared across summary/fact search)
+    memory_similarity_threshold: float = 0.25
     
     # CORS settings
     cors_origins: str = "*"

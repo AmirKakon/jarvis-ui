@@ -75,12 +75,14 @@ class Orchestrator:
             from database.db import async_session_maker
             from services.session_cleanup import session_cleanup_service
             
+            from config import get_settings
+
             async with async_session_maker() as db:
                 summaries_with_scores = await session_cleanup_service.search_relevant_summaries(
                     db, 
                     query_text=query,
                     limit=3,
-                    similarity_threshold=0.25,
+                    similarity_threshold=get_settings().memory_similarity_threshold,
                     use_recency_decay=True,
                 )
                 
@@ -104,8 +106,30 @@ class Orchestrator:
             logger.warning(f"Failed to search chat summaries: {e}")
             return ""
 
-    async def _get_durable_facts(self) -> str:
-        """Fetch all durable facts from memory_facts table."""
+    async def _get_durable_facts(self, user_query: str) -> str:
+        """
+        Fetch durable facts for context.
+
+        When the knowledge graph is enabled, retrieval is graph-augmented:
+        always-include (identity/preference) + vector-seeded facts, expanded
+        through the graph, plus the relation triples traversed. Falls back to
+        the legacy "all facts" read if the graph is disabled or errors.
+        """
+        from config import get_settings
+
+        if get_settings().graph_enabled:
+            try:
+                from database.db import async_session_maker
+                from services.graph_memory import graph_memory_service
+
+                async with async_session_maker() as db:
+                    context = await graph_memory_service.build_graph_context(db, user_query)
+                    if context:
+                        return context
+            except Exception as e:
+                logger.warning(f"Graph-augmented fact retrieval failed, falling back: {e}")
+
+        # Fallback: fetch all durable facts (legacy behaviour)
         try:
             from database.db import async_session_maker
             from sqlalchemy import select
@@ -142,7 +166,7 @@ class Orchestrator:
             return base_prompt
         
         facts_context, summaries_context = await asyncio.gather(
-            self._get_durable_facts(),
+            self._get_durable_facts(user_query),
             self._search_relevant_summaries(user_query),
         )
         

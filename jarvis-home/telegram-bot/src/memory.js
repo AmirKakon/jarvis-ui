@@ -39,6 +39,34 @@ const RETRIEVED_FACTS_LIMIT = 12;
 const FACT_RETRIEVAL_THRESHOLD = 0.20;
 const MAX_FACT_LENGTH = 300;
 
+// --- Knowledge graph ---
+
+const GRAPH_ENABLED = process.env.GRAPH_ENABLED !== 'false';
+const GRAPH_MAX_HOPS = Number(process.env.GRAPH_MAX_HOPS || 2);
+const GRAPH_RELATION_MIN_CONFIDENCE = Number(process.env.GRAPH_RELATION_MIN_CONFIDENCE || 0.5);
+const GRAPH_ENTITY_MERGE_THRESHOLD = Number(process.env.GRAPH_ENTITY_MERGE_THRESHOLD || 0.90);
+const GRAPH_MAX_RELATED_FACTS = Number(process.env.GRAPH_MAX_RELATED_FACTS || 10);
+const GRAPH_MAX_RELATIONS_IN_CONTEXT = Number(process.env.GRAPH_MAX_RELATIONS_IN_CONTEXT || 15);
+const ENTITY_TYPES = ['person', 'org', 'place', 'service', 'device', 'concept', 'other'];
+
+const TRIPLE_EXTRACTION_PROMPT = `Extract a small knowledge graph from this single fact about the USER or their setup.
+Return canonical entities (with a type) and directed relations between them.
+
+Entity types: person, org, place, service, device, concept, other.
+Predicates: short snake_case verbs, e.g. works_at, located_in, owns, runs_on, part_of, uses, has_role, related_to, member_of, manages.
+
+Rules:
+- Only extract information explicitly present in the fact. Do NOT invent facts.
+- Use concise canonical entity names (e.g. "Payoneer", not "the company Payoneer").
+- Refer to the user as "User".
+- confidence is a number in [0,1] reflecting how clearly the relation is stated.
+- If there are no meaningful relations, return "relations": [] but still list the entities.
+
+FACT: {fact}
+
+Respond ONLY with valid JSON, no markdown:
+{"entities":[{"name":"User","type":"person"},{"name":"Payoneer","type":"org"}],"relations":[{"subject":"User","predicate":"works_at","object":"Payoneer","confidence":0.9}]}`;
+
 // --- Junk patterns: facts we never want stored ---
 //
 // Each pattern has a name (for diagnostics) and a regex. Order matters only
@@ -399,13 +427,25 @@ export async function storeFact(content, category = null, source = 'telegram', c
     }
   }
 
-  await query(
+  const { rows: inserted } = await query(
     `INSERT INTO memory_facts (content, category, embedding, source, created_by, created_at, metadata)
-     VALUES ($1, $2, $3::vector, $4, $5, NOW(), '{}')`,
+     VALUES ($1, $2, $3::vector, $4, $5, NOW(), '{}')
+     RETURNING id`,
     [content, cat, embedding ? vectorLiteral(embedding) : null, source, createdBy]
   );
 
-  return { deduplicated: false, category: cat };
+  // Best-effort: extract entities/relations and link the fact into the graph.
+  // A graph failure must never prevent the fact itself from being stored.
+  const factId = inserted?.[0]?.id;
+  if (factId && GRAPH_ENABLED) {
+    try {
+      await linkFactToGraph(factId, content);
+    } catch (err) {
+      console.error('[graph] linkFactToGraph failed:', err.message);
+    }
+  }
+
+  return { deduplicated: false, category: cat, factId };
 }
 
 /**
@@ -450,12 +490,14 @@ export async function getAllFacts() {
 }
 
 export async function getMemoryStats() {
-  const [factsRes, summariesRes, topicsRes] = await Promise.all([
+  const [factsRes, summariesRes, topicsRes, entitiesRes, relationsRes] = await Promise.all([
     query('SELECT COUNT(*) AS count FROM memory_facts'),
     query('SELECT COUNT(*) AS count, MIN(session_created_at) AS oldest, MAX(session_ended_at) AS newest FROM chat_summaries'),
     query(`SELECT topic, COUNT(*) AS cnt
            FROM chat_summaries, jsonb_array_elements_text(topics) AS topic
            GROUP BY topic ORDER BY cnt DESC LIMIT 10`),
+    query('SELECT COUNT(*) AS count FROM graph_entities').catch(() => ({ rows: [{ count: 0 }] })),
+    query('SELECT COUNT(*) AS count FROM graph_relations').catch(() => ({ rows: [{ count: 0 }] })),
   ]);
 
   return {
@@ -464,6 +506,8 @@ export async function getMemoryStats() {
     oldest: summariesRes.rows[0]?.oldest,
     newest: summariesRes.rows[0]?.newest,
     topTopics: topicsRes.rows.map((r) => ({ topic: r.topic, count: Number(r.cnt) })),
+    entities: Number(entitiesRes.rows[0]?.count || 0),
+    relations: Number(relationsRes.rows[0]?.count || 0),
   };
 }
 
@@ -611,13 +655,42 @@ export async function buildMemoryContext(currentPrompt, sessionId) {
     getSessionMessages(sessionId),
   ]);
 
+  // Graph expansion: pull in facts/relations connected to the selected facts.
+  let graphFacts = [];
+  let graphRelations = [];
+  if (GRAPH_ENABLED && facts.length) {
+    try {
+      const seedIds = facts.map((f) => f.id).filter((id) => id != null);
+      const expansion = await expandFactsViaGraph(seedIds);
+      graphRelations = expansion.relations;
+      // Merge connected facts, dedup against already-selected facts, respect cap
+      const seen = new Set(facts.map((f) => f.id));
+      for (const gf of expansion.facts) {
+        if (seen.has(gf.id)) continue;
+        seen.add(gf.id);
+        graphFacts.push(gf);
+        if (facts.length + graphFacts.length >= MAX_FACTS_IN_CONTEXT) break;
+      }
+    } catch (err) {
+      console.error('[graph] expandFactsViaGraph failed:', err.message);
+    }
+  }
+
   const parts = [];
 
-  if (facts.length) {
+  if (facts.length || graphFacts.length) {
     parts.push('## Your Memory\n');
     parts.push('### Permanent Facts');
-    for (const f of facts) {
+    for (const f of [...facts, ...graphFacts]) {
       parts.push(`- ${f.content}`);
+    }
+    parts.push('');
+  }
+
+  if (graphRelations.length) {
+    parts.push('### Related Knowledge');
+    for (const r of graphRelations) {
+      parts.push(`- ${r.subject} ${r.predicate.replace(/_/g, ' ')} ${r.object}`);
     }
     parts.push('');
   }
@@ -710,6 +783,238 @@ export async function deduplicateFacts(candidateFacts) {
     if (!rows.length) novel.push(fact);
   }
   return novel;
+}
+
+// --- Knowledge graph: extraction, entity resolution, linking, traversal ---
+
+function normalizeEntityName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[.,;:!?"'`]+$/g, '')
+    .trim();
+}
+
+function normalizePredicate(pred) {
+  return String(pred || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64) || 'related_to';
+}
+
+function normalizeEntityType(type) {
+  const lower = String(type || '').toLowerCase().trim();
+  return ENTITY_TYPES.includes(lower) ? lower : 'other';
+}
+
+/**
+ * Resolve a surface-form entity name to a canonical graph_entities row id.
+ * Resolution order:
+ *   1. Exact normalized-name match
+ *   2. Embedding nearest-neighbour >= GRAPH_ENTITY_MERGE_THRESHOLD (records alias)
+ *   3. Insert a new entity
+ * Uses a per-call cache to avoid re-resolving the same name repeatedly.
+ */
+async function resolveEntity(name, type, cache) {
+  const canonical = String(name || '').trim();
+  const normalized = normalizeEntityName(canonical);
+  if (!normalized) return null;
+  if (cache && cache.has(normalized)) return cache.get(normalized);
+
+  // 1. Exact normalized-name match
+  const exact = await query(
+    `SELECT id FROM graph_entities WHERE normalized_name = $1 LIMIT 1`,
+    [normalized]
+  );
+  if (exact.rows.length) {
+    if (cache) cache.set(normalized, exact.rows[0].id);
+    return exact.rows[0].id;
+  }
+
+  // 2. Embedding nearest-neighbour merge
+  const embedding = await createEmbedding(canonical);
+  if (embedding) {
+    const { rows } = await query(
+      `SELECT id, aliases, 1 - (embedding <=> $1::vector) AS similarity
+         FROM graph_entities
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <=> $1::vector
+        LIMIT 1`,
+      [vectorLiteral(embedding)]
+    );
+    if (rows.length && rows[0].similarity >= GRAPH_ENTITY_MERGE_THRESHOLD) {
+      const id = rows[0].id;
+      const aliases = Array.isArray(rows[0].aliases) ? rows[0].aliases : [];
+      if (!aliases.map(normalizeEntityName).includes(normalized)) {
+        aliases.push(canonical);
+        await query(`UPDATE graph_entities SET aliases = $1 WHERE id = $2`,
+          [JSON.stringify(aliases), id]);
+      }
+      if (cache) cache.set(normalized, id);
+      return id;
+    }
+  }
+
+  // 3. Insert new entity
+  const { rows: created } = await query(
+    `INSERT INTO graph_entities (name, normalized_name, type, aliases, embedding, created_at, metadata)
+     VALUES ($1, $2, $3, '[]'::jsonb, $4::vector, NOW(), '{}')
+     RETURNING id`,
+    [canonical, normalized, normalizeEntityType(type), embedding ? vectorLiteral(embedding) : null]
+  );
+  const id = created?.[0]?.id ?? null;
+  if (cache && id) cache.set(normalized, id);
+  return id;
+}
+
+/**
+ * Run the triple-extraction model over a single fact.
+ * Returns { entities: [{name,type}], relations: [{subject,predicate,object,confidence}] }.
+ */
+async function extractGraphFromFact(content) {
+  const raw = await runSmallModel(TRIPLE_EXTRACTION_PROMPT.replace('{fact}', content.slice(0, 500)));
+  const parsed = parseJsonResponse(raw);
+  if (!parsed) return { entities: [], relations: [] };
+  const entities = Array.isArray(parsed.entities) ? parsed.entities : [];
+  const relations = Array.isArray(parsed.relations) ? parsed.relations : [];
+  return { entities, relations };
+}
+
+/**
+ * Extract a fact's entities/relations and persist them:
+ *   - resolve every mentioned entity to a canonical node
+ *   - link the fact to those entities (fact_entities)
+ *   - upsert typed relations (graph_relations), tracing source_fact_id
+ */
+export async function linkFactToGraph(factId, content) {
+  const { entities, relations } = await extractGraphFromFact(content);
+
+  const cache = new Map();
+  const entityIds = new Set();
+
+  // Resolve standalone entities plus every subject/object mentioned in relations
+  const names = [];
+  for (const e of entities) if (e?.name) names.push({ name: e.name, type: e.type });
+  for (const r of relations) {
+    if (r?.subject) names.push({ name: r.subject, type: null });
+    if (r?.object) names.push({ name: r.object, type: null });
+  }
+
+  for (const { name, type } of names) {
+    const id = await resolveEntity(name, type, cache);
+    if (id) entityIds.add(id);
+  }
+
+  // Link fact -> entities
+  for (const entityId of entityIds) {
+    await query(
+      `INSERT INTO fact_entities (fact_id, entity_id) VALUES ($1, $2)
+       ON CONFLICT (fact_id, entity_id) DO NOTHING`,
+      [factId, entityId]
+    );
+  }
+
+  // Upsert typed relations
+  let storedRelations = 0;
+  for (const r of relations) {
+    const subjId = cache.get(normalizeEntityName(r?.subject));
+    const objId = cache.get(normalizeEntityName(r?.object));
+    if (!subjId || !objId || subjId === objId) continue;
+    const predicate = normalizePredicate(r?.predicate);
+    const confidence = Math.max(0, Math.min(1, Number(r?.confidence) || 0.7));
+    await query(
+      `INSERT INTO graph_relations
+         (subject_entity_id, predicate, object_entity_id, source_fact_id, confidence, created_at, metadata)
+       VALUES ($1, $2, $3, $4, $5, NOW(), '{}')
+       ON CONFLICT (subject_entity_id, predicate, object_entity_id)
+       DO UPDATE SET confidence = GREATEST(graph_relations.confidence, EXCLUDED.confidence),
+                     source_fact_id = COALESCE(graph_relations.source_fact_id, EXCLUDED.source_fact_id)`,
+      [subjId, predicate, objId, factId, confidence]
+    );
+    storedRelations++;
+  }
+
+  return { entities: entityIds.size, relations: storedRelations };
+}
+
+/**
+ * Given seed fact ids, expand through the graph:
+ *   seed facts -> their entities -> N-hop related entities (recursive CTE)
+ *   -> facts linked to those entities, plus the relation triples traversed.
+ *
+ * Returns { facts: [{id, content, category}], relations: [{subject, predicate, object}] }.
+ */
+export async function expandFactsViaGraph(seedFactIds, { maxHops = GRAPH_MAX_HOPS } = {}) {
+  if (!GRAPH_ENABLED || !seedFactIds?.length) return { facts: [], relations: [] };
+
+  // Recursive traversal from the seed facts' entities out to maxHops:
+  // first the relation triples on reachable entities, then facts linked to them.
+  const { rows: relRows } = await query(
+    `WITH RECURSIVE seed_entities AS (
+        SELECT DISTINCT entity_id AS id FROM fact_entities WHERE fact_id = ANY($1)
+     ),
+     reachable AS (
+        SELECT id, 0 AS depth FROM seed_entities
+        UNION
+        SELECT CASE WHEN r.subject_entity_id = rc.id THEN r.object_entity_id
+                    ELSE r.subject_entity_id END AS id,
+               rc.depth + 1 AS depth
+          FROM reachable rc
+          JOIN graph_relations r
+            ON (r.subject_entity_id = rc.id OR r.object_entity_id = rc.id)
+           AND r.confidence >= $2
+         WHERE rc.depth < $3
+     )
+     SELECT DISTINCT r.id, r.predicate, r.confidence,
+            s.name AS subject, o.name AS object
+       FROM graph_relations r
+       JOIN reachable rs ON rs.id = r.subject_entity_id
+       JOIN reachable ro ON ro.id = r.object_entity_id
+       JOIN graph_entities s ON s.id = r.subject_entity_id
+       JOIN graph_entities o ON o.id = r.object_entity_id
+      WHERE r.confidence >= $2
+      ORDER BY r.confidence DESC
+      LIMIT $4`,
+    [seedFactIds, GRAPH_RELATION_MIN_CONFIDENCE, maxHops, GRAPH_MAX_RELATIONS_IN_CONTEXT]
+  );
+
+  const { rows: factRows } = await query(
+    `WITH RECURSIVE seed_entities AS (
+        SELECT DISTINCT entity_id AS id FROM fact_entities WHERE fact_id = ANY($1)
+     ),
+     reachable AS (
+        SELECT id, 0 AS depth FROM seed_entities
+        UNION
+        SELECT CASE WHEN r.subject_entity_id = rc.id THEN r.object_entity_id
+                    ELSE r.subject_entity_id END AS id,
+               rc.depth + 1 AS depth
+          FROM reachable rc
+          JOIN graph_relations r
+            ON (r.subject_entity_id = rc.id OR r.object_entity_id = rc.id)
+           AND r.confidence >= $2
+         WHERE rc.depth < $3
+     )
+     SELECT DISTINCT f.id, f.content, f.category
+       FROM memory_facts f
+       JOIN fact_entities fe ON fe.fact_id = f.id
+       JOIN reachable rc ON rc.id = fe.entity_id
+      WHERE NOT (f.id = ANY($1))
+      ORDER BY f.id
+      LIMIT $4`,
+    [seedFactIds, GRAPH_RELATION_MIN_CONFIDENCE, maxHops, GRAPH_MAX_RELATED_FACTS]
+  );
+
+  return {
+    facts: factRows,
+    relations: relRows.map((r) => ({
+      subject: r.subject,
+      predicate: r.predicate,
+      object: r.object,
+      confidence: Number(r.confidence),
+    })),
+  };
 }
 
 function cleanupPendingBatches() {
