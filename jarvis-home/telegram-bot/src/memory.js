@@ -27,7 +27,7 @@ const DECAY_LAMBDA = 0.023; // ln(2)/30 ≈ 30-day half-life
 const SIMILARITY_THRESHOLD = 0.25;
 const FACT_DEDUP_THRESHOLD = 0.92;
 
-const HAIKU_MODEL = 'claude-haiku-4-20250514';
+const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 
 // --- Fact categorization & context bounding ---

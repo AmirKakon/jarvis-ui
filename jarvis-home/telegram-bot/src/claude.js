@@ -301,9 +301,9 @@ async function runFrontModel(systemPrompt, userMessage) {
 
 export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking...</i>', model = 'sonnet') {
   const MODELS = {
-    opus: 'claude-opus-4-20250514',
-    sonnet: 'claude-sonnet-4-20250514',
-    haiku: 'claude-haiku-4-20250514',
+    opus: 'claude-opus-4-8',
+    sonnet: 'claude-sonnet-5',
+    haiku: 'claude-haiku-4-5-20251001',
   };
   const TIMEOUTS = { opus: 360_000, sonnet: 120_000, haiku: 60_000 };
 

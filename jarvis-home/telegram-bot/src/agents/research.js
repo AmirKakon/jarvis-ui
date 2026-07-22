@@ -6,13 +6,12 @@ import { extractResponseContent } from './shared.js';
 // tool-heavy / multi-step queries the Haiku front model can't handle
 // (Haiku only supports direct, single-tool calls — see agents/search.js).
 //
-// Model is overridable via RESEARCH_MODEL. Default is the Haiku snapshot known
-// to work in this account (same as the other agents) so research runs out of
-// the box — even on Haiku it chains search -> fetch -> code directly, which the
-// single-action router can't. For higher-quality synthesis and dynamic
-// filtering, set RESEARCH_MODEL to a Sonnet 4.6+ / Opus 4.6+ snapshot your
-// account has access to, and switch web_search to web_search_20260209.
-const RESEARCH_MODEL = process.env.RESEARCH_MODEL || 'claude-haiku-4-5-20251001';
+// Model is overridable via RESEARCH_MODEL. Defaults to Sonnet 5 — capable
+// enough to chain tools and synthesise well, and it supports dynamic filtering.
+// To unlock dynamic filtering (code-execution-backed result filtering, lower
+// token use), switch web_search below to web_search_20260209 once this is
+// confirmed working. Use claude-opus-4-8 for maximum depth at higher cost.
+const RESEARCH_MODEL = process.env.RESEARCH_MODEL || 'claude-sonnet-5';
 
 const RESEARCH_SYSTEM = `You are JARVIS's deep-research analyst, working for a user in Netanya, Israel.
 
