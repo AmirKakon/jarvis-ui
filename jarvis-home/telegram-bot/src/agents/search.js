@@ -25,9 +25,10 @@ export async function runWebSearch(query) {
           // so web search must be called directly or the API returns a 400.
           allowed_callers: ['direct'],
           user_location: {
+            // Israel ('IL') is not a supported web_search country code — omit it.
+            // city + timezone still localise results (at least one field is required).
             type: 'approximate',
             city: 'Netanya',
-            country: 'IL',
             timezone: 'Asia/Jerusalem',
           },
         }],

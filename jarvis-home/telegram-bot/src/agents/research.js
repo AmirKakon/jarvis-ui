@@ -66,9 +66,10 @@ export async function runResearch(query) {
             max_uses: 5,
             allowed_callers: ['direct'],
             user_location: {
+              // Israel ('IL') is not a supported web_search country code — omit it.
+              // city + timezone still localise results (at least one field is required).
               type: 'approximate',
               city: 'Netanya',
-              country: 'IL',
               timezone: 'Asia/Jerusalem',
             },
           },
