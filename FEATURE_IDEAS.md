@@ -112,7 +112,7 @@ url https://studio--recipe-rack-ighp8.us-central1.hosted.app/
 
 1. grocery / shopping list — "add milk to the list", persistent, shareable
 2. expense tracking — "spent 200 on groceries", auto-categorize, monthly summaries
-3. interactive troubleshooting flows — when cron alerts fire, offer inline buttons (restart service, view logs, block IP)
+3. interactive troubleshooting flows — ✅ _shipped._ Cron alerts now carry contextual inline buttons. `notify.sh` gained generic action-button support (`restart-service`, `restart-user-service`, `logs-service`, `logs-user-service`, `restart-container`, `logs-container`, `block-ip`); `service-monitor.sh` attaches restart/logs buttons for each failed service + exited/unhealthy container, and `ssh-monitor.sh` attaches a block button for the top offending IPs. `commands/troubleshoot.js` (wired as `ts:` callbacks) handles service restart/logs in both system + user scope and IP-blocking via ufw with a confirm step; container actions reuse the existing `d:r:`/`d:l:` docker callbacks. All inputs are strictly validated (systemd unit charset, IPv4 octets) to prevent injection.
 
 ### Infrastructure
 

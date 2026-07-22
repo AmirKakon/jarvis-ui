@@ -22,6 +22,7 @@ import { searchCommand } from './commands/search.js';
 import { weatherCommand } from './commands/weather.js';
 import { eventCommand, agendaCommand } from './commands/calendar.js';
 import { cronRerun } from './commands/cron-rerun.js';
+import { troubleshootCallback } from './commands/troubleshoot.js';
 import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
 import { startBriefingScheduler, stopBriefingScheduler } from './services/briefing-scheduler.js';
@@ -254,6 +255,9 @@ bot.action(/^x:(.+)$/, (ctx) => {
 
 // --- Cron rerun callbacks ---
 bot.action(/^j:(.+)$/, cronRerun);
+
+// --- Interactive troubleshooting callbacks (from cron alerts) ---
+bot.action(/^ts:(rs|ru|ls|lu|bi|bic|x):(.+)$/, troubleshootCallback);
 
 // --- Memory fact confirmation callbacks ---
 bot.action(/^mem:([yn]):(.+)$/, async (ctx) => {

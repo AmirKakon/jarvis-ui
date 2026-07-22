@@ -63,6 +63,7 @@ fi
 echo "[$TIMESTAMP] Failed: $FAIL_COUNT, Successful: $SUCCESS_COUNT (threshold: $THRESHOLD)" >> "$LOG_FILE"
 
 ALERTS=""
+ACTIONS=()
 
 if [ "$FAIL_COUNT" -ge "$THRESHOLD" ]; then
     ALERTS="${ALERTS}\n🔴 <b>${FAIL_COUNT}</b> failed SSH login attempts in the last hour"
@@ -73,6 +74,11 @@ if [ "$FAIL_COUNT" -ge "$THRESHOLD" ]; then
             IP=$(echo "$line" | awk '{print $2}')
             ALERTS="${ALERTS}\n  • <code>${IP}</code> — ${COUNT} attempts"
         done <<< "$TOP_IPS"
+        # Offer a block button for up to the 3 worst offenders
+        while IFS= read -r line; do
+            IP=$(echo "$line" | awk '{print $2}')
+            [ -n "$IP" ] && ACTIONS+=("block-ip:${IP}")
+        done <<< "$(echo "$TOP_IPS" | head -3)"
     fi
 fi
 
@@ -87,5 +93,5 @@ fi
 if [ -n "$ALERTS" ]; then
     MESSAGE="<b>🔐 SSH Monitor</b>\n<i>${TIMESTAMP}</i>\n${ALERTS}"
     echo "[$TIMESTAMP] Alerts:$ALERTS" >> "$LOG_FILE"
-    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")" "ssh-monitor"
+    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")" "ssh-monitor" "${ACTIONS[@]}"
 fi

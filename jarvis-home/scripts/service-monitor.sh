@@ -15,12 +15,14 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 ALERTS=""
+ACTIONS=()
 
 # --- Check systemd services ---
 SYSTEM_SERVICES="docker smbd nginx"
 for SVC in $SYSTEM_SERVICES; do
     if ! systemctl is-active --quiet "$SVC" 2>/dev/null; then
         ALERTS="${ALERTS}\n🔴 System service <b>${SVC}</b> is not running"
+        ACTIONS+=("restart-service:${SVC}" "logs-service:${SVC}")
     fi
 done
 
@@ -29,6 +31,7 @@ USER_SERVICES="jarvis-telegram-bot"
 for SVC in $USER_SERVICES; do
     if ! systemctl --user is-active --quiet "$SVC" 2>/dev/null; then
         ALERTS="${ALERTS}\n🔴 User service <b>${SVC}</b> is not running"
+        ACTIONS+=("restart-user-service:${SVC}" "logs-user-service:${SVC}")
     fi
 done
 
@@ -56,6 +59,8 @@ EXITED=$(docker ps -a --filter "status=exited" --format "{{.Names}} (exited {{.S
 if [ -n "$EXITED" ]; then
     while IFS= read -r CONTAINER; do
         ALERTS="${ALERTS}\n🟡 Container: ${CONTAINER}"
+        NAME=$(echo "$CONTAINER" | awk '{print $1}')
+        [ -n "$NAME" ] && ACTIONS+=("restart-container:${NAME}" "logs-container:${NAME}")
     done <<< "$EXITED"
 fi
 
@@ -63,6 +68,7 @@ UNHEALTHY=$(docker ps --filter "health=unhealthy" --format "{{.Names}}" 2>/dev/n
 if [ -n "$UNHEALTHY" ]; then
     while IFS= read -r CONTAINER; do
         ALERTS="${ALERTS}\n🔴 Unhealthy container: <b>${CONTAINER}</b>"
+        [ -n "$CONTAINER" ] && ACTIONS+=("restart-container:${CONTAINER}" "logs-container:${CONTAINER}")
     done <<< "$UNHEALTHY"
 fi
 
@@ -82,7 +88,7 @@ echo "[$TIMESTAMP] Service check complete." >> "$LOG_FILE"
 if [ -n "$ALERTS" ]; then
     MESSAGE="<b>Jarvis Service Alert</b>\n<i>${TIMESTAMP}</i>\n${ALERTS}"
     echo "[$TIMESTAMP] Alerts found:$ALERTS" >> "$LOG_FILE"
-    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")" "service-monitor"
+    "$SCRIPT_DIR/notify.sh" "$(echo -e "$MESSAGE")" "service-monitor" "${ACTIONS[@]}"
 else
     echo "[$TIMESTAMP] All services and containers OK." >> "$LOG_FILE"
 fi
