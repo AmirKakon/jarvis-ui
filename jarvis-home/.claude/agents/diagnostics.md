@@ -1,6 +1,6 @@
 ---
 name: diagnostics
-description: Runs system health checks in parallel — CPU, memory, disk, Docker containers, systemd services, and network. Use when the user asks for a system status overview, health check, or diagnostic report.
+description: Runs system health checks in parallel — CPU, memory, disk, Docker containers, systemd services, and network. Use PROACTIVELY whenever a task asks for a system status overview, health check, or diagnostic report — hand off immediately rather than gathering the metrics yourself.
 tools: Bash, Read
 model: haiku
 ---

@@ -1,6 +1,6 @@
 ---
 name: research
-description: Research agent for looking up documentation, troubleshooting guides, and technical information. Use when the user asks a question that requires external knowledge, documentation lookups, or finding solutions to errors and issues.
+description: Research agent for looking up documentation, troubleshooting guides, and technical information. Use PROACTIVELY whenever a task needs external knowledge, documentation lookups, or solutions to errors and issues — hand off rather than guessing from memory.
 tools: Bash, Read, Grep, Glob
 model: sonnet
 ---

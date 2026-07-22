@@ -1,6 +1,6 @@
 ---
 name: docker-ops
-description: Specialised agent for Docker container management — listing, inspecting, starting, stopping, restarting containers, viewing logs, and troubleshooting. Use when the user asks about Docker containers, images, volumes, or compose services.
+description: Specialised agent for Docker container management — listing, inspecting, starting, stopping, restarting containers, viewing logs, and troubleshooting. Use PROACTIVELY whenever a task involves Docker containers, images, volumes, or compose services — hand off immediately instead of running docker commands yourself.
 tools: Bash, Read
 model: haiku
 ---

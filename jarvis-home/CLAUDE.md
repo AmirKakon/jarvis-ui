@@ -20,6 +20,18 @@ This machine runs the following services:
 - Deploying and updating services
 - Troubleshooting issues with logs and diagnostics
 
+## Subagent Delegation
+
+Prefer handing work to a specialised subagent over doing it yourself — they're scoped, cheaper, and faster. Delegate PROACTIVELY, before running commands directly:
+
+| Hand off to | When the task is about |
+|-------------|------------------------|
+| **docker-ops** (haiku) | Docker containers, images, volumes, compose — list/inspect/start/stop/restart/logs |
+| **diagnostics** (haiku) | System status/health overview — CPU, memory, disk, containers, failed services, network |
+| **research** (sonnet) | Documentation lookups, troubleshooting an error, finding a solution |
+
+Handle directly only when a task doesn't fit a subagent, spans several of them, or needs orchestration/judgement across their results.
+
 ## n8n Integration
 
 n8n runs at `http://localhost:20003` and hosts automation workflows. You can trigger workflows via its API when needed for complex multi-step automations. For simple system operations, prefer direct shell commands.
