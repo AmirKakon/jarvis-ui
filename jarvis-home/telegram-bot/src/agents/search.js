@@ -21,6 +21,9 @@ export async function runWebSearch(query) {
           type: 'web_search_20250305',
           name: 'web_search',
           max_uses: 3,
+          // Haiku 4.5 doesn't support programmatic tool calling (dynamic filtering),
+          // so web search must be called directly or the API returns a 400.
+          allowed_callers: ['direct'],
           user_location: {
             type: 'approximate',
             city: 'Netanya',
@@ -35,7 +38,13 @@ export async function runWebSearch(query) {
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
       console.error(`[search] API error ${res.status}: ${errBody.slice(0, 500)}`);
-      return { ok: false, output: `Search API error: ${res.status}`, sources: [] };
+      let detail = '';
+      try { detail = JSON.parse(errBody)?.error?.message || ''; } catch { /* non-JSON body */ }
+      return {
+        ok: false,
+        output: `Search API error ${res.status}${detail ? `: ${detail}` : ''}`,
+        sources: [],
+      };
     }
 
     const data = await res.json();

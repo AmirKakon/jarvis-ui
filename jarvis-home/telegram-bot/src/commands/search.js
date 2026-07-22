@@ -37,6 +37,9 @@ export async function searchCommand(ctx) {
           type: 'web_search_20250305',
           name: 'web_search',
           max_uses: 5,
+          // Haiku 4.5 doesn't support programmatic tool calling (dynamic filtering),
+          // so web search must be called directly or the API returns a 400.
+          allowed_callers: ['direct'],
           user_location: {
             type: 'approximate',
             city: 'Netanya',
