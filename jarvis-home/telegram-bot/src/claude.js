@@ -154,6 +154,7 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 
 1. Server tasks (Docker, systemctl, SSH, logs, deploys, disk/network diagnostics, file ops, n8n, HA device actions, qBittorrent, system health, curl/HTTP API calls):
 {"delegate": true, "task": "full description of what to do, with context", "acknowledge": "brief message to user"}
+   Optionally add "agent" to route to a faster, cheaper specialist: "docker-ops" for Docker/container work, "diagnostics" for system health/status checks. Omit "agent" for anything complex or multi-step.
 
 2. Web search (current events, real-time info, news, prices, weather in OTHER cities, anything needing up-to-date knowledge):
 {"search": true, "query": "concise search query", "acknowledge": "brief message to user"}
@@ -184,7 +185,7 @@ If the user asks for several INDEPENDENT things in one message, respond with a J
 
 EXAMPLES:
 - User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
-- User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container", "acknowledge": "Restarting nginx now, Sir."}
+- User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container and confirm it's healthy", "agent": "docker-ops", "acknowledge": "Restarting nginx now, Sir."}
 - User: "what's the weather" → {"weather": true, "question": "current weather", "acknowledge": "Checking the weather, Sir."}
 - User: "will it rain tomorrow" → {"weather": true, "question": "will it rain tomorrow?", "acknowledge": "Let me check the forecast, Sir."}
 - User: "what's the weather this weekend" → {"weather": true, "question": "weather this weekend", "acknowledge": "Checking the weekend forecast, Sir."}
@@ -194,6 +195,7 @@ EXAMPLES:
 - User: "research the gnome-remote-desktop service and whether it's a security risk" → {"research": true, "query": "What is the gnome-remote-desktop service, what does port 3390 do, and is it a security risk?", "acknowledge": "Let me dig into that, Sir."}
 - User: "calculate 15% tip on 230 shekels" → {"compute": true, "task": "Calculate 15% tip on 230 ILS", "acknowledge": "Let me work that out, Sir."}
 - User: "call the forecast API at https://www.02ws.co.il/api/forecast" → {"delegate": true, "task": "Make an HTTP GET request to https://www.02ws.co.il/api/forecast and return the response", "acknowledge": "Calling that API now, Sir."}
+- User: "how's the server doing" → {"delegate": true, "task": "Run a full system health check (CPU, memory, disk, containers, failed services)", "agent": "diagnostics", "acknowledge": "Running a health check, Sir."}
 - User: "turn off the heater plug" → {"ha": true, "command": "turn off the heater plug", "acknowledge": "Switching it off now, Sir."}
 - User: "turn on the living room light" → {"ha": true, "command": "turn on the living room light", "acknowledge": "Lighting up the living room, Sir."}
 - User: "remind me to check the laundry in 30 minutes" → {"remind": true, "action": "set", "text": "remind me to check the laundry in 30 minutes", "acknowledge": "Setting that reminder, Sir."}
@@ -372,6 +374,39 @@ const ACTION_META = {
 
 const actionKeyOf = (a) => ACTION_KEYS.find((k) => a?.[k]) || null;
 
+// --- Delegate routing: pick a model tier + optional Claude Code subagent ---
+// Routine server ops are haiku-tier work (the docker-ops/diagnostics subagents
+// are already model: haiku); only genuinely complex tasks warrant Opus.
+
+const DELEGATE_MODELS = {
+  opus: 'claude-opus-4-8',
+  sonnet: 'claude-sonnet-5',
+  haiku: 'claude-haiku-4-5-20251001',
+};
+
+// Known subagents (from .claude/agents/) → tier + backing model.
+const DELEGATE_AGENTS = {
+  'docker-ops':  { tier: 'cheap', model: DELEGATE_MODELS.haiku },
+  'diagnostics': { tier: 'cheap', model: DELEGATE_MODELS.haiku },
+  'research':    { tier: 'cheap', model: DELEGATE_MODELS.sonnet },
+};
+
+// Keyword fallback when the front model didn't supply an `agent` hint.
+function classifyDelegate(task) {
+  const t = (task || '').toLowerCase();
+  if (/\b(docker|container|compose|image|volume)s?\b/.test(t)) return 'docker-ops';
+  if (/\b(status|health|diagnostic|uptime|disk|memory|cpu|load average|failed service|systemctl|journalctl|df|free)\b/.test(t)) return 'diagnostics';
+  return null;
+}
+
+// Resolve a delegate action to { agent, model, tier }. Falls back to Opus.
+function resolveDelegateTarget(action) {
+  let agent = typeof action.agent === 'string' ? action.agent.toLowerCase() : null;
+  if (!agent || !DELEGATE_AGENTS[agent]) agent = classifyDelegate(action.task);
+  if (agent && DELEGATE_AGENTS[agent]) return { agent, ...DELEGATE_AGENTS[agent] };
+  return { agent: null, tier: 'opus', model: DELEGATE_MODELS.opus };
+}
+
 // Parse the front model output into an ARRAY of action objects.
 // Supports a single object (→ [obj]), a JSON array (→ filtered), or JSON
 // embedded in prose (→ single). Returns [] when no action is present.
@@ -492,14 +527,26 @@ async function runOne(action, sctx) {
       return { key, action, res: await runResearch(action.query || sctx.prompt) };
     }
     case 'delegate': {
-      if (isLimited(opusCallLog, OPUS_RATE_MAX)) {
-        return { key, action, res: { ok: false, output: `Opus rate limit reached (${OPUS_RATE_MAX}/hour). Try again later or use slash commands.` } };
+      const target = resolveDelegateTarget(action);
+
+      // Only Opus-tier work consumes the (scarce) Opus bucket; cheap subagent
+      // ops just ran through the front-call budget already.
+      if (target.tier === 'opus') {
+        if (isLimited(opusCallLog, OPUS_RATE_MAX)) {
+          return { key, action, res: { ok: false, output: `Opus rate limit reached (${OPUS_RATE_MAX}/hour). Try again later or use slash commands.` } };
+        }
+        recordTo(opusCallLog);
       }
-      recordTo(opusCallLog);
-      console.log(`[front] Delegating to Opus: ${action.task?.slice(0, 100)}`);
-      const res = await runOpus(`${sctx.contextPrompt}\n\nTask to execute: ${action.task}`);
-      const left = remainingIn(opusCallLog, OPUS_RATE_MAX);
-      return { key, action, res: { ...res, footer: `(${left} Opus calls remaining this hour)` } };
+
+      console.log(`[front] Delegating (${target.agent || 'opus'} / ${target.model}): ${action.task?.slice(0, 100)}`);
+
+      const hint = target.agent ? `\n\nPrefer using the ${target.agent} subagent for this if appropriate.` : '';
+      const res = await runOpus(`${sctx.contextPrompt}\n\nTask to execute: ${action.task}${hint}`, target.model);
+
+      const footer = target.tier === 'opus'
+        ? `(${remainingIn(opusCallLog, OPUS_RATE_MAX)} Opus calls remaining this hour)`
+        : undefined;
+      return { key, action, res: { ...res, footer } };
     }
     default:
       return { key: null, action, res: { ok: false, output: 'Unknown action.' } };
