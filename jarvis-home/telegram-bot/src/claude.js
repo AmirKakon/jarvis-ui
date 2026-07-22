@@ -11,6 +11,7 @@ import { extractResponseContent } from './agents/shared.js';
 import { runWebSearch } from './agents/search.js';
 import { runWebFetch } from './agents/fetch.js';
 import { runCodeExecution } from './agents/compute.js';
+import { runResearch } from './agents/research.js';
 import { runWeatherQuery } from './agents/weather.js';
 import { runOpus } from './agents/opus.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
@@ -175,6 +176,9 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 8. Calendar events (schedule/add a meeting, appointment, or event; or list what's on the calendar for a day/range):
 {"calendar": true, "action": "create|list", "text": "the user's full message", "acknowledge": "brief message to user"}
 
+9. Deep research / multi-step analysis (needs several searches, cross-referencing multiple sources, reading full web pages, or combining web data with calculations/charts — anything a single quick lookup can't answer):
+{"research": true, "query": "the full research question with all relevant context", "acknowledge": "brief message to user"}
+
 EXAMPLES:
 - User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
 - User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container", "acknowledge": "Restarting nginx now, Sir."}
@@ -182,6 +186,9 @@ EXAMPLES:
 - User: "will it rain tomorrow" → {"weather": true, "question": "will it rain tomorrow?", "acknowledge": "Let me check the forecast, Sir."}
 - User: "what's the weather this weekend" → {"weather": true, "question": "weather this weekend", "acknowledge": "Checking the weekend forecast, Sir."}
 - User: "what's the weather in Paris" → {"search": true, "query": "weather Paris France today", "acknowledge": "Checking the weather in Paris, Sir."}
+- User: "compare the iPhone 16 and Pixel 9 cameras and tell me which is better" → {"research": true, "query": "Compare iPhone 16 and Pixel 9 camera quality across reviews and give a verdict", "acknowledge": "Let me research that properly, Sir."}
+- User: "find Bitcoin's price over the last month and chart it" → {"research": true, "query": "Find Bitcoin daily price for the last 30 days and plot it as a chart", "acknowledge": "On it — gathering the data and charting it, Sir."}
+- User: "research the gnome-remote-desktop service and whether it's a security risk" → {"research": true, "query": "What is the gnome-remote-desktop service, what does port 3390 do, and is it a security risk?", "acknowledge": "Let me dig into that, Sir."}
 - User: "calculate 15% tip on 230 shekels" → {"compute": true, "task": "Calculate 15% tip on 230 ILS", "acknowledge": "Let me work that out, Sir."}
 - User: "call the forecast API at https://www.02ws.co.il/api/forecast" → {"delegate": true, "task": "Make an HTTP GET request to https://www.02ws.co.il/api/forecast and return the response", "acknowledge": "Calling that API now, Sir."}
 - User: "turn off the heater plug" → {"ha": true, "command": "turn off the heater plug", "acknowledge": "Switching it off now, Sir."}
@@ -206,7 +213,8 @@ RULES:
 - API calls, curl requests, HTTP endpoints that need headers/auth → delegate (server has full network access)
 - Local weather / forecast (here, Netanya, "the weather", rain, temperature outlook) → weather
 - Weather for a DIFFERENT city → search
-- Current info, news, prices, live data → search
+- Current info, news, prices, live data (a single quick lookup) → search
+- Multi-step research: comparing options, cross-referencing several sources, reading multiple pages, or search combined with calculations/charts → research
 - Read/summarise a public web page or PDF → fetch
 - Math, conversions, data analysis, generate charts → compute (NO internet — cannot make HTTP requests)
 - Knowledge questions (what is X, explain Y) → answer directly
@@ -341,7 +349,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 // --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research'];
 
 function parseAction(text) {
   const normalize = (s) => s
@@ -638,6 +646,76 @@ export async function askClaude(ctx, textOverride = null) {
       await maybeSendVoice(ctx, codeOutput);
       if (prompt.length > 10) {
         offerFactExtraction(ctx, prompt, codeOutput).catch((err) =>
+          console.error('Fact extraction failed:', err.message)
+        );
+      }
+    }
+    return;
+  }
+
+  // --- Deep research action (capable model chaining web search + fetch + code) ---
+  if (action?.research) {
+    const ack = action.acknowledge || 'Researching that for you, Sir...';
+    console.log(`[front] Deep research: ${action.query?.slice(0, 100)}`);
+
+    // Runs on a capable (expensive) model — gate on the same bucket as Opus.
+    if (isLimited(opusCallLog, OPUS_RATE_MAX)) {
+      await ctx.telegram.editMessageText(
+        thinking.chat.id, thinking.message_id, undefined,
+        `⚠️ Research rate limit reached (${OPUS_RATE_MAX}/hour). Try again later, or use <code>/search</code> for a quick lookup.`,
+        { parse_mode: 'HTML' }
+      ).catch(() => ctx.replyWithHTML(`⚠️ Research rate limit reached (${OPUS_RATE_MAX}/hour).`));
+      return;
+    }
+    recordTo(opusCallLog);
+
+    await ctx.telegram.editMessageText(
+      thinking.chat.id, thinking.message_id, undefined,
+      `🔬 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+    ).catch(() => {});
+
+    const { ok: researchOk, output: researchOutput, sources, images } = await runResearch(action.query || prompt);
+
+    await storeMessage(sessionId, 'assistant', researchOk ? researchOutput : `Research failed: ${researchOutput}`);
+
+    let response;
+    if (researchOk) {
+      response = truncate(mdToHtml(researchOutput), 3700);
+      if (sources?.length) {
+        const links = sources.map((s) =>
+          `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`
+        ).join(' · ');
+        response += `\n\n📎 ${links}`;
+      }
+    } else {
+      response = `🔴 Research failed: ${escapeHtml(researchOutput)}`;
+    }
+
+    try {
+      await ctx.telegram.editMessageText(
+        thinking.chat.id, thinking.message_id, undefined,
+        response, { parse_mode: 'HTML', disable_web_page_preview: true }
+      );
+    } catch {
+      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+    }
+
+    // Send any generated charts/plots as photos
+    if (researchOk && images?.length) {
+      for (const img of images) {
+        try {
+          const buf = Buffer.from(img.base64, 'base64');
+          await ctx.replyWithPhoto({ source: buf, filename: 'chart.png' });
+        } catch (err) {
+          console.error('Failed to send research image:', err.message);
+        }
+      }
+    }
+
+    if (researchOk) {
+      await maybeSendVoice(ctx, researchOutput);
+      if (prompt.length > 10) {
+        offerFactExtraction(ctx, prompt, researchOutput).catch((err) =>
           console.error('Fact extraction failed:', err.message)
         );
       }
