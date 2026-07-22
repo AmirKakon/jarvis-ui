@@ -1,4 +1,5 @@
-import { run, escapeHtml } from '../utils.js';
+import { escapeHtml } from '../utils.js';
+import { collectHealth } from './health.js';
 import { getWeatherSummary } from '../agents/weather.js';
 import { getHomeSummary, getStates } from '../agents/ha.js';
 import { getTodayReminders } from '../agents/remind.js';
@@ -26,29 +27,18 @@ function dateLine() {
 }
 
 async function buildHealthSection() {
-  const [disk, mem, load, docker] = await Promise.all([
-    run('df -h / --output=pcent | tail -1'),
-    run("free -m --si | awk '/Mem:/ {printf \"%d%%\", $3/$2*100}'"),
-    run("cat /proc/loadavg | awk '{print $1}'"),
-    run('docker ps -a --format "{{.Names}}|{{.Status}}" 2>/dev/null'),
-  ]);
+  const h = await collectHealth();
 
   const bits = [];
-  if (disk.ok) {
-    const pct = parseInt(disk.output.replace('%', '').trim(), 10);
-    bits.push(`💾 Disk ${disk.output.trim()}${pct > 90 ? ' ⚠️' : ''}`);
-  }
-  if (mem.ok && mem.output) bits.push(`🧠 RAM ${mem.output.trim()}`);
-  if (load.ok && load.output) bits.push(`📈 Load ${load.output.trim()}`);
+  if (h.disk) bits.push(`💾 Disk ${h.disk.pct}%${h.disk.pct > 90 ? ' ⚠️' : ''}`);
+  if (h.mem && h.mem.pct != null) bits.push(`🧠 RAM ${h.mem.pct}%`);
+  if (h.load) bits.push(`📈 Load ${h.load.one}`);
 
   const lines = [];
   if (bits.length) lines.push(`   ${bits.join('   ')}`);
 
-  if (docker.ok && docker.output) {
-    const down = docker.output.split('\n')
-      .map((l) => l.split('|'))
-      .filter(([, status]) => status && !status.toLowerCase().includes('up'))
-      .map(([name]) => name);
+  if (h.containers.length) {
+    const down = h.containers.filter((c) => !c.up).map((c) => c.name);
     if (down.length) {
       lines.push(`   🔴 Containers down: ${down.map(escapeHtml).join(', ')}`);
     } else {

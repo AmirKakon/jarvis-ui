@@ -1,17 +1,5 @@
 Run a full system health check and present a concise summary.
 
-Gather the following information using shell commands:
+Hand off to the **diagnostics** subagent — it is the canonical definition of which metrics to gather (uptime, CPU load, memory, disk, Docker containers, failed systemd services, network) and how to flag warnings. Do not re-list or re-run the individual commands here.
 
-1. **Uptime**: `uptime -p`
-2. **CPU**: `top -bn1 | head -5` (extract load averages)
-3. **Memory**: `free -h`
-4. **Disk**: `df -h /`
-5. **Docker**: `docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"` (list running containers)
-6. **Failed services**: `systemctl --user list-units --state=failed` and `sudo systemctl list-units --state=failed`
-7. **Network**: `ip -br addr` (brief interface summary)
-
-Present results as a clean, organised summary table. Flag any warnings:
-- CPU load > 80%
-- Memory usage > 85%
-- Disk usage > 90%
-- Any stopped containers or failed services
+Present the subagent's report as a clean, organised summary, keeping its warning flags for CPU load > cores, memory > 85%, disk > 90%, and any stopped containers or failed services.
