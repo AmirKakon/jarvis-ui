@@ -393,6 +393,17 @@ function parseAction(text) {
   return null;
 }
 
+// --- Send a citation list as its own bounded message ---
+
+async function sendSources(ctx, sources) {
+  if (!sources?.length) return;
+  const links = sources
+    .map((s) => `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`)
+    .join(' · ');
+  await ctx.replyWithHTML(truncate(`📎 ${links}`), { disable_web_page_preview: true })
+    .catch((err) => console.error('Failed to send sources:', err.message));
+}
+
 // --- Main chat handler: front model + optional Opus delegation ---
 
 export async function askClaude(ctx, textOverride = null) {
@@ -516,35 +527,25 @@ export async function askClaude(ctx, textOverride = null) {
 
     await storeMessage(sessionId, 'assistant', searchOk ? searchOutput : `Search failed: ${searchOutput}`);
 
-    let response;
-    if (searchOk) {
-      response = truncate(mdToHtml(searchOutput), 3700);
-      if (sources?.length) {
-        const links = sources.map((s) =>
-          `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`
-        ).join(' · ');
-        response += `\n\n📎 ${links}`;
-      }
-    } else {
-      response = `🔴 Search failed: ${escapeHtml(searchOutput)}`;
-    }
-
-    try {
+    if (!searchOk) {
+      const errMsg = `🔴 Search failed: ${escapeHtml(searchOutput)}`;
       await ctx.telegram.editMessageText(
         thinking.chat.id, thinking.message_id, undefined,
-        response, { parse_mode: 'HTML', disable_web_page_preview: true }
-      );
-    } catch {
-      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+        errMsg, { parse_mode: 'HTML' }
+      ).catch(() => ctx.replyWithHTML(errMsg));
+      return;
     }
 
-    if (searchOk) {
-      await maybeSendVoice(ctx, searchOutput);
-      if (prompt.length > 10) {
-        offerFactExtraction(ctx, prompt, searchOutput).catch((err) =>
-          console.error('Fact extraction failed:', err.message)
-        );
-      }
+    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
+
+    await sendLong(ctx, mdToHtml(searchOutput), { disable_web_page_preview: true });
+    await sendSources(ctx, sources);
+
+    await maybeSendVoice(ctx, searchOutput);
+    if (prompt.length > 10) {
+      offerFactExtraction(ctx, prompt, searchOutput).catch((err) =>
+        console.error('Fact extraction failed:', err.message)
+      );
     }
     return;
   }
@@ -562,35 +563,25 @@ export async function askClaude(ctx, textOverride = null) {
 
     await storeMessage(sessionId, 'assistant', fetchOk ? fetchOutput : `Fetch failed: ${fetchOutput}`);
 
-    let response;
-    if (fetchOk) {
-      response = truncate(mdToHtml(fetchOutput), 3700);
-      if (sources?.length) {
-        const links = sources.map((s) =>
-          `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`
-        ).join(' · ');
-        response += `\n\n📎 ${links}`;
-      }
-    } else {
-      response = `🔴 Failed to read page: ${escapeHtml(fetchOutput)}`;
-    }
-
-    try {
+    if (!fetchOk) {
+      const errMsg = `🔴 Failed to read page: ${escapeHtml(fetchOutput)}`;
       await ctx.telegram.editMessageText(
         thinking.chat.id, thinking.message_id, undefined,
-        response, { parse_mode: 'HTML', disable_web_page_preview: true }
-      );
-    } catch {
-      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+        errMsg, { parse_mode: 'HTML' }
+      ).catch(() => ctx.replyWithHTML(errMsg));
+      return;
     }
 
-    if (fetchOk) {
-      await maybeSendVoice(ctx, fetchOutput);
-      if (prompt.length > 10) {
-        offerFactExtraction(ctx, prompt, fetchOutput).catch((err) =>
-          console.error('Fact extraction failed:', err.message)
-        );
-      }
+    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
+
+    await sendLong(ctx, mdToHtml(fetchOutput), { disable_web_page_preview: true });
+    await sendSources(ctx, sources);
+
+    await maybeSendVoice(ctx, fetchOutput);
+    if (prompt.length > 10) {
+      offerFactExtraction(ctx, prompt, fetchOutput).catch((err) =>
+        console.error('Fact extraction failed:', err.message)
+      );
     }
     return;
   }
@@ -608,30 +599,22 @@ export async function askClaude(ctx, textOverride = null) {
 
     await storeMessage(sessionId, 'assistant', codeOk ? codeOutput : `Computation failed: ${codeOutput}`);
 
-    let response;
-    if (codeOk) {
-      response = truncate(mdToHtml(codeOutput), 3700);
-      if (sources?.length) {
-        const links = sources.map((s) =>
-          `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`
-        ).join(' · ');
-        response += `\n\n📎 ${links}`;
-      }
-    } else {
-      response = `🔴 Computation failed: ${escapeHtml(codeOutput)}`;
-    }
-
-    try {
+    if (!codeOk) {
+      const errMsg = `🔴 Computation failed: ${escapeHtml(codeOutput)}`;
       await ctx.telegram.editMessageText(
         thinking.chat.id, thinking.message_id, undefined,
-        response, { parse_mode: 'HTML' }
-      );
-    } catch {
-      await ctx.replyWithHTML(response);
+        errMsg, { parse_mode: 'HTML' }
+      ).catch(() => ctx.replyWithHTML(errMsg));
+      return;
     }
 
+    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
+
+    await sendLong(ctx, mdToHtml(codeOutput));
+    await sendSources(ctx, sources);
+
     // Send generated images (charts, plots) as photos
-    if (codeOk && images?.length) {
+    if (images?.length) {
       for (const img of images) {
         try {
           const buf = Buffer.from(img.base64, 'base64');
@@ -642,13 +625,11 @@ export async function askClaude(ctx, textOverride = null) {
       }
     }
 
-    if (codeOk) {
-      await maybeSendVoice(ctx, codeOutput);
-      if (prompt.length > 10) {
-        offerFactExtraction(ctx, prompt, codeOutput).catch((err) =>
-          console.error('Fact extraction failed:', err.message)
-        );
-      }
+    await maybeSendVoice(ctx, codeOutput);
+    if (prompt.length > 10) {
+      offerFactExtraction(ctx, prompt, codeOutput).catch((err) =>
+        console.error('Fact extraction failed:', err.message)
+      );
     }
     return;
   }
@@ -693,14 +674,7 @@ export async function askClaude(ctx, textOverride = null) {
     try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
 
     await sendLong(ctx, mdToHtml(researchOutput), { disable_web_page_preview: true });
-
-    if (sources?.length) {
-      const links = sources
-        .map((s) => `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`)
-        .join(' · ');
-      await ctx.replyWithHTML(truncate(`📎 ${links}`), { disable_web_page_preview: true })
-        .catch((err) => console.error('Failed to send research sources:', err.message));
-    }
+    await sendSources(ctx, sources);
 
     // Send any generated charts/plots as photos
     if (images?.length) {
