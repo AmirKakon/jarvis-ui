@@ -27,7 +27,35 @@ _Foundational improvements to how requests are routed and executed — stepping 
 2. **Wire `delegate` → Claude Code subagents** — the three real subagents (`.claude/agents/`: `research`=sonnet, `docker-ops`=haiku, `diagnostics`=haiku) are only reachable from the interactive CLI today. When the router picks `delegate`, `runOpus()` sends a generic prompt to Opus with no awareness the subagents exist. Tell the delegate prompt about them and prefer them, or route obvious server tasks straight to a haiku subagent instead of Opus. Cheaper + faster (Opus has a 6-min timeout; restarting a container is haiku-tier work).
 3. **Proactive subagent cues** — add `use PROACTIVELY` language to each subagent's `description:` frontmatter and a short "when to hand off" section in the top-level `CLAUDE.md`, so auto-delegation actually triggers instead of the subagents sitting orphaned from the hot path.
 4. **Single source of truth for status/docker** — system status is currently implemented ~4 times (`.claude/commands/status.md`, `.claude/agents/diagnostics.md`, JS `/status` command, and `buildHealthSection` in `briefing.js`). Pick one canonical implementation and have the others call it to prevent drift.
-5. **Escalate tool-heavy / deep-research queries to a capable-model subagent** — the front model (Haiku 4.5) can only call `web_search`/`web_fetch` directly, one at a time, and can't use dynamic filtering or chain tools. For complex research ("compare X and Y across several sources", "find this data and chart it") the router should escalate to a Sonnet/Opus-backed subagent that uses the full tool set autonomously — i.e. the multi-tool deep analysis agent (Core #1). Add a `{"research": true, ...}` (or `{"deep": true}`) action to the router that hands off, while simple single-shot lookups stay on cheap Haiku direct search. Keeps the common case fast/cheap and reserves the expensive model for queries that actually benefit. _(Note: basic search already works on Haiku after the `allowed_callers: ['direct']` fix — this escalation is about quality + dynamic filtering + chaining, not a functional blocker.)_
+5. **Escalate tool-heavy / deep-research queries to a capable-model subagent** — the front model (Haiku 4.5) can only call `web_search`/`web_fetch` directly, one at a time, and can't use dynamic filtering or chain tools. For complex research ("compare X and Y across several sources", "find this data and chart it") the router should escalate to a Sonnet/Opus-backed subagent that uses the full tool set autonomously — i.e. the multi-tool deep analysis agent (Core #1). Add a `{"research": true, ...}` (or `{"deep": true}`) action to the router that hands off, while simple single-shot lookups stay on cheap Haiku direct search. Keeps the common case fast/cheap and reserves the expensive model for queries that actually benefit. _(Note: basic search already works on Haiku after the `allowed_callers: ['direct']` fix — this escalation is about quality + dynamic filtering + chaining, not a functional blocker.)_ ✅ _Basic version shipped: `agents/research.js` (Sonnet 5) + `{"research": true}` route._
+
+### Voice & Multi-Surface
+
+_Goal: talk to JARVIS out loud — a mic in the house and the same assistant on every phone — not just Telegram text. We already own ~80% of the pieces (the brain, Home Assistant, TTS, Postgres/PGVector memory), so this is mostly integration._
+
+**Prerequisite — decouple the "brain" from the transport.** Today the intelligence lives inside the Telegram bot (`askClaude` in `claude.js` is both router *and* Telegram renderer). Extract the router/agent loop behind a stable headless API (`POST /ask {text, userId, sessionId} → {reply, audioUrl?}`) that the Telegram bot also calls. Every surface (Telegram, home mic, phones) then becomes a thin client: capture → send text → speak reply. Also consolidate the **two brains** — the Node bot (`jarvis-home`) and the older Python FastAPI backend (`jarvis-ui`/`orchestrator.py`) — to one, so behaviour/memory don't drift across devices.
+
+**Unified identity + shared memory.** Memory is currently keyed by Telegram `chatId`. Introduce a stable `userId` that every surface attaches, backed by the existing Postgres store, so a conversation started on the kitchen mic continues on the phone and shows up in Telegram history.
+
+**In-home mic → Home Assistant is the hub.** Reuse HA's Assist pipeline instead of building mic/wake-word infra:
+- Hardware: [Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/) puck (~$60, ESP32-S3) per room, or a repurposed phone / Pi + mic.
+- Wake word: `openWakeWord` runs locally — enable **"Jarvis"** so nothing leaves the house until spoken (privacy win).
+- STT: local Whisper (handles Hebrew + English) or cloud STT.
+- Wiring: set HA Assist's conversation agent to hit the JARVIS `/ask` endpoint; speak → satellite → STT → JARVIS brain → existing TTS back out the speaker.
+
+**Realtime API (phase-2 UX upgrade).** [OpenAI Realtime](https://platform.openai.com/docs/guides/realtime) / Gemini Live give speech-to-speech (~300ms, barge-in) for a natural conversation feel. Trade-offs: (a) gate it behind the local wake word — never stream continuously — to control cost; (b) it bypasses the tiered Haiku-router, so bridge via **function calling**: the fast conversational model handles chit-chat and calls into existing agents (`ha`, `remind`, `research`, `delegate`…) for real work.
+
+**Cross-device (Siri / Google / Samsung).** You can't *become* Siri/Google Assistant (Google deprecated Conversational Actions in 2023; SiriKit/Bixby are narrow), so use thin adapters over the one API:
+- **HA Companion app → Assist** (the sleeper hit): point its conversation agent at JARVIS → Jarvis voice on *every* phone (Android + iOS), reusing the home pipeline.
+- **Siri:** an iOS Shortcut "Ask Jarvis" that POSTs to the API and speaks the reply ("Hey Siri, ask Jarvis…").
+- **Samsung/Android:** Tasker + AutoVoice or a tiny app hitting the API; or just rely on HA Companion Assist.
+
+**Constraints:** Hebrew/English multilingual STT + voices; local wake word (+ optional local Whisper) for privacy; LAN hop is fast, the model call is the latency variable (another reason to wake-word-gate Realtime).
+
+**Phased roadmap:**
+1. **Phase A** — extract the brain behind `/ask`; HA Assist + one Voice PE + "Jarvis" wake word + Whisper → reply via existing TTS. _(Fully working home voice, minimal new code.)_
+2. **Phase B** — unified `userId` + shared session/memory across surfaces; add HA Companion Assist on phones.
+3. **Phase C** — wake-word-gated Realtime session with function-calling into existing agents; iOS Shortcut + Samsung/Android adapter.
 
 ### Automations
 
