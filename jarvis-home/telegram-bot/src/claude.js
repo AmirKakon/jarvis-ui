@@ -12,6 +12,8 @@ import { runWebSearch } from './agents/search.js';
 import { runWebFetch } from './agents/fetch.js';
 import { runCodeExecution } from './agents/compute.js';
 import { runResearch } from './agents/research.js';
+import { runMcpAgent } from './agents/mcp.js';
+import { mcpServerSummaries } from './services/mcp-client.js';
 import { runWeatherQuery } from './agents/weather.js';
 import { runOpus } from './agents/opus.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
@@ -230,6 +232,25 @@ RULES:
 - NEVER invent tool call formats like <function_calls>, <tool_use>, or XML tags. Only use the JSON formats above.
 - Never mention actions, models, or architecture to the user. Just respond naturally.`;
 
+// Connected MCP tool providers are declared in ~/jarvis/mcp.json (see
+// services/mcp-client.js). They're injected into the front prompt at runtime so
+// the router can offer their capabilities without hard-coding any provider.
+function mcpPromptSection() {
+  const servers = mcpServerSummaries();
+  if (!servers.length) return '';
+  const list = servers
+    .map((s) => `   • ${s.name}${s.description ? ` — ${s.description}` : ''}`)
+    .join('\n');
+  return `
+
+10. Connected external tool providers (MCP). Route requests matching one of these here:
+${list}
+{"mcp": true, "task": "the user's full request in natural language", "acknowledge": "brief message to user"}
+- EXAMPLE: "how many eggs do I have left" → {"mcp": true, "task": "How many eggs are in stock?", "acknowledge": "Checking your inventory, Sir."}
+- EXAMPLE: "add milk to the shopping list" → {"mcp": true, "task": "Add milk to the shopping list", "acknowledge": "Adding milk to your list, Sir."}
+- EXAMPLE: "where do I keep the batteries" → {"mcp": true, "task": "Which container holds the batteries?", "acknowledge": "Let me look that up, Sir."}`;
+}
+
 // --- Front model API call (Haiku 4.5 primary, GPT-4o-mini fallback) — pure router, no tools ---
 
 async function runFrontModel(systemPrompt, userMessage) {
@@ -357,7 +378,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 // --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research', 'mcp'];
 
 // Per-action presentation metadata (status emoji, default ack, error label)
 const ACTION_META = {
@@ -370,6 +391,7 @@ const ACTION_META = {
   weather:  { emoji: '🌤️', ack: 'Checking the weather, Sir...', label: 'Weather' },
   calendar: { emoji: '📅', ack: 'Checking your calendar, Sir...', label: 'Calendar' },
   research: { emoji: '🔬', ack: 'Researching that for you, Sir...', label: 'Research' },
+  mcp:      { emoji: '🧰', ack: 'Checking that for you, Sir...', label: 'Tools' },
 };
 
 const actionKeyOf = (a) => ACTION_KEYS.find((k) => a?.[k]) || null;
@@ -514,6 +536,8 @@ async function runOne(action, sctx) {
       return { key, action, res: await runWebFetch(action.url, action.question) };
     case 'compute':
       return { key, action, res: await runCodeExecution(action.task) };
+    case 'mcp':
+      return { key, action, res: await runMcpAgent(action.task || sctx.prompt) };
     case 'ha':
       return { key, action, res: await resolveAndExecute(action.command) };
     case 'remind':
@@ -610,7 +634,7 @@ export async function askClaude(ctx, textOverride = null) {
   const thinking = await ctx.replyWithHTML('🧠 <i>Thinking...</i>');
   recordTo(frontCallLog);
 
-  const { ok, output } = await runFrontModel(FRONT_SYSTEM_PROMPT, contextPrompt);
+  const { ok, output } = await runFrontModel(FRONT_SYSTEM_PROMPT + mcpPromptSection(), contextPrompt);
 
   if (!ok) {
     await ctx.telegram.editMessageText(

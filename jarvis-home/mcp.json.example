@@ -1,0 +1,21 @@
+{
+  "//": "Copy this to ~/jarvis/mcp.json and fill in real values. NOT committed to git (contains secrets).",
+  "//2": "JARVIS connects to every server listed here at runtime and exposes their tools to the LLM. Add a provider by adding an entry — no code changes needed.",
+  "//3": "Override the config path with MCP_CONFIG_PATH. HTTP servers use `url` + optional `headers`; local servers use `command` + `args` + optional `env`. Set \"disabled\": true to keep an entry without connecting.",
+  "mcpServers": {
+    "qrganize": {
+      "url": "https://us-central1-qrganize-f651b.cloudfunctions.net/app/api/mcp",
+      "headers": {
+        "Authorization": "Bearer your-qrganize-mcp-token-here"
+      },
+      "description": "Home inventory: pantry & container stock, item locations, shopping list, expiring items, and adding/consuming items"
+    },
+    "example-local-server": {
+      "disabled": true,
+      "command": "node",
+      "args": ["/path/to/some-mcp-server.js"],
+      "env": { "SOME_API_KEY": "..." },
+      "description": "A locally-spawned stdio MCP server (example — disabled)"
+    }
+  }
+}

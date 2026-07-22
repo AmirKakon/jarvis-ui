@@ -24,6 +24,7 @@ import { eventCommand, agendaCommand } from './commands/calendar.js';
 import { cronRerun } from './commands/cron-rerun.js';
 import { troubleshootCallback } from './commands/troubleshoot.js';
 import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
+import { closeMcp } from './services/mcp-client.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
 import { startBriefingScheduler, stopBriefingScheduler } from './services/briefing-scheduler.js';
 import { buildBriefing } from './services/briefing.js';
@@ -327,6 +328,7 @@ async function shutdown(signal) {
   try { bot.stop(signal); } catch {}
   await closePool();
   await closeReminderPool();
+  await closeMcp();
   process.exit(0);
 }
 process.once('SIGINT', () => shutdown('SIGINT'));

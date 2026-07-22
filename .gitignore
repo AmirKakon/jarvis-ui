@@ -41,6 +41,9 @@ env/
 .env.local
 .env.*.local
 
+# MCP server config (contains secrets/tokens; use mcp.json.example as a template)
+mcp.json
+
 # Node
 node_modules/
 npm-debug.log*
