@@ -179,6 +179,9 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 9. Deep research / multi-step analysis (needs several searches, cross-referencing multiple sources, reading full web pages, or combining web data with calculations/charts — anything a single quick lookup can't answer):
 {"research": true, "query": "the full research question with all relevant context", "acknowledge": "brief message to user"}
 
+MULTIPLE ACTIONS:
+If the user asks for several INDEPENDENT things in one message, respond with a JSON ARRAY of action objects (using the exact formats above), e.g. [{...}, {...}]. Each entry runs concurrently, so only combine actions that do not depend on one another. For a single request, return a single object — never wrap one action in an array.
+
 EXAMPLES:
 - User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
 - User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container", "acknowledge": "Restarting nginx now, Sir."}
@@ -202,6 +205,8 @@ EXAMPLES:
 - User: "what reminders do I have" → {"remind": true, "action": "list", "text": "list reminders", "acknowledge": "Let me check, Sir."}
 - User: "cancel reminder 3" → {"remind": true, "action": "cancel", "text": "cancel reminder 3", "acknowledge": "Cancelling that reminder, Sir."}
 - User: "extend reminder 2 by 20 minutes" → {"remind": true, "action": "extend", "text": "extend reminder 2 by 20 minutes", "acknowledge": "Extending that reminder, Sir."}
+- User: "turn on the office light and tell me the news about the port strike" → [{"ha": true, "command": "turn on the office light", "acknowledge": "Lighting up the office, Sir."}, {"search": true, "query": "port strike news today", "acknowledge": "Fetching the latest, Sir."}]
+- User: "what's on my calendar today and will it rain" → [{"calendar": true, "action": "list", "text": "what's on my calendar today", "acknowledge": "Checking your calendar, Sir."}, {"weather": true, "question": "will it rain today?", "acknowledge": "Checking the forecast, Sir."}]
 
 RULES:
 - Set/list/cancel/extend reminders, alarms, scheduled messages (including recurring like "every X minutes") → remind
@@ -219,6 +224,7 @@ RULES:
 - Math, conversions, data analysis, generate charts → compute (NO internet — cannot make HTTP requests)
 - Knowledge questions (what is X, explain Y) → answer directly
 - If unsure whether to delegate or search → delegate (safer)
+- Several independent requests in one message → return a JSON ARRAY of actions
 - NEVER invent tool call formats like <function_calls>, <tool_use>, or XML tags. Only use the JSON formats above.
 - Never mention actions, models, or architecture to the user. Just respond naturally.`;
 
@@ -351,20 +357,31 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research'];
 
-function parseAction(text) {
+// Per-action presentation metadata (status emoji, default ack, error label)
+const ACTION_META = {
+  delegate: { emoji: '⚙️', ack: 'Working on it, Sir...', label: 'Task' },
+  search:   { emoji: '🔍', ack: 'Searching the web, Sir...', label: 'Search' },
+  fetch:    { emoji: '📄', ack: 'Reading the page, Sir...', label: 'Fetch' },
+  compute:  { emoji: '🧮', ack: 'Running calculations, Sir...', label: 'Computation' },
+  ha:       { emoji: '🏡', ack: 'Controlling Home Assistant, Sir...', label: 'Home Assistant' },
+  remind:   { emoji: '⏰', ack: 'On it, Sir...', label: 'Reminder' },
+  weather:  { emoji: '🌤️', ack: 'Checking the weather, Sir...', label: 'Weather' },
+  calendar: { emoji: '📅', ack: 'Checking your calendar, Sir...', label: 'Calendar' },
+  research: { emoji: '🔬', ack: 'Researching that for you, Sir...', label: 'Research' },
+};
+
+const actionKeyOf = (a) => ACTION_KEYS.find((k) => a?.[k]) || null;
+
+// Parse the front model output into an ARRAY of action objects.
+// Supports a single object (→ [obj]), a JSON array (→ filtered), or JSON
+// embedded in prose (→ single). Returns [] when no action is present.
+function parseActions(text) {
   const normalize = (s) => s
     .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
     .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
 
-  const tryParse = (s) => {
-    try {
-      const parsed = JSON.parse(s);
-      if (typeof parsed === 'object' && parsed !== null) {
-        if (ACTION_KEYS.some((k) => parsed[k])) return parsed;
-      }
-    } catch { /* not valid JSON */ }
-    return null;
-  };
+  const isAction = (o) => o && typeof o === 'object' && ACTION_KEYS.some((k) => o[k]);
+  const tryParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
   let trimmed = text.trim();
   if (trimmed.startsWith('```')) {
@@ -372,25 +389,35 @@ function parseAction(text) {
   }
   trimmed = normalize(trimmed);
 
-  if (trimmed.startsWith('{')) {
-    const result = tryParse(trimmed);
-    if (result) return result;
+  // Array of actions
+  if (trimmed.startsWith('[')) {
+    const parsed = tryParse(trimmed);
+    if (Array.isArray(parsed)) {
+      const actions = parsed.filter(isAction);
+      if (actions.length) return actions;
+    }
   }
 
-  // Fallback: extract JSON object embedded in prose
+  // Single object
+  if (trimmed.startsWith('{')) {
+    const parsed = tryParse(trimmed);
+    if (isAction(parsed)) return [parsed];
+  }
+
+  // Fallback: extract a single JSON object embedded in prose
   for (const key of ACTION_KEYS) {
     const marker = `{"${key}"`;
     const jsonStart = trimmed.indexOf(marker);
     if (jsonStart >= 0) {
       const jsonEnd = trimmed.lastIndexOf('}');
       if (jsonEnd > jsonStart) {
-        const result = tryParse(trimmed.slice(jsonStart, jsonEnd + 1));
-        if (result) return result;
+        const parsed = tryParse(trimmed.slice(jsonStart, jsonEnd + 1));
+        if (isAction(parsed)) return [parsed];
       }
     }
   }
 
-  return null;
+  return [];
 }
 
 // --- Send a citation list as its own bounded message ---
@@ -402,6 +429,118 @@ async function sendSources(ctx, sources) {
     .join(' · ');
   await ctx.replyWithHTML(truncate(`📎 ${links}`), { disable_web_page_preview: true })
     .catch((err) => console.error('Failed to send sources:', err.message));
+}
+
+// --- Reminder sub-dispatch (set/list/cancel/extend) ---
+
+async function runReminder(action, chatId, prompt) {
+  switch (action.action) {
+    case 'list':
+      return listReminders(chatId);
+    case 'cancel': {
+      const idMatch = action.text?.match(/(?:reminder\s*#?\s*)?(\d+)/i);
+      const remId = idMatch ? parseInt(idMatch[1]) : null;
+      return remId
+        ? cancelReminder(chatId, remId)
+        : cancelByText(chatId, action.text || prompt);
+    }
+    case 'extend': {
+      const nums = action.text?.match(/\d+/g) || [];
+      const remId = nums[0] ? parseInt(nums[0]) : null;
+      const mins = nums[1] ? parseInt(nums[1]) : null;
+      return (remId && mins)
+        ? extendReminder(chatId, remId, mins)
+        : { ok: false, output: 'Please specify the reminder number and minutes (e.g. "extend reminder 3 by 15 minutes").' };
+    }
+    default:
+      return parseAndCreate(chatId, action.text || prompt);
+  }
+}
+
+// --- Phase 1: execute one action, returning its raw result (no Telegram I/O) ---
+// Rate-limited actions (research, delegate) gate synchronously here so parallel
+// dispatch reserves capacity deterministically in request order.
+
+async function runOne(action, sctx) {
+  const key = actionKeyOf(action);
+  switch (key) {
+    case 'weather':
+      return { key, action, res: await runWeatherQuery(action.question) };
+    case 'calendar':
+      return {
+        key, action,
+        res: action.action === 'list'
+          ? await listEvents(action.text || sctx.prompt)
+          : await createEvent(sctx.chatId, action.text || sctx.prompt),
+      };
+    case 'search':
+      return { key, action, res: await runWebSearch(action.query) };
+    case 'fetch':
+      return { key, action, res: await runWebFetch(action.url, action.question) };
+    case 'compute':
+      return { key, action, res: await runCodeExecution(action.task) };
+    case 'ha':
+      return { key, action, res: await resolveAndExecute(action.command) };
+    case 'remind':
+      return { key, action, res: await runReminder(action, sctx.chatId, sctx.prompt) };
+    case 'research': {
+      if (isLimited(opusCallLog, OPUS_RATE_MAX)) {
+        return { key, action, res: { ok: false, output: `rate limit reached (${OPUS_RATE_MAX}/hour). Use /search for a quick lookup.` } };
+      }
+      recordTo(opusCallLog);
+      console.log(`[front] Deep research: ${action.query?.slice(0, 100)}`);
+      return { key, action, res: await runResearch(action.query || sctx.prompt) };
+    }
+    case 'delegate': {
+      if (isLimited(opusCallLog, OPUS_RATE_MAX)) {
+        return { key, action, res: { ok: false, output: `Opus rate limit reached (${OPUS_RATE_MAX}/hour). Try again later or use slash commands.` } };
+      }
+      recordTo(opusCallLog);
+      console.log(`[front] Delegating to Opus: ${action.task?.slice(0, 100)}`);
+      const res = await runOpus(`${sctx.contextPrompt}\n\nTask to execute: ${action.task}`);
+      const left = remainingIn(opusCallLog, OPUS_RATE_MAX);
+      return { key, action, res: { ...res, footer: `(${left} Opus calls remaining this hour)` } };
+    }
+    default:
+      return { key: null, action, res: { ok: false, output: 'Unknown action.' } };
+  }
+}
+
+// --- Phase 2: render one action's result to Telegram (sequential, in order) ---
+// Returns { ok, text } so the caller can aggregate voice + fact extraction.
+
+async function renderOne(ctx, { key, action, res }, sctx) {
+  const meta = ACTION_META[key] || { label: 'Action' };
+  await storeMessage(sctx.sessionId, 'assistant', res.ok ? res.output : `${meta.label} failed: ${res.output}`);
+
+  if (!res.ok) {
+    await ctx.replyWithHTML(`🔴 ${escapeHtml(meta.label)} failed: ${escapeHtml(res.output)}`)
+      .catch((err) => console.error('Failed to send error:', err.message));
+    return { ok: false, text: '' };
+  }
+
+  if (key === 'ha') {
+    await ctx.replyWithHTML(`✅ ${escapeHtml(res.output)}`);
+  } else if (key === 'remind') {
+    await ctx.replyWithHTML(`⏰ ${escapeHtml(res.output)}`);
+  } else {
+    let html = mdToHtml(res.output);
+    if (res.footer) html += `\n\n<i>${escapeHtml(res.footer)}</i>`;
+    await sendLong(ctx, html, { disable_web_page_preview: true });
+    await sendSources(ctx, res.sources);
+    if (res.images?.length) {
+      for (const img of res.images) {
+        try {
+          const buf = Buffer.from(img.base64, 'base64');
+          await ctx.replyWithPhoto({ source: buf, filename: 'chart.png' });
+        } catch (err) {
+          console.error('Failed to send generated image:', err.message);
+        }
+      }
+    }
+  }
+
+  return { ok: true, text: res.output };
 }
 
 // --- Main chat handler: front model + optional Opus delegation ---
@@ -434,375 +573,63 @@ export async function askClaude(ctx, textOverride = null) {
     return;
   }
 
-  let action = parseAction(output);
+  let actions = parseActions(output);
 
   // Fallback: if user sent a URL but the front model didn't return a fetch action, auto-trigger fetch
-  if (!action) {
+  if (!actions.length) {
     const urlMatch = prompt.match(/https?:\/\/[^\s]+/i);
     if (urlMatch) {
       console.log(`[front] URL fallback — front model missed fetch action, auto-triggering for: ${urlMatch[0].slice(0, 100)}`);
       const questionPart = prompt.replace(urlMatch[0], '').trim();
-      action = {
+      actions = [{
         fetch: true,
         url: urlMatch[0],
         question: questionPart || 'Provide an overview of the content.',
         acknowledge: 'Reading the page, Sir...',
-      };
+      }];
     }
   }
 
-  // --- Local weather action (Home Assistant) ---
-  if (action?.weather) {
-    const ack = action.acknowledge || 'Checking the weather, Sir...';
-    console.log(`[front] Weather: ${action.question?.slice(0, 100) || '(current)'}`);
+  // --- Action dispatch: run independent actions in parallel, render in order ---
+  if (actions.length) {
+    const sctx = { sessionId, prompt, contextPrompt, chatId };
+
+    // Header: acknowledge each action (preserves per-action feedback + ordering)
+    const ackLines = actions.map((a) => {
+      const meta = ACTION_META[actionKeyOf(a)] || { emoji: '⚙️', ack: 'Working on it, Sir...' };
+      return `${meta.emoji} <i>${escapeHtml(a.acknowledge || meta.ack)}</i>`;
+    });
     await ctx.telegram.editMessageText(
       thinking.chat.id, thinking.message_id, undefined,
-      `🌤️ <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
+      ackLines.join('\n'), { parse_mode: 'HTML' }
     ).catch(() => {});
 
-    const { ok: weatherOk, output: weatherOutput } = await runWeatherQuery(action.question);
+    console.log(`[front] Dispatching ${actions.length} action(s): ${actions.map(actionKeyOf).join(', ')}`);
 
-    await storeMessage(sessionId, 'assistant', weatherOk ? weatherOutput : `Weather failed: ${weatherOutput}`);
+    // Phase 1 — run all actions concurrently (network/LLM-bound, independent)
+    const runs = await Promise.all(
+      actions.map((a) => runOne(a, sctx).catch((err) => ({
+        key: actionKeyOf(a), action: a, res: { ok: false, output: err.message },
+      })))
+    );
 
-    const response = weatherOk
-      ? truncate(mdToHtml(weatherOutput), 3700)
-      : `🔴 ${escapeHtml(weatherOutput)}`;
-
-    try {
-      await ctx.telegram.editMessageText(
-        thinking.chat.id, thinking.message_id, undefined,
-        response, { parse_mode: 'HTML', disable_web_page_preview: true }
-      );
-    } catch {
-      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+    // Phase 2 — render sequentially, preserving request order
+    const texts = [];
+    for (const run of runs) {
+      const r = await renderOne(ctx, run, sctx);
+      if (r.ok && r.text) texts.push(r.text);
     }
 
-    if (weatherOk) await maybeSendVoice(ctx, weatherOutput);
-    return;
-  }
-
-  // --- Calendar action (create event / list schedule) ---
-  if (action?.calendar) {
-    const ack = action.acknowledge || 'Checking your calendar, Sir...';
-    console.log(`[front] Calendar ${action.action}: ${action.text?.slice(0, 100)}`);
-    await ctx.telegram.editMessageText(
-      thinking.chat.id, thinking.message_id, undefined,
-      `📅 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
-    ).catch(() => {});
-
-    const chatId = String(ctx.chat?.id || 'default');
-    const result = action.action === 'list'
-      ? await listEvents(action.text || prompt)
-      : await createEvent(chatId, action.text || prompt);
-
-    await storeMessage(sessionId, 'assistant', result.ok ? result.output : `Calendar failed: ${result.output}`);
-
-    const response = result.ok
-      ? truncate(mdToHtml(result.output), 3700)
-      : `🔴 ${escapeHtml(result.output)}`;
-
-    try {
-      await ctx.telegram.editMessageText(
-        thinking.chat.id, thinking.message_id, undefined,
-        response, { parse_mode: 'HTML', disable_web_page_preview: true }
-      );
-    } catch {
-      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
-    }
-
-    if (result.ok) await maybeSendVoice(ctx, result.output);
-    return;
-  }
-
-  // --- Web search action ---
-  if (action?.search) {
-    const ack = action.acknowledge || 'Searching the web, Sir...';
-    console.log(`[front] Web search: ${action.query?.slice(0, 100)}`);
-    await ctx.telegram.editMessageText(
-      thinking.chat.id, thinking.message_id, undefined,
-      `🔍 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
-    ).catch(() => {});
-
-    const { ok: searchOk, output: searchOutput, sources } = await runWebSearch(action.query);
-
-    await storeMessage(sessionId, 'assistant', searchOk ? searchOutput : `Search failed: ${searchOutput}`);
-
-    if (!searchOk) {
-      const errMsg = `🔴 Search failed: ${escapeHtml(searchOutput)}`;
-      await ctx.telegram.editMessageText(
-        thinking.chat.id, thinking.message_id, undefined,
-        errMsg, { parse_mode: 'HTML' }
-      ).catch(() => ctx.replyWithHTML(errMsg));
-      return;
-    }
-
-    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
-
-    await sendLong(ctx, mdToHtml(searchOutput), { disable_web_page_preview: true });
-    await sendSources(ctx, sources);
-
-    await maybeSendVoice(ctx, searchOutput);
-    if (prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, searchOutput).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
-    }
-    return;
-  }
-
-  // --- Web fetch action ---
-  if (action?.fetch) {
-    const ack = action.acknowledge || 'Reading the page, Sir...';
-    console.log(`[front] Web fetch: ${action.url?.slice(0, 100)}`);
-    await ctx.telegram.editMessageText(
-      thinking.chat.id, thinking.message_id, undefined,
-      `📄 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
-    ).catch(() => {});
-
-    const { ok: fetchOk, output: fetchOutput, sources } = await runWebFetch(action.url, action.question);
-
-    await storeMessage(sessionId, 'assistant', fetchOk ? fetchOutput : `Fetch failed: ${fetchOutput}`);
-
-    if (!fetchOk) {
-      const errMsg = `🔴 Failed to read page: ${escapeHtml(fetchOutput)}`;
-      await ctx.telegram.editMessageText(
-        thinking.chat.id, thinking.message_id, undefined,
-        errMsg, { parse_mode: 'HTML' }
-      ).catch(() => ctx.replyWithHTML(errMsg));
-      return;
-    }
-
-    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
-
-    await sendLong(ctx, mdToHtml(fetchOutput), { disable_web_page_preview: true });
-    await sendSources(ctx, sources);
-
-    await maybeSendVoice(ctx, fetchOutput);
-    if (prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, fetchOutput).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
-    }
-    return;
-  }
-
-  // --- Code execution action ---
-  if (action?.compute) {
-    const ack = action.acknowledge || 'Running calculations, Sir...';
-    console.log(`[front] Code execution: ${action.task?.slice(0, 100)}`);
-    await ctx.telegram.editMessageText(
-      thinking.chat.id, thinking.message_id, undefined,
-      `🧮 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
-    ).catch(() => {});
-
-    const { ok: codeOk, output: codeOutput, sources, images } = await runCodeExecution(action.task);
-
-    await storeMessage(sessionId, 'assistant', codeOk ? codeOutput : `Computation failed: ${codeOutput}`);
-
-    if (!codeOk) {
-      const errMsg = `🔴 Computation failed: ${escapeHtml(codeOutput)}`;
-      await ctx.telegram.editMessageText(
-        thinking.chat.id, thinking.message_id, undefined,
-        errMsg, { parse_mode: 'HTML' }
-      ).catch(() => ctx.replyWithHTML(errMsg));
-      return;
-    }
-
-    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
-
-    await sendLong(ctx, mdToHtml(codeOutput));
-    await sendSources(ctx, sources);
-
-    // Send generated images (charts, plots) as photos
-    if (images?.length) {
-      for (const img of images) {
-        try {
-          const buf = Buffer.from(img.base64, 'base64');
-          await ctx.replyWithPhoto({ source: buf, filename: 'chart.png' });
-        } catch (err) {
-          console.error('Failed to send generated image:', err.message);
-        }
-      }
-    }
-
-    await maybeSendVoice(ctx, codeOutput);
-    if (prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, codeOutput).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
-    }
-    return;
-  }
-
-  // --- Deep research action (capable model chaining web search + fetch + code) ---
-  if (action?.research) {
-    const ack = action.acknowledge || 'Researching that for you, Sir...';
-    console.log(`[front] Deep research: ${action.query?.slice(0, 100)}`);
-
-    // Runs on a capable (expensive) model — gate on the same bucket as Opus.
-    if (isLimited(opusCallLog, OPUS_RATE_MAX)) {
-      await ctx.telegram.editMessageText(
-        thinking.chat.id, thinking.message_id, undefined,
-        `⚠️ Research rate limit reached (${OPUS_RATE_MAX}/hour). Try again later, or use <code>/search</code> for a quick lookup.`,
-        { parse_mode: 'HTML' }
-      ).catch(() => ctx.replyWithHTML(`⚠️ Research rate limit reached (${OPUS_RATE_MAX}/hour).`));
-      return;
-    }
-    recordTo(opusCallLog);
-
-    await ctx.telegram.editMessageText(
-      thinking.chat.id, thinking.message_id, undefined,
-      `🔬 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
-    ).catch(() => {});
-
-    const { ok: researchOk, output: researchOutput, sources, images } = await runResearch(action.query || prompt);
-
-    await storeMessage(sessionId, 'assistant', researchOk ? researchOutput : `Research failed: ${researchOutput}`);
-
-    if (!researchOk) {
-      const errMsg = `🔴 Research failed: ${escapeHtml(researchOutput)}`;
-      await ctx.telegram.editMessageText(
-        thinking.chat.id, thinking.message_id, undefined,
-        errMsg, { parse_mode: 'HTML' }
-      ).catch(() => ctx.replyWithHTML(errMsg));
-      return;
-    }
-
-    // Remove the "thinking" placeholder, then stream the (possibly long) answer
-    // across as many messages as needed — research output + a citation list can
-    // easily exceed Telegram's 4096-char cap, so never pack it into one edit.
-    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
-
-    await sendLong(ctx, mdToHtml(researchOutput), { disable_web_page_preview: true });
-    await sendSources(ctx, sources);
-
-    // Send any generated charts/plots as photos
-    if (images?.length) {
-      for (const img of images) {
-        try {
-          const buf = Buffer.from(img.base64, 'base64');
-          await ctx.replyWithPhoto({ source: buf, filename: 'chart.png' });
-        } catch (err) {
-          console.error('Failed to send research image:', err.message);
-        }
-      }
-    }
-
-    await maybeSendVoice(ctx, researchOutput);
-    if (prompt.length > 10) {
-      offerFactExtraction(ctx, prompt, researchOutput).catch((err) =>
-        console.error('Fact extraction failed:', err.message)
-      );
-    }
-    return;
-  }
-
-  // --- Home Assistant control action ---
-  if (action?.ha) {
-    const ack = action.acknowledge || 'Controlling Home Assistant, Sir...';
-    await ctx.telegram.editMessageText(
-      thinking.chat.id, thinking.message_id, undefined,
-      `🏡 <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
-    ).catch(() => {});
-
-    const result = await resolveAndExecute(action.command);
-
-    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
-
-    if (result.ok) {
-      const reply = `✅ ${escapeHtml(result.output)}`;
-      await ctx.replyWithHTML(reply);
-      await maybeSendVoice(ctx, result.output);
+    // Aggregate voice + fact extraction once over the combined output
+    const combined = texts.join('\n\n');
+    if (combined) {
+      await maybeSendVoice(ctx, combined);
       if (prompt.length > 10) {
-        offerFactExtraction(ctx, prompt, result.output).catch((err) =>
+        offerFactExtraction(ctx, prompt, combined).catch((err) =>
           console.error('Fact extraction failed:', err.message)
         );
       }
-    } else {
-      await ctx.replyWithHTML(`⚠️ ${escapeHtml(result.output)}`);
     }
-    return;
-  }
-
-  // --- Reminder action ---
-  if (action?.remind) {
-    const ack = action.acknowledge || 'On it, Sir...';
-    await ctx.telegram.editMessageText(
-      thinking.chat.id, thinking.message_id, undefined,
-      `⏰ <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
-    ).catch(() => {});
-
-    const chatId = String(ctx.chat?.id || 'default');
-    let result;
-
-    switch (action.action) {
-      case 'list':
-        result = await listReminders(chatId);
-        break;
-      case 'cancel': {
-        const idMatch = action.text?.match(/(?:reminder\s*#?\s*)?(\d+)/i);
-        const remId = idMatch ? parseInt(idMatch[1]) : null;
-        result = remId
-          ? await cancelReminder(chatId, remId)
-          : await cancelByText(chatId, action.text || prompt);
-        break;
-      }
-      case 'extend': {
-        const nums = action.text?.match(/\d+/g) || [];
-        const remId = nums[0] ? parseInt(nums[0]) : null;
-        const mins = nums[1] ? parseInt(nums[1]) : null;
-        result = (remId && mins)
-          ? await extendReminder(chatId, remId, mins)
-          : { ok: false, output: 'Please specify the reminder number and minutes (e.g. "extend reminder 3 by 15 minutes").' };
-        break;
-      }
-      default:
-        result = await parseAndCreate(chatId, action.text || prompt);
-        break;
-    }
-
-    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
-
-    if (result.ok) {
-      await ctx.replyWithHTML(`⏰ ${escapeHtml(result.output)}`);
-      await maybeSendVoice(ctx, result.output);
-    } else {
-      await ctx.replyWithHTML(`⚠️ ${escapeHtml(result.output)}`);
-    }
-    return;
-  }
-
-  // --- Server delegation action ---
-  if (action?.delegate) {
-    console.log(`[front] Delegating to Opus: ${action.task.slice(0, 100)}`);
-    const ack = action.acknowledge || 'Working on it, Sir...';
-    await ctx.telegram.editMessageText(
-      thinking.chat.id, thinking.message_id, undefined,
-      `⚙️ <i>${escapeHtml(ack)}</i>`, { parse_mode: 'HTML' }
-    ).catch(() => {});
-
-    if (isLimited(opusCallLog, OPUS_RATE_MAX)) {
-      await ctx.replyWithHTML(`⚠️ Opus rate limit reached (${OPUS_RATE_MAX}/hour). Try again later or use slash commands.`);
-      return;
-    }
-
-    recordTo(opusCallLog);
-    const opusPrompt = `${contextPrompt}\n\nTask to execute: ${action.task}`;
-    const { ok: opusOk, output: opusOutput } = await runOpus(opusPrompt);
-    const left = remainingIn(opusCallLog, OPUS_RATE_MAX);
-
-    const assistantMsg = opusOk ? opusOutput : `Error: ${opusOutput}`;
-    await storeMessage(sessionId, 'assistant', assistantMsg);
-
-    let response;
-    if (opusOk) {
-      response = truncate(mdToHtml(opusOutput), 3900) + `\n\n<i>(${left} Opus calls remaining this hour)</i>`;
-    } else {
-      response = `🔴 Opus error:\n<pre>${truncate(escapeHtml(opusOutput), 3800)}</pre>`;
-    }
-
-    await ctx.replyWithHTML(response);
-    if (opusOk) await maybeSendVoice(ctx, opusOutput);
     return;
   }
 
