@@ -11,6 +11,7 @@
 - ~~natural language HA control~~ — Haiku-based entity resolution + direct HA API calls (~2-3s vs ~60s via Opus), front model routes `{"ha": true}`
 - ~~reminders / scheduled messages~~ — Haiku NL parsing, PostgreSQL persistence, 30s polling loop, one-shot + recurring (daily/weekly/monthly), snooze inline buttons, `/reminders` command, front model routes `{"remind": true}`
 - ~~reminders → Google Calendar sync~~ — scheduled/recurring reminders (daily/weekly/monthly, or one-shots >4h out) are mirrored to Google Calendar via the `JARVIS - Create Calendar Event` n8n webhook workflow, with **calendar-only delivery**: on a successful sync the local row is retired (poller does not double-notify) and Google Calendar owns the notification + record; if sync fails it falls back to a Telegram reminder so nothing is lost. Ephemeral "timer" reminders (interval/hourly/near-term) stay local-only and fire via Telegram. Recurrence→RRULE mapping, `kind`/`calendar_event_id` columns. `services/calendar-sync.js`
+- ~~weather integration~~ — local weather/forecast via the Home Assistant weather entity: `weather` action + `/weather` command (current conditions + multi-day daily forecast, Haiku answers NL questions over the data), also feeds the daily briefing. Weather for **other cities** routes to `search` (web), and trip-planning-style multi-day questions escalate to `research`. (02ws.co.il considered as an alt source but dropped — HA covers it.) `agents/weather.js`, `commands/weather.js`
 - ~~daily morning briefing~~ — scheduled daily digest with best-effort sections: Hebrew calendar (date/parsha/Omer/Shabbat times via `jewish_calendar`), weather (HA weather entity), today's calendar events (HA calendar API), today's reminders, Garmin health (body battery/sleep/RHR/steps/training/stress), HA device summary, system health. Configurable time via `BRIEFING_TIME`, per-section toggles, on-demand `/briefing` command (`services/briefing.js`, `agents/{weather,garmin,jewish,calendar}.js`)
 
 ## 🔧 Planned
@@ -69,31 +70,23 @@ _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on 
 ### Integrations
 
 #### Already-connected services (extend existing access)
-1. weather integration (OpenWeatherMap or HA weather entity or 02ws.co.il)
-   - **02ws.co.il API docs:** https://v2013.02ws.co.il/small/?tempunit=%C2%B0c&section=Api&lang=1
-   - Forecast (all days): `GET https://www.02ws.co.il/api/forecast`
-   - Forecast (day N): `GET https://www.02ws.co.il/api/forecast/{dayNumber}/{language}/{tempUnit}/{futureUse}`
-   - Current conditions: `GET https://www.02ws.co.il/api/now/{dataNumber}/{language}/{tempUnit}/{futureUse}`
-   - dataNumber: 1=time, 2=temp, 3=temp2, 4=temp3, 5=humidity, 6=pressure, 7=wind dir, 8=wind speed, 9=rain rate, 10=rain chance, 11=solar radiation, 12=sunshine hours, 13=rain today (0=all)
-   - language: 0=English, 1=Hebrew
-   - **Requires `Accept` header** — requests without `Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8` return empty responses
-2. Jellyfin media agent — search library, get watch history, media recommendations ("what should I watch tonight?"), trigger library scans
-3. qBittorrent agent — search/add torrents, monitor downloads, auto-organize completed media (already has `/download` command, extend with NL control)
-4. multi-room audio / music control — control speakers via HA from Telegram
-5. HA energy dashboard via Telegram — daily/weekly consumption, cost estimates, peak hours
-6. personal app integrations — connect to self-hosted apps via their APIs (RecipeRack, QRganize, etc.)
+1. Jellyfin media agent — search library, get watch history, media recommendations ("what should I watch tonight?"), trigger library scans
+2. qBittorrent agent — search/add torrents, monitor downloads, auto-organize completed media (already has `/download` command, extend with NL control)
+3. multi-room audio / music control — control speakers via HA from Telegram
+4. HA energy dashboard via Telegram — daily/weekly consumption, cost estimates, peak hours
+5. personal app integrations — connect to self-hosted apps via their APIs (RecipeRack, QRganize, etc.)
 
 #### New service integrations
-7. calendar integration (Google Calendar / CalDAV — "what's on my schedule today?", "add meeting tomorrow at 3pm") — _partial: reminders now write to GCal (see Done); still TODO: NL "add meeting" events + Phase 2 GCal-trigger nudges for events created outside JARVIS_
-8. email integration (Gmail API — "send confirmation email", "check inbox for X", "summarize unread emails")
-9. messaging integration (WhatsApp Business API or Matrix — "send John the file", cross-platform messaging)
-10. finance / portfolio integration — broker APIs (Interactive Brokers, Trading 212, IBI, etc.) for holdings, P&L, allocation analysis, cross-broker comparison
-11. Strava / fitness coach — training log, weekly summaries, goal tracking, workout suggestions
-12. Spotify / music — playback control, playlist management, listening stats, music recommendations
-13. GitHub integration — repo status, PR notifications, issue management, commit summaries
-14. note-taking integration (Obsidian / Notion API — "save this to my notes", "find my notes about X")
-15. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?")
-16. food delivery / restaurant (Wolt / 10bis API — "order lunch", "what's nearby?")
+6. calendar integration (Google Calendar / CalDAV — "what's on my schedule today?", "add meeting tomorrow at 3pm") — _partial: reminders now write to GCal (see Done); still TODO: NL "add meeting" events + Phase 2 GCal-trigger nudges for events created outside JARVIS_
+7. email integration (Gmail API — "send confirmation email", "check inbox for X", "summarize unread emails")
+8. messaging integration (WhatsApp Business API or Matrix — "send John the file", cross-platform messaging)
+9. finance / portfolio integration — broker APIs (Interactive Brokers, Trading 212, IBI, etc.) for holdings, P&L, allocation analysis, cross-broker comparison
+10. Strava / fitness coach — training log, weekly summaries, goal tracking, workout suggestions
+11. Spotify / music — playback control, playlist management, listening stats, music recommendations
+12. GitHub integration — repo status, PR notifications, issue management, commit summaries
+13. note-taking integration (Obsidian / Notion API — "save this to my notes", "find my notes about X")
+14. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?")
+15. food delivery / restaurant (Wolt / 10bis API — "order lunch", "what's nearby?")
 
 ### for future reference on mcp conneciton ###
 can you connect to qrganize mcp 
