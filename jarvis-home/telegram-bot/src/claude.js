@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process';
 import crypto from 'node:crypto';
 import { Markup } from 'telegraf';
-import { truncate, escapeHtml, mdToHtml } from './utils.js';
+import { truncate, escapeHtml, mdToHtml, sendLong } from './utils.js';
 import {
   ensureSession, storeMessage, summarizeSession,
   buildMemoryContext, closePool,
@@ -678,30 +678,32 @@ export async function askClaude(ctx, textOverride = null) {
 
     await storeMessage(sessionId, 'assistant', researchOk ? researchOutput : `Research failed: ${researchOutput}`);
 
-    let response;
-    if (researchOk) {
-      response = truncate(mdToHtml(researchOutput), 3700);
-      if (sources?.length) {
-        const links = sources.map((s) =>
-          `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`
-        ).join(' · ');
-        response += `\n\n📎 ${links}`;
-      }
-    } else {
-      response = `🔴 Research failed: ${escapeHtml(researchOutput)}`;
-    }
-
-    try {
+    if (!researchOk) {
+      const errMsg = `🔴 Research failed: ${escapeHtml(researchOutput)}`;
       await ctx.telegram.editMessageText(
         thinking.chat.id, thinking.message_id, undefined,
-        response, { parse_mode: 'HTML', disable_web_page_preview: true }
-      );
-    } catch {
-      await ctx.replyWithHTML(response, { disable_web_page_preview: true });
+        errMsg, { parse_mode: 'HTML' }
+      ).catch(() => ctx.replyWithHTML(errMsg));
+      return;
+    }
+
+    // Remove the "thinking" placeholder, then stream the (possibly long) answer
+    // across as many messages as needed — research output + a citation list can
+    // easily exceed Telegram's 4096-char cap, so never pack it into one edit.
+    try { await ctx.telegram.deleteMessage(thinking.chat.id, thinking.message_id); } catch {}
+
+    await sendLong(ctx, mdToHtml(researchOutput), { disable_web_page_preview: true });
+
+    if (sources?.length) {
+      const links = sources
+        .map((s) => `<a href="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>`)
+        .join(' · ');
+      await ctx.replyWithHTML(truncate(`📎 ${links}`), { disable_web_page_preview: true })
+        .catch((err) => console.error('Failed to send research sources:', err.message));
     }
 
     // Send any generated charts/plots as photos
-    if (researchOk && images?.length) {
+    if (images?.length) {
       for (const img of images) {
         try {
           const buf = Buffer.from(img.base64, 'base64');
@@ -712,13 +714,11 @@ export async function askClaude(ctx, textOverride = null) {
       }
     }
 
-    if (researchOk) {
-      await maybeSendVoice(ctx, researchOutput);
-      if (prompt.length > 10) {
-        offerFactExtraction(ctx, prompt, researchOutput).catch((err) =>
-          console.error('Fact extraction failed:', err.message)
-        );
-      }
+    await maybeSendVoice(ctx, researchOutput);
+    if (prompt.length > 10) {
+      offerFactExtraction(ctx, prompt, researchOutput).catch((err) =>
+        console.error('Fact extraction failed:', err.message)
+      );
     }
     return;
   }
