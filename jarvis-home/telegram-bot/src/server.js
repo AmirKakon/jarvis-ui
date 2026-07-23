@@ -11,7 +11,7 @@
 //
 // Config (~/jarvis/.env):
 //   ASK_HTTP_TOKEN  required — bearer token clients must present
-//   ASK_HTTP_PORT   default 20007
+//   ASK_HTTP_PORT   default 20010 (20007 is taken by nginx HTTPS on this host)
 //   ASK_HTTP_BIND   default 127.0.0.1
 
 import http from 'node:http';
@@ -132,7 +132,7 @@ export function startAskServer() {
     return null;
   }
 
-  const port = Number(process.env.ASK_HTTP_PORT) || 20007;
+  const port = Number(process.env.ASK_HTTP_PORT) || 20010;
   const bind = process.env.ASK_HTTP_BIND || '127.0.0.1';
 
   server = http.createServer((req, res) => handleRequest(req, res, token));
