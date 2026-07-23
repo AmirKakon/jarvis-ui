@@ -200,3 +200,26 @@ export async function sendLong(ctx, text, extra = {}) {
     await ctx.replyWithHTML(chunk, extra);
   }
 }
+
+/**
+ * Send a set of photos as a Telegram album (media group). Each photo is
+ * { buffer, caption }. Uploads bytes directly (for images not publicly
+ * reachable, e.g. a LAN media server). Captions are plain text. Best-effort.
+ */
+export async function sendPhotoAlbum(ctx, photos) {
+  if (!photos?.length) return;
+  const media = photos.slice(0, 10).map((p) => ({
+    type: 'photo',
+    media: { source: p.buffer },
+    ...(p.caption ? { caption: truncate(p.caption, 1000) } : {}),
+  }));
+  try {
+    if (media.length === 1) {
+      await ctx.replyWithPhoto(media[0].media, media[0].caption ? { caption: media[0].caption } : {});
+    } else {
+      await ctx.replyWithMediaGroup(media);
+    }
+  } catch (err) {
+    console.error('[posters] Failed to send album:', err.message);
+  }
+}

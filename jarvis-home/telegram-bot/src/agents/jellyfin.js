@@ -264,6 +264,72 @@ function listTitles(items, heading) {
   return lines.join('\n');
 }
 
+// --- Posters ---
+
+const POSTER_MAX = 6;
+
+// Download a primary image as bytes (Telegram can't reach localhost, so the bot
+// fetches + uploads the buffer itself). Returns null if there's no image.
+async function fetchPoster(itemId, maxWidth = 400) {
+  const t = token();
+  if (!t || !itemId) return null;
+  try {
+    const res = await fetch(`${baseUrl()}/Items/${itemId}/Images/Primary?maxWidth=${maxWidth}`, {
+      headers: { 'X-Emby-Token': t },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return buf.length ? buf : null;
+  } catch (err) {
+    console.error(`[jellyfin] poster fetch failed (${itemId}):`, err.message);
+    return null;
+  }
+}
+
+function posterCaption(item) {
+  const title = item.Type === 'Episode' ? (item.SeriesName || item.Name) : item.Name;
+  let cap = title || 'Untitled';
+  if (item.ProductionYear) cap += ` (${item.ProductionYear})`;
+  if (item.CommunityRating) cap += ` ★${Math.round(item.CommunityRating * 10) / 10}`;
+  return cap;
+}
+
+// Episodes' artwork belongs to the series — use SeriesId when present.
+const imageIdOf = (item) => (item.Type === 'Episode' ? (item.SeriesId || item.Id) : item.Id);
+
+// Choose which items get posters: prefer titles the summary actually mentions
+// (in order of appearance), else the first few candidates. Deduped by id.
+function pickPosterItems(candidates, summaryText, cap = POSTER_MAX) {
+  const seen = new Set();
+  const unique = [];
+  for (const it of candidates) {
+    if (it?.Id && !seen.has(it.Id)) { seen.add(it.Id); unique.push(it); }
+  }
+  if (summaryText) {
+    const lc = summaryText.toLowerCase();
+    const mentioned = unique
+      .map((it) => {
+        const name = (it.Type === 'Episode' ? (it.SeriesName || it.Name) : it.Name) || '';
+        return { it, idx: name.length >= 3 ? lc.indexOf(name.toLowerCase()) : -1 };
+      })
+      .filter((x) => x.idx >= 0)
+      .sort((a, b) => a.idx - b.idx)
+      .map((x) => x.it);
+    if (mentioned.length) return mentioned.slice(0, cap);
+  }
+  return unique.slice(0, cap);
+}
+
+async function buildPosters(candidates, summaryText) {
+  const chosen = pickPosterItems(candidates, summaryText);
+  const results = await Promise.all(chosen.map(async (it) => {
+    const buffer = await fetchPoster(imageIdOf(it));
+    return buffer ? { buffer, caption: posterCaption(it) } : null;
+  }));
+  return results.filter(Boolean);
+}
+
 // --- Public entry point ---
 
 export async function runJellyfinQuery(question) {
@@ -307,6 +373,8 @@ export async function runJellyfinQuery(question) {
   // Content intents — fetch, then let Haiku phrase it (with a plain fallback).
   let items = [];
   let heading = 'Results';
+  let candidates = [];
+  let output;
   let payload;
 
   if (intent === 'recommend') {
@@ -317,6 +385,7 @@ export async function runJellyfinQuery(question) {
       getNextUp(),
       getCatalog({ genres, itemType, limit: 40 }),
     ]);
+    candidates = [...resume, ...nextup, ...catalog];
     payload = {
       filters: { genres, itemType },
       continueWatching: resume.map(compact),
@@ -324,40 +393,46 @@ export async function runJellyfinQuery(question) {
       libraryPicks: catalog.map(compact),
     };
     const summary = await summarise(q, payload);
-    if (summary) return { ok: true, output: summary };
-    // Fallback: show what we have.
-    const parts = [];
-    if (resume.length) parts.push(listTitles(resume, 'Continue watching'));
-    if (nextup.length) parts.push(listTitles(nextup, 'Next up'));
-    if (catalog.length) parts.push(listTitles(catalog, `From your library${genres.length ? ` (${genres.join('/')})` : ''}`));
-    return { ok: true, output: parts.join('\n\n') || 'Your library appears to be empty, Sir.' };
-  }
-
-  if (intent === 'search') {
-    // Genre/type-only request with no title → browse the catalogue by filter.
-    if (!searchTerm && (genres.length || itemType)) {
-      items = await getCatalog({ genres, itemType, limit: 30 });
-      heading = `${itemType || 'Titles'}${genres.length ? ` — ${genres.join('/')}` : ''}`;
+    if (summary) {
+      output = summary;
     } else {
-      items = await searchItems(searchTerm || q, { itemType, genres });
-      heading = `Search: ${searchTerm || q}`;
+      // Fallback: show what we have.
+      const parts = [];
+      if (resume.length) parts.push(listTitles(resume, 'Continue watching'));
+      if (nextup.length) parts.push(listTitles(nextup, 'Next up'));
+      if (catalog.length) parts.push(listTitles(catalog, `From your library${genres.length ? ` (${genres.join('/')})` : ''}`));
+      output = parts.join('\n\n') || 'Your library appears to be empty, Sir.';
     }
-  } else if (intent === 'recent') {
-    items = await getLatest();
-    heading = 'Recently added';
-  } else if (intent === 'resume') {
-    items = await getResume();
-    heading = 'Continue watching';
-  } else if (intent === 'nextup') {
-    items = await getNextUp();
-    heading = 'Next up';
   } else {
-    items = await searchItems(q);
-    heading = `Search: ${q}`;
+    if (intent === 'search') {
+      // Genre/type-only request with no title → browse the catalogue by filter.
+      if (!searchTerm && (genres.length || itemType)) {
+        items = await getCatalog({ genres, itemType, limit: 30 });
+        heading = `${itemType || 'Titles'}${genres.length ? ` — ${genres.join('/')}` : ''}`;
+      } else {
+        items = await searchItems(searchTerm || q, { itemType, genres });
+        heading = `Search: ${searchTerm || q}`;
+      }
+    } else if (intent === 'recent') {
+      items = await getLatest();
+      heading = 'Recently added';
+    } else if (intent === 'resume') {
+      items = await getResume();
+      heading = 'Continue watching';
+    } else if (intent === 'nextup') {
+      items = await getNextUp();
+      heading = 'Next up';
+    } else {
+      items = await searchItems(q);
+      heading = `Search: ${q}`;
+    }
+
+    candidates = items;
+    payload = { intent, items: items.map(compact) };
+    const summary = await summarise(q, payload);
+    output = summary || listTitles(items, heading);
   }
 
-  payload = { intent, items: items.map(compact) };
-  const summary = await summarise(q, payload);
-  if (summary) return { ok: true, output: summary };
-  return { ok: true, output: listTitles(items, heading) };
+  const posters = await buildPosters(candidates, output);
+  return { ok: true, output, posters };
 }

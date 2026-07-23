@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process';
 import crypto from 'node:crypto';
 import { Markup } from 'telegraf';
-import { truncate, escapeHtml, mdToHtml, sendLong } from './utils.js';
+import { truncate, escapeHtml, mdToHtml, sendLong, sendPhotoAlbum } from './utils.js';
 import {
   ensureSession, storeMessage, summarizeSession,
   buildMemoryContext, closePool,
@@ -623,6 +623,7 @@ async function renderOne(ctx, { key, action, res }, sctx) {
         }
       }
     }
+    await sendPhotoAlbum(ctx, res.posters);
   }
 
   return { ok: true, text: res.output };

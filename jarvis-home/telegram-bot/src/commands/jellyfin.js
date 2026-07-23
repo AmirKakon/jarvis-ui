@@ -1,4 +1,4 @@
-import { escapeHtml, mdToHtml, sendLong } from '../utils.js';
+import { escapeHtml, mdToHtml, sendLong, sendPhotoAlbum } from '../utils.js';
 import { runJellyfinQuery } from '../agents/jellyfin.js';
 
 export async function jellyfinCommand(ctx) {
@@ -7,7 +7,7 @@ export async function jellyfinCommand(ctx) {
   const placeholder = await ctx.replyWithHTML('🎬 <i>Checking the media library, Sir...</i>');
 
   try {
-    const { ok, output } = await runJellyfinQuery(question);
+    const { ok, output, posters } = await runJellyfinQuery(question);
     if (!ok) {
       const err = `🔴 ${escapeHtml(output)}`;
       await ctx.telegram.editMessageText(
@@ -19,6 +19,7 @@ export async function jellyfinCommand(ctx) {
     // Remove the placeholder, then stream the (possibly long) result.
     await ctx.telegram.deleteMessage(placeholder.chat.id, placeholder.message_id).catch(() => {});
     await sendLong(ctx, mdToHtml(output), { disable_web_page_preview: true });
+    await sendPhotoAlbum(ctx, posters);
   } catch (err) {
     const errMsg = `🔴 Jellyfin failed: ${escapeHtml(err.message)}`;
     await ctx.telegram.editMessageText(
