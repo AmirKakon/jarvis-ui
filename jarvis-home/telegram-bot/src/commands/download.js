@@ -281,7 +281,7 @@ async function handleOrganizeConfirm(ctx, shortHash) {
 
   // Trigger Jellyfin library scan if configured
   await run(
-    'curl -sf -X POST "http://localhost:20001/Library/Refresh" ' +
+    'curl -sf -X POST "${JELLYFIN_URL:-http://localhost:20002}/Library/Refresh" ' +
     '-H "X-Emby-Token: ${JELLYFIN_TOKEN:-}" 2>/dev/null',
     { timeout: 10_000 }
   );

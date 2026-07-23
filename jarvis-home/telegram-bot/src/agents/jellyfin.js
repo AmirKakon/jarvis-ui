@@ -10,8 +10,15 @@
 //   JELLYFIN_TOKEN     Jellyfin API key (Dashboard → API Keys)
 //   JELLYFIN_USER_ID   optional; otherwise the first user is used
 
-const JELLYFIN_URL = (process.env.JELLYFIN_URL || 'http://localhost:20001').replace(/\/$/, '');
+const DEFAULT_JELLYFIN_URL = 'http://localhost:20002';
 const HAIKU = 'claude-haiku-4-5-20251001';
+
+// Read config at CALL time, not module-load time: imported modules evaluate
+// before index.js loads ~/jarvis/.env into process.env, so anything captured at
+// the top level would freeze to its default before the env is available.
+function baseUrl() {
+  return (process.env.JELLYFIN_URL || DEFAULT_JELLYFIN_URL).replace(/\/$/, '');
+}
 
 function token() {
   const t = process.env.JELLYFIN_TOKEN;
@@ -22,7 +29,7 @@ async function jf(endpoint, method = 'GET', body = null) {
   const t = token();
   if (!t) return { ok: false, output: 'Jellyfin not configured (set JELLYFIN_TOKEN in ~/jarvis/.env).' };
   try {
-    const res = await fetch(`${JELLYFIN_URL}${endpoint}`, {
+    const res = await fetch(`${baseUrl()}${endpoint}`, {
       method,
       headers: {
         'X-Emby-Token': t,
