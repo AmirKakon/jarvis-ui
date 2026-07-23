@@ -20,6 +20,7 @@ import { memoryCommand } from './commands/memory.js';
 import { securityCommand, securityRefresh } from './commands/security.js';
 import { searchCommand } from './commands/search.js';
 import { weatherCommand } from './commands/weather.js';
+import { jellyfinCommand } from './commands/jellyfin.js';
 import { eventCommand, agendaCommand } from './commands/calendar.js';
 import { cronRerun } from './commands/cron-rerun.js';
 import { troubleshootCallback } from './commands/troubleshoot.js';
@@ -104,6 +105,7 @@ const HELP_TEXT = [
   '/security  — security dashboard',
   '/search    — web search (AI-summarized)',
   '/weather   — local weather &amp; forecast',
+  '/jellyfin  — media library (search, what to watch)',
   '/event     — add a calendar event (NL)',
   '/agenda    — show your schedule',
   '/reminders — list active reminders',
@@ -142,6 +144,7 @@ bot.command('download', downloadCommand);
 bot.command('security', securityCommand);
 bot.command('search', searchCommand);
 bot.command('weather', weatherCommand);
+bot.command('jellyfin', jellyfinCommand);
 bot.command('event', eventCommand);
 bot.command('agenda', agendaCommand);
 bot.command('reminders', async (ctx) => {
@@ -355,6 +358,7 @@ async function launchWithRetry(attempt = 1) {
       { command: 'security', description: 'Security dashboard' },
       { command: 'search', description: 'Web search (AI-summarized)' },
       { command: 'weather', description: 'Local weather & forecast' },
+      { command: 'jellyfin', description: 'Media library (search, what to watch)' },
       { command: 'event', description: 'Add a calendar event (natural language)' },
       { command: 'agenda', description: 'Show your calendar schedule' },
       { command: 'reminders', description: 'List active reminders' },

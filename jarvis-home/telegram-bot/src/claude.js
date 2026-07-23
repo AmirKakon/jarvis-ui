@@ -15,6 +15,7 @@ import { runResearch } from './agents/research.js';
 import { runMcpAgent } from './agents/mcp.js';
 import { mcpServerSummaries } from './services/mcp-client.js';
 import { runWeatherQuery } from './agents/weather.js';
+import { runJellyfinQuery } from './agents/jellyfin.js';
 import { runOpus } from './agents/opus.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
 import { resolveAndExecute } from './agents/ha.js';
@@ -182,6 +183,9 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 9. Deep research / multi-step analysis (needs several searches, cross-referencing multiple sources, reading full web pages, or combining web data with calculations/charts — anything a single quick lookup can't answer):
 {"research": true, "query": "the full research question with all relevant context", "acknowledge": "brief message to user"}
 
+10. Media library (Jellyfin — search the movie/TV library, what's recently added, continue watching / next up, "what should I watch tonight" recommendations, what's playing now, or trigger a library scan):
+{"jellyfin": true, "query": "the user's full request", "acknowledge": "brief message to user"}
+
 MULTIPLE ACTIONS:
 If the user asks for several INDEPENDENT things in one message, respond with a JSON ARRAY of action objects (using the exact formats above), e.g. [{...}, {...}]. Each entry runs concurrently, so only combine actions that do not depend on one another. For a single request, return a single object — never wrap one action in an array.
 
@@ -209,6 +213,10 @@ EXAMPLES:
 - User: "what reminders do I have" → {"remind": true, "action": "list", "text": "list reminders", "acknowledge": "Let me check, Sir."}
 - User: "cancel reminder 3" → {"remind": true, "action": "cancel", "text": "cancel reminder 3", "acknowledge": "Cancelling that reminder, Sir."}
 - User: "extend reminder 2 by 20 minutes" → {"remind": true, "action": "extend", "text": "extend reminder 2 by 20 minutes", "acknowledge": "Extending that reminder, Sir."}
+- User: "what should I watch tonight" → {"jellyfin": true, "query": "What should I watch tonight?", "acknowledge": "Let me see what's on, Sir."}
+- User: "do we have the movie Dune on jellyfin" → {"jellyfin": true, "query": "Is the movie Dune in the library?", "acknowledge": "Checking the library, Sir."}
+- User: "what's been added to jellyfin recently" → {"jellyfin": true, "query": "recently added", "acknowledge": "Checking what's new, Sir."}
+- User: "what am I in the middle of watching" → {"jellyfin": true, "query": "continue watching", "acknowledge": "Let me check, Sir."}
 - User: "turn on the office light and tell me the news about the port strike" → [{"ha": true, "command": "turn on the office light", "acknowledge": "Lighting up the office, Sir."}, {"search": true, "query": "port strike news today", "acknowledge": "Fetching the latest, Sir."}]
 - User: "what's on my calendar today and will it rain" → [{"calendar": true, "action": "list", "text": "what's on my calendar today", "acknowledge": "Checking your calendar, Sir."}, {"weather": true, "question": "will it rain today?", "acknowledge": "Checking the forecast, Sir."}]
 
@@ -224,6 +232,7 @@ RULES:
 - Weather for a DIFFERENT city → search
 - Current info, news, prices, live data (a single quick lookup) → search
 - Multi-step research: comparing options, cross-referencing several sources, reading multiple pages, or search combined with calculations/charts → research
+- Movies / TV / media library: "what should I watch", search titles, recently added, continue watching, now playing, library scan → jellyfin
 - Read/summarise a public web page or PDF → fetch
 - Math, conversions, data analysis, generate charts → compute (NO internet — cannot make HTTP requests)
 - Knowledge questions (what is X, explain Y) → answer directly
@@ -243,7 +252,7 @@ function mcpPromptSection() {
     .join('\n');
   return `
 
-10. Connected external tool providers (MCP). Route requests matching one of these here:
+11. Connected external tool providers (MCP). Route requests matching one of these here:
 ${list}
 {"mcp": true, "task": "the user's full request in natural language", "complex": false, "acknowledge": "brief message to user"}
 - Set "complex": true when the task spans MULTIPLE providers above OR needs multi-step reasoning (e.g. cross-referencing a recipe against inventory, then updating a list). Use false (or omit) for a single simple lookup or action.
@@ -380,7 +389,7 @@ export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking.
 
 // --- Parse action JSON from front model response (delegate, search, or future actions) ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research', 'mcp'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research', 'mcp', 'jellyfin'];
 
 // Per-action presentation metadata (status emoji, default ack, error label)
 const ACTION_META = {
@@ -394,6 +403,7 @@ const ACTION_META = {
   calendar: { emoji: '📅', ack: 'Checking your calendar, Sir...', label: 'Calendar' },
   research: { emoji: '🔬', ack: 'Researching that for you, Sir...', label: 'Research' },
   mcp:      { emoji: '🧰', ack: 'Checking that for you, Sir...', label: 'Tools' },
+  jellyfin: { emoji: '🎬', ack: 'Checking the media library, Sir...', label: 'Jellyfin' },
 };
 
 const actionKeyOf = (a) => ACTION_KEYS.find((k) => a?.[k]) || null;
@@ -540,6 +550,8 @@ async function runOne(action, sctx) {
       return { key, action, res: await runCodeExecution(action.task) };
     case 'mcp':
       return { key, action, res: await runMcpAgent(action.task || sctx.prompt, { complex: !!action.complex }) };
+    case 'jellyfin':
+      return { key, action, res: await runJellyfinQuery(action.query || sctx.prompt) };
     case 'ha':
       return { key, action, res: await resolveAndExecute(action.command) };
     case 'remind':
