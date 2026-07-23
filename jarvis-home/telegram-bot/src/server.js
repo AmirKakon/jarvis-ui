@@ -126,6 +126,8 @@ async function handleRequest(req, res, token) {
 // Start the /ask HTTP server. No-op (returns null) if ASK_HTTP_TOKEN is unset,
 // so the endpoint is opt-in and never runs unauthenticated.
 export function startAskServer() {
+  if (server) return server; // idempotent — never double-listen
+
   const token = process.env.ASK_HTTP_TOKEN;
   if (!token) {
     console.log('[ask-http] ASK_HTTP_TOKEN not set — HTTP /ask endpoint disabled.');

@@ -373,7 +373,6 @@ async function launchWithRetry(attempt = 1) {
       { command: 'deep', description: 'Send directly to Opus (bypasses front model)' },
       { command: 'help', description: 'Show all commands' },
     ]);
-    startAskServer();
     console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);
   } catch (err) {
     console.error(`Bot launch error (attempt ${attempt}/${MAX_RETRIES}):`, err.message);
@@ -386,6 +385,11 @@ async function launchWithRetry(attempt = 1) {
     process.exit(1);
   }
 }
+
+// Start the headless /ask HTTP endpoint up front. It's independent of Telegram,
+// and bot.launch() (long polling) stays pending while running — so anything after
+// `await bot.launch()` won't run at startup. Keep this before launchWithRetry().
+startAskServer();
 
 launchWithRetry();
 
