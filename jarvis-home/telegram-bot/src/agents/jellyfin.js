@@ -60,17 +60,36 @@ async function getUserId() {
 
 const asItems = (data) => (Array.isArray(data) ? data : (data?.Items || []));
 
-async function searchItems(term) {
+async function searchItems(term, { itemType, genres } = {}) {
   const uid = await getUserId();
   if (!uid) return [];
   const qs = new URLSearchParams({
     searchTerm: term,
     Recursive: 'true',
-    IncludeItemTypes: 'Movie,Series,Episode',
+    IncludeItemTypes: itemType || 'Movie,Series,Episode',
     Limit: '25',
     Fields: 'Genres,ProductionYear,CommunityRating,Overview',
     SortBy: 'SortName',
   });
+  if (genres?.length) qs.set('Genres', genres.join('|'));
+  const res = await jf(`/Users/${uid}/Items?${qs}`);
+  return res.ok ? asItems(res.data) : [];
+}
+
+// A pool of actual library titles (optionally filtered by genre/type), for
+// recommendations that draw on the whole catalogue — not just recent activity.
+// Randomised so repeat asks vary.
+async function getCatalog({ itemType, genres, limit = 40 } = {}) {
+  const uid = await getUserId();
+  if (!uid) return [];
+  const qs = new URLSearchParams({
+    Recursive: 'true',
+    IncludeItemTypes: itemType || 'Movie,Series',
+    Limit: String(limit),
+    Fields: 'Genres,ProductionYear,CommunityRating,Overview',
+    SortBy: 'Random',
+  });
+  if (genres?.length) qs.set('Genres', genres.join('|'));
   const res = await jf(`/Users/${uid}/Items?${qs}`);
   return res.ok ? asItems(res.data) : [];
 }
@@ -130,33 +149,50 @@ function compact(item) {
 
 // --- Intent classification ---
 
-const HEURISTICS = [
+// Deterministic pass for intents that need no extra params. Everything else
+// (search/recommend/recent/resume/nextup, which may carry a genre/type/title)
+// goes through Haiku so we can extract those parameters.
+const PARAMLESS_HEURISTICS = [
   [/\b(scan|refresh|re-?index|update (the )?librar)/i, 'scan'],
   [/\b(now playing|currently (watching|playing|streaming)|who'?s watching|active (session|stream))/i, 'nowplaying'],
   [/\b(what libraries|list libraries|which libraries|my libraries)/i, 'libraries'],
-  [/\b(continue|resume|carry on|pick up|finish watching|half.?watched|where i left off)/i, 'resume'],
-  [/\b(recently added|what'?s new|new (movies|shows|stuff)|just added|latest)/i, 'recent'],
-  [/\b(what should i watch|recommend|suggestion|what to watch|something to watch|in the mood)/i, 'recommend'],
 ];
 
+// Fallback classifier when no Anthropic key is available.
+function heuristicClassify(q) {
+  const itemType = /\b(tv|show|shows|series|episode|episodes)\b/i.test(q) ? 'Series'
+    : /\b(movie|movies|film|films)\b/i.test(q) ? 'Movie' : null;
+  if (/\b(continue|resume|carry on|pick up|finish watching|where i left off)/i.test(q)) return { intent: 'resume', itemType };
+  if (/\b(recently added|what'?s new|just added|latest)/i.test(q)) return { intent: 'recent', itemType };
+  if (/\b(what should i watch|recommend|suggestion|what to watch|something to watch|in the mood)/i.test(q)) return { intent: 'recommend', itemType };
+  return { intent: 'search', searchTerm: q, itemType };
+}
+
 async function classify(question) {
-  // Cheap deterministic pass first.
-  for (const [re, intent] of HEURISTICS) {
-    if (re.test(question)) return { intent, searchTerm: null };
+  for (const [re, intent] of PARAMLESS_HEURISTICS) {
+    if (re.test(question)) return { intent };
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    // Default: treat as a search using the raw text.
-    return { intent: 'search', searchTerm: question };
-  }
+  if (!apiKey) return heuristicClassify(question);
+
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: HAIKU,
-        max_tokens: 128,
-        system: `You classify a Jellyfin media request. Return ONLY JSON: {"intent": one of "search"|"recent"|"resume"|"nextup"|"recommend"|"nowplaying"|"libraries"|"scan", "searchTerm": string or null}. Use "search" with a searchTerm (the title/keywords) when the user is looking for a specific title or asking whether something is available. Use "recommend" for open-ended "what should I watch" style requests.`,
+        max_tokens: 160,
+        system: `You classify a Jellyfin media request. Return ONLY JSON:
+{"intent": "search"|"recent"|"resume"|"nextup"|"recommend"|"nowplaying"|"libraries"|"scan",
+ "searchTerm": string or null,
+ "genres": array of genre names (e.g. ["Comedy"]) or [],
+ "itemType": "Movie"|"Series" or null}
+
+Guidance:
+- "search" + searchTerm: looking for a specific title, or asking if something is available.
+- "recommend": open-ended "what should I watch" — include "genres"/"itemType" if the user specified them (e.g. "comedy tv shows" → genres ["Comedy"], itemType "Series").
+- Use Jellyfin-style genre names (Comedy, Drama, Action, Sci-Fi, Documentary, Horror, Thriller, Romance, Animation, Family, etc.).
+- itemType: "Series" for TV shows/series, "Movie" for films, null if unspecified.`,
         messages: [{ role: 'user', content: question }],
       }),
       signal: AbortSignal.timeout(15_000),
@@ -165,12 +201,19 @@ async function classify(question) {
       const data = await res.json();
       const text = (data.content?.[0]?.text || '').replace(/```json\s*|```/g, '').trim();
       const parsed = JSON.parse(text);
-      if (parsed?.intent) return { intent: parsed.intent, searchTerm: parsed.searchTerm || null };
+      if (parsed?.intent) {
+        return {
+          intent: parsed.intent,
+          searchTerm: parsed.searchTerm || null,
+          genres: Array.isArray(parsed.genres) ? parsed.genres.filter(Boolean) : [],
+          itemType: parsed.itemType || null,
+        };
+      }
     }
   } catch (err) {
     console.error('[jellyfin] classify failed:', err.message);
   }
-  return { intent: 'search', searchTerm: question };
+  return heuristicClassify(question);
 }
 
 // --- Summarisation ---
@@ -222,7 +265,7 @@ export async function runJellyfinQuery(question) {
   }
 
   const q = (question || '').trim() || 'What should I watch tonight?';
-  const { intent, searchTerm } = await classify(q);
+  const { intent, searchTerm, genres = [], itemType = null } = await classify(q);
 
   // Action / status intents — deterministic formatting, no LLM.
   if (intent === 'scan') {
@@ -260,11 +303,18 @@ export async function runJellyfinQuery(question) {
   let payload;
 
   if (intent === 'recommend') {
-    const [latest, resume, nextup] = await Promise.all([getLatest(), getResume(), getNextUp()]);
+    // Draw on the whole catalogue (optionally genre/type filtered), plus any
+    // in-progress signals, so recommendations work even with no recent activity.
+    const [resume, nextup, catalog] = await Promise.all([
+      getResume(),
+      getNextUp(),
+      getCatalog({ genres, itemType, limit: 40 }),
+    ]);
     payload = {
+      filters: { genres, itemType },
       continueWatching: resume.map(compact),
       nextUp: nextup.map(compact),
-      recentlyAdded: latest.map(compact),
+      libraryPicks: catalog.map(compact),
     };
     const summary = await summarise(q, payload);
     if (summary) return { ok: true, output: summary };
@@ -272,13 +322,19 @@ export async function runJellyfinQuery(question) {
     const parts = [];
     if (resume.length) parts.push(listTitles(resume, 'Continue watching'));
     if (nextup.length) parts.push(listTitles(nextup, 'Next up'));
-    if (latest.length) parts.push(listTitles(latest, 'Recently added'));
-    return { ok: true, output: parts.join('\n\n') || 'Your library looks empty, Sir.' };
+    if (catalog.length) parts.push(listTitles(catalog, `From your library${genres.length ? ` (${genres.join('/')})` : ''}`));
+    return { ok: true, output: parts.join('\n\n') || 'Your library appears to be empty, Sir.' };
   }
 
   if (intent === 'search') {
-    items = await searchItems(searchTerm || q);
-    heading = `Search: ${searchTerm || q}`;
+    // Genre/type-only request with no title → browse the catalogue by filter.
+    if (!searchTerm && (genres.length || itemType)) {
+      items = await getCatalog({ genres, itemType, limit: 30 });
+      heading = `${itemType || 'Titles'}${genres.length ? ` — ${genres.join('/')}` : ''}`;
+    } else {
+      items = await searchItems(searchTerm || q, { itemType, genres });
+      heading = `Search: ${searchTerm || q}`;
+    }
   } else if (intent === 'recent') {
     items = await getLatest();
     heading = 'Recently added';
