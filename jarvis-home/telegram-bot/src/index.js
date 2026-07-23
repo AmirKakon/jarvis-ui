@@ -26,6 +26,7 @@ import { cronRerun } from './commands/cron-rerun.js';
 import { troubleshootCallback } from './commands/troubleshoot.js';
 import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
 import { closeMcp } from './services/mcp-client.js';
+import { startAskServer, stopAskServer } from './server.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
 import { startBriefingScheduler, stopBriefingScheduler } from './services/briefing-scheduler.js';
 import { buildBriefing } from './services/briefing.js';
@@ -329,6 +330,7 @@ async function shutdown(signal) {
   stopScheduler();
   stopBriefingScheduler();
   try { bot.stop(signal); } catch {}
+  await stopAskServer();
   await closePool();
   await closeReminderPool();
   await closeMcp();
@@ -371,6 +373,7 @@ async function launchWithRetry(attempt = 1) {
       { command: 'deep', description: 'Send directly to Opus (bypasses front model)' },
       { command: 'help', description: 'Show all commands' },
     ]);
+    startAskServer();
     console.log(`Jarvis Telegram bot started (chat: ${CHAT_ID})`);
   } catch (err) {
     console.error(`Bot launch error (attempt ${attempt}/${MAX_RETRIES}):`, err.message);

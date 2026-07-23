@@ -37,7 +37,7 @@ _Foundational improvements to how requests are routed and executed — stepping 
 
 _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on every phone — not just Telegram text. We already own ~80% of the pieces (the brain, Home Assistant, TTS, Postgres/PGVector memory), so this is mostly integration._
 
-**Prerequisite — decouple the "brain" from the transport.** Today the intelligence lives inside the Telegram bot (`askClaude` in `claude.js` is both router *and* Telegram renderer). Extract the router/agent loop behind a stable headless API (`POST /ask {text, userId, sessionId} → {reply, audioUrl?}`) that the Telegram bot also calls. Every surface (Telegram, home mic, phones) then becomes a thin client: capture → send text → speak reply. Also consolidate the **two brains** — the Node bot (`jarvis-home`) and the older Python FastAPI backend (`jarvis-ui`/`orchestrator.py`) — to one, so behaviour/memory don't drift across devices.
+**Prerequisite — decouple the "brain" from the transport.** ✅ _shipped (the extraction half)._ The brain now lives in `telegram-bot/src/brain.js` as a headless `askCore(prompt, { sessionKey, source, chatId, onPlan })` — session rotation, memory, the front-model router, action dispatch, and assistant-message persistence, all transport-agnostic (returns plain `{ ok, kind, text, results }`, no Telegram `ctx`). `claude.js` is now a thin Telegram adapter that calls `askCore` and renders the result; an embedded HTTP endpoint (`server.js`, `POST /ask` + `GET /health`, bearer-token auth, localhost bind, opt-in via `ASK_HTTP_TOKEN`) exposes the same brain so any surface can capture → send text → speak reply. Session keys are namespaced (`tg:<chatId>`, `api:default`, …); reminders/calendar-create stay Telegram-only for now (they need a real chatId) and degrade gracefully on headless surfaces. _Still TODO:_ an OpenAI-compatible `/v1/chat/completions` shim (so HA's Extended OpenAI Conversation can point straight at JARVIS), audio responses from `/ask`, unified cross-surface `userId`, and consolidating the **two brains** — the Node bot vs the legacy Python FastAPI backend (`jarvis-ui`/`orchestrator.py`) — into one so behaviour/memory don't drift.
 
 **Unified identity + shared memory.** Memory is currently keyed by Telegram `chatId`. Introduce a stable `userId` that every surface attaches, backed by the existing Postgres store, so a conversation started on the kitchen mic continues on the phone and shows up in Telegram history.
 
@@ -57,7 +57,7 @@ _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on 
 **Constraints:** Hebrew/English multilingual STT + voices; local wake word (+ optional local Whisper) for privacy; LAN hop is fast, the model call is the latency variable (another reason to wake-word-gate Realtime).
 
 **Phased roadmap:**
-1. **Phase A** — extract the brain behind `/ask`; HA Assist + one Voice PE + "Jarvis" wake word + Whisper → reply via existing TTS. _(Fully working home voice, minimal new code.)_
+1. **Phase A** — extract the brain behind `/ask` ✅ _done_ (`brain.js` + `server.js`, see prerequisite above). _Remaining for full home voice:_ HA Assist + one Voice PE + "Jarvis" wake word + Whisper → reply via existing TTS. _(The endpoint is ready; this is now HA-side wiring + hardware.)_
 2. **Phase B** — unified `userId` + shared session/memory across surfaces; add HA Companion Assist on phones.
 3. **Phase C** — wake-word-gated Realtime session with function-calling into existing agents; iOS Shortcut + Samsung/Android adapter.
 
