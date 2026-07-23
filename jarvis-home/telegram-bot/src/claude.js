@@ -245,10 +245,12 @@ function mcpPromptSection() {
 
 10. Connected external tool providers (MCP). Route requests matching one of these here:
 ${list}
-{"mcp": true, "task": "the user's full request in natural language", "acknowledge": "brief message to user"}
-- EXAMPLE: "how many eggs do I have left" → {"mcp": true, "task": "How many eggs are in stock?", "acknowledge": "Checking your inventory, Sir."}
-- EXAMPLE: "add milk to the shopping list" → {"mcp": true, "task": "Add milk to the shopping list", "acknowledge": "Adding milk to your list, Sir."}
-- EXAMPLE: "where do I keep the batteries" → {"mcp": true, "task": "Which container holds the batteries?", "acknowledge": "Let me look that up, Sir."}`;
+{"mcp": true, "task": "the user's full request in natural language", "complex": false, "acknowledge": "brief message to user"}
+- Set "complex": true when the task spans MULTIPLE providers above OR needs multi-step reasoning (e.g. cross-referencing a recipe against inventory, then updating a list). Use false (or omit) for a single simple lookup or action.
+- EXAMPLE (simple): "how many eggs do I have left" → {"mcp": true, "task": "How many eggs are in stock?", "acknowledge": "Checking your inventory, Sir."}
+- EXAMPLE (simple): "add milk to the shopping list" → {"mcp": true, "task": "Add milk to the shopping list", "acknowledge": "Adding milk to your list, Sir."}
+- EXAMPLE (bridging): "add the missing ingredients for spaghetti bolognese to my shopping list" → {"mcp": true, "task": "Look up the spaghetti bolognese recipe, check which of its ingredients are missing from my inventory, and add the missing ones to the shopping list", "complex": true, "acknowledge": "Cross-referencing the recipe with your inventory, Sir."}
+- EXAMPLE (bridging): "what can I cook with what's expiring soon" → {"mcp": true, "task": "Find items expiring soon in my inventory, then suggest recipes I can make with them", "complex": true, "acknowledge": "Let me see what needs using up, Sir."}`;
 }
 
 // --- Front model API call (Haiku 4.5 primary, GPT-4o-mini fallback) — pure router, no tools ---
@@ -537,7 +539,7 @@ async function runOne(action, sctx) {
     case 'compute':
       return { key, action, res: await runCodeExecution(action.task) };
     case 'mcp':
-      return { key, action, res: await runMcpAgent(action.task || sctx.prompt) };
+      return { key, action, res: await runMcpAgent(action.task || sctx.prompt, { complex: !!action.complex }) };
     case 'ha':
       return { key, action, res: await resolveAndExecute(action.command) };
     case 'remind':

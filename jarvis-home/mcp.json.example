@@ -10,6 +10,10 @@
       },
       "description": "Home inventory: pantry & container stock, item locations, shopping list, expiring items, and adding/consuming items"
     },
+    "recipe-rack": {
+      "url": "https://us-central1-recipe-rack-ighp8.cloudfunctions.net/app/mcp",
+      "description": "Recipe collection & meal planning: list/search/get recipes, create/update/delete recipes, get & set the meal plan (no auth required)"
+    },
     "example-local-server": {
       "disabled": true,
       "command": "node",

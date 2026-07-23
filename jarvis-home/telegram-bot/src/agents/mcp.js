@@ -5,15 +5,23 @@ import { getMcpTools, callMcpTool } from '../services/mcp-client.js';
 // off natural-language requests that map to a connected provider (e.g. QRganize
 // home inventory), and this agent picks and chains the right tools.
 //
-// Default model is Haiku 4.5 — plenty capable for the mostly single-step tool
-// calls these providers expose, and cheap/fast. Override with MCP_AGENT_MODEL
-// (e.g. claude-sonnet-5) for heavier multi-step reasoning.
-const MCP_AGENT_MODEL = process.env.MCP_AGENT_MODEL || 'claude-haiku-4-5-20251001';
-const MAX_ITERATIONS = 6;
+// Two tiers: simple single-provider lookups run on cheap/fast Haiku; complex or
+// cross-provider tasks (e.g. cross-referencing a recipe against inventory) run
+// on Sonnet, which is markedly more reliable at multi-step tool chaining. The
+// front router flags which via the `complex` hint. Both are env-overridable.
+const MCP_MODELS = {
+  simple:  process.env.MCP_AGENT_MODEL || 'claude-haiku-4-5-20251001',
+  complex: process.env.MCP_AGENT_MODEL_COMPLEX || 'claude-sonnet-5',
+};
+// Complex tasks get more tool-call rounds (e.g. checking many recipe ingredients
+// against inventory one by one) before hitting the safety ceiling.
+const MAX_ITERATIONS = { simple: 6, complex: 10 };
 
 const SYSTEM = `You are JARVIS, a British AI assistant, using external tools on the user's behalf.
 
 - Use the provided tools to fulfil the request, chaining calls when needed.
+- You may combine tools from DIFFERENT providers in a single task — e.g. read a recipe's ingredients from one provider, then check stock and update a shopping list via another. Chain across them freely to satisfy the request.
+- When matching names across providers (e.g. a recipe ingredient vs. an inventory item), normalise and search rather than expecting an exact string match; suggest sensible alternatives from what's available when something is missing.
 - When the user asks to change something (add/consume/finish an item, update a shopping list), perform the action, then confirm concisely what you did.
 - Give a short, clear final answer in British English, addressing the user as "Sir".
 - If the tools return nothing useful or an item can't be found, say so honestly rather than inventing data.`;
@@ -21,9 +29,12 @@ const SYSTEM = `You are JARVIS, a British AI assistant, using external tools on 
 const toText = (content) =>
   (content || []).map((c) => (c?.type === 'text' ? c.text : '')).join('');
 
-export async function runMcpAgent(task) {
+export async function runMcpAgent(task, { complex = false } = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured' };
+
+  const model = complex ? MCP_MODELS.complex : MCP_MODELS.simple;
+  const maxIterations = complex ? MAX_ITERATIONS.complex : MAX_ITERATIONS.simple;
 
   let tools, lookup;
   try {
@@ -35,9 +46,10 @@ export async function runMcpAgent(task) {
     return { ok: false, output: 'No MCP tools are available. Check ~/jarvis/mcp.json.' };
   }
 
+  console.log(`[mcp-agent] ${complex ? 'complex' : 'simple'} run on ${model} (max ${maxIterations} rounds)`);
   const messages = [{ role: 'user', content: task }];
 
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
+  for (let i = 0; i < maxIterations; i++) {
     let data;
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -48,7 +60,7 @@ export async function runMcpAgent(task) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: MCP_AGENT_MODEL,
+          model,
           max_tokens: 2048,
           system: SYSTEM,
           tools,
