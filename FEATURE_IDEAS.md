@@ -13,6 +13,8 @@
 - ~~reminders → Google Calendar sync~~ — scheduled/recurring reminders (daily/weekly/monthly, or one-shots >4h out) are mirrored to Google Calendar via the `JARVIS - Create Calendar Event` n8n webhook workflow, with **calendar-only delivery**: on a successful sync the local row is retired (poller does not double-notify) and Google Calendar owns the notification + record; if sync fails it falls back to a Telegram reminder so nothing is lost. Ephemeral "timer" reminders (interval/hourly/near-term) stay local-only and fire via Telegram. Recurrence→RRULE mapping, `kind`/`calendar_event_id` columns. `services/calendar-sync.js`
 - ~~weather integration~~ — local weather/forecast via the Home Assistant weather entity: `weather` action + `/weather` command (current conditions + multi-day daily forecast, Haiku answers NL questions over the data), also feeds the daily briefing. Weather for **other cities** routes to `search` (web), and trip-planning-style multi-day questions escalate to `research`. (02ws.co.il considered as an alt source but dropped — HA covers it.) `agents/weather.js`, `commands/weather.js`
 - ~~daily morning briefing~~ — scheduled daily digest with best-effort sections: Hebrew calendar (date/parsha/Omer/Shabbat times via `jewish_calendar`), weather (HA weather entity), today's calendar events (HA calendar API), today's reminders, Garmin health (body battery/sleep/RHR/steps/training/stress), HA device summary, system health. Configurable time via `BRIEFING_TIME`, per-section toggles, on-demand `/briefing` command (`services/briefing.js`, `agents/{weather,garmin,jewish,calendar}.js`)
+- ~~generic MCP client (personal-app integrations)~~ — JARVIS is now a config-driven **MCP client**: any MCP server declared in `~/jarvis/mcp.json` (Streamable HTTP with SSE fallback, or stdio child process) is connected at runtime and its tools exposed to the LLM, namespaced `<server>__<tool>`. Adding a provider is a **config-only** change — no code. The front router injects each server's description into its prompt dynamically and emits a `{"mcp": true, "task": …, "complex": …}` action; `agents/mcp.js` runs a tool-use loop over **all** servers' tools in one call, so it orchestrates **across providers** with no bespoke bridge (e.g. read a RecipeRack recipe → check QRganize inventory → add missing items to the shopping list). Two-tier model: simple lookups on Haiku 4.5, complex/cross-provider tasks on Sonnet 5 (more tool-call rounds), chosen by the router's `complex` hint. **Live**: QRganize (home inventory, 13 tools) + RecipeRack (recipes & meal planning, 8 tools); cross-provider bridging tested working. `services/mcp-client.js`, `agents/mcp.js`, `mcp.json.example`
+- ~~gate auto-open on arrival~~ — Home Assistant automation pair: when the phone (`device_tracker.amir_phone`, GPS) comes within 700 m of `zone.home` **and** the car Bluetooth is connected (`sensor.sm_g981u1_bluetooth_connection`), an actionable notification ("🏠 Almost home / Open the gate?") is pushed to the phone; tapping **🚪 Open gate** opens the Palgate garage cover (`cover.4g600204039`), gated by a 1 km safety check so a stale prompt can't open it from afar. Template-distance trigger fires only on approach (not departure); no extra zone needed. Built directly in HA via the config API.
 
 ## 🔧 Planned
 
@@ -74,7 +76,7 @@ _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on 
 2. qBittorrent agent — search/add torrents, monitor downloads, auto-organize completed media (already has `/download` command, extend with NL control)
 3. multi-room audio / music control — control speakers via HA from Telegram
 4. HA energy dashboard via Telegram — daily/weekly consumption, cost estimates, peak hours
-5. personal app integrations — connect to self-hosted apps via their APIs (RecipeRack, QRganize, etc.)
+5. personal app integrations — ✅ _shipped via the generic MCP client (see Done)._ **QRganize** (home inventory) and **RecipeRack** (recipes & meal planning) are live over MCP, with cross-provider orchestration. Adding more self-hosted apps is now a `~/jarvis/mcp.json` entry (if the app exposes an MCP endpoint) — no code. _Next candidates:_ any other self-hosted app with an MCP server.
 
 #### New service integrations
 6. calendar integration (Google Calendar / CalDAV — "what's on my schedule today?", "add meeting tomorrow at 3pm") — _partial: reminders now write to GCal (see Done); still TODO: NL "add meeting" events + Phase 2 GCal-trigger nudges for events created outside JARVIS_
@@ -88,18 +90,12 @@ _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on 
 14. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?")
 15. food delivery / restaurant (Wolt / 10bis API — "order lunch", "what's nearby?")
 
-### for future reference on mcp conneciton ###
-can you connect to qrganize mcp 
-PS C:\Users\amirka\source\repos\QRganize\functions> cd C:\Users\amirka\source\repos\QRganize\mcp
-PS C:\Users\amirka\source\repos\QRganize\mcp> $env:QRGANIZE_UUID="c66c43d2-9488-4584-a249-aa7c1f1bedbe"
-PS C:\Users\amirka\source\repos\QRganize\mcp> npx @modelcontextprotocol/inspector node index.js
-url https://qrganize-f651b.web.app/
+### MCP servers (reference)
 
+_Connecting a new provider = add an entry to `~/jarvis/mcp.json` (see `jarvis-home/mcp.json.example`) and restart the bot. Both live servers below use hosted Streamable-HTTP endpoints._
 
-PS C:\Users\amirka\source\repos\recipe-rack> cd C:\Users\amirka\source\repos\recipe-rack\mcp-server
->> npx @modelcontextprotocol/inspector node index.js
-url https://studio--recipe-rack-ighp8.us-central1.hosted.app/
-
+- **QRganize** (home inventory) — `https://us-central1-qrganize-f651b.cloudfunctions.net/app/api/mcp` (Bearer token). Local inspector: `cd QRganize/mcp; $env:QRGANIZE_UUID="…"; npx @modelcontextprotocol/inspector node index.js`.
+- **RecipeRack** (recipes & meal planning) — `https://us-central1-recipe-rack-ighp8.cloudfunctions.net/app/mcp` (no auth). Local inspector: `cd recipe-rack/mcp-server; npx @modelcontextprotocol/inspector node index.js`.
 
 ### Personal Assistant
 
