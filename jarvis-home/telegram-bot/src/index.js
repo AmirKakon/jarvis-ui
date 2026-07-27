@@ -24,6 +24,7 @@ import { jellyfinCommand } from './commands/jellyfin.js';
 import { eventCommand, agendaCommand } from './commands/calendar.js';
 import { cronRerun } from './commands/cron-rerun.js';
 import { troubleshootCallback } from './commands/troubleshoot.js';
+import { deployCallback } from './commands/deploy.js';
 import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
 import { closeMcp } from './services/mcp-client.js';
 import { startAskServer, stopAskServer } from './server.js';
@@ -263,6 +264,9 @@ bot.action(/^j:(.+)$/, cronRerun);
 
 // --- Interactive troubleshooting callbacks (from cron alerts) ---
 bot.action(/^ts:(rs|ru|ls|lu|bi|bic|x):(.+)$/, troubleshootCallback);
+
+// --- Self-development deploy gate callbacks ---
+bot.action(/^dep:(go|x):(.+)$/, deployCallback);
 
 // --- Memory fact confirmation callbacks ---
 bot.action(/^mem:([yn]):(.+)$/, async (ctx) => {

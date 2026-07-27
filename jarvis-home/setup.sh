@@ -198,7 +198,9 @@ echo "  Done."
 echo ""
 
 ALIAS_CMD='alias jarvis="cd ~/jarvis && claude --dangerously-skip-permissions"'
-UPDATE_CMD='alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull && cd jarvis-home && bash setup.sh"'
+# No sudo on git: the repo must be owned by this user so the bot can self-commit
+# (see agents/selfdev.js). One-time: sudo chown -R "$USER":"$USER" ~/repos/jarvis-ui
+UPDATE_CMD='alias jarvis-update="cd ~/repos/jarvis-ui && git pull && cd jarvis-home && bash setup.sh"'
 SHELL_RC=""
 
 if [ -f "$HOME/.bashrc" ]; then
@@ -216,8 +218,8 @@ if [ -n "$SHELL_RC" ]; then
     echo '' >> "$SHELL_RC"
     echo '# Jarvis — Claude Code assistant' >> "$SHELL_RC"
     echo 'alias jarvis="cd ~/jarvis && claude --dangerously-skip-permissions"' >> "$SHELL_RC"
-    echo 'alias jarvis-update="cd ~/repos/jarvis-ui && sudo git pull && cd jarvis-home && bash setup.sh"' >> "$SHELL_RC"
-    echo 'jarvis-deploy() { cd ~/repos/jarvis-ui && sudo git fetch && sudo git checkout "${1:-main}" && sudo git pull && cd jarvis-home && bash setup.sh; }' >> "$SHELL_RC"
+    echo 'alias jarvis-update="cd ~/repos/jarvis-ui && git pull && cd jarvis-home && bash setup.sh"' >> "$SHELL_RC"
+    echo 'jarvis-deploy() { cd ~/repos/jarvis-ui && git fetch && git checkout "${1:-main}" && git pull && cd jarvis-home && bash setup.sh; }' >> "$SHELL_RC"
 
     echo -e "  ${GREEN}Aliases configured in $SHELL_RC${NC}"
     echo ""

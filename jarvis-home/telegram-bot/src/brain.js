@@ -18,6 +18,7 @@ import { runMcpAgent } from './agents/mcp.js';
 import { mcpServerSummaries } from './services/mcp-client.js';
 import { runWeatherQuery } from './agents/weather.js';
 import { runJellyfinQuery } from './agents/jellyfin.js';
+import { runSelfDev } from './agents/selfdev.js';
 import { runOpus } from './agents/opus.js';
 import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
@@ -133,6 +134,9 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 10. Media library (Jellyfin — search the movie/TV library, what's recently added, continue watching / next up, "what should I watch tonight" recommendations, what's playing now, or trigger a library scan):
 {"jellyfin": true, "query": "the user's full request", "acknowledge": "brief message to user"}
 
+11. Self-development — modify your OWN source code / behaviour (add a feature to yourself, fix a bug in your own code or monitoring scripts, change how one of your commands works, make a check self-healing). This edits the jarvis-ui codebase, commits it, and offers a deploy:
+{"selfdev": true, "task": "a clear, complete description of the code change to make, with all context", "acknowledge": "brief message to user"}
+
 MULTIPLE ACTIONS:
 If the user asks for several INDEPENDENT things in one message, respond with a JSON ARRAY of action objects (using the exact formats above), e.g. [{...}, {...}]. Each entry runs concurrently, so only combine actions that do not depend on one another. For a single request, return a single object — never wrap one action in an array.
 
@@ -164,6 +168,9 @@ EXAMPLES:
 - User: "do we have the movie Dune on jellyfin" → {"jellyfin": true, "query": "Is the movie Dune in the library?", "acknowledge": "Checking the library, Sir."}
 - User: "what's been added to jellyfin recently" → {"jellyfin": true, "query": "recently added", "acknowledge": "Checking what's new, Sir."}
 - User: "what am I in the middle of watching" → {"jellyfin": true, "query": "continue watching", "acknowledge": "Let me check, Sir."}
+- User: "add a self-healing retry to your disk watchdog script" → {"selfdev": true, "task": "In the disk-watchdog monitoring script, add self-healing: if the disk check fails, attempt cleanup/remount and retry up to 3 times before alerting", "acknowledge": "Let me update my own code for that, Sir."}
+- User: "make your morning briefing also include the weather for tomorrow" → {"selfdev": true, "task": "Modify the morning briefing so it also includes tomorrow's weather forecast, not just today's", "acknowledge": "I'll amend my briefing code, Sir."}
+- User: "add a /gpu command that shows GPU temperature" → {"selfdev": true, "task": "Add a new Telegram command /gpu that reports GPU temperature and utilisation", "acknowledge": "Adding that command to myself, Sir."}
 - User: "turn on the office light and tell me the news about the port strike" → [{"ha": true, "command": "turn on the office light", "acknowledge": "Lighting up the office, Sir."}, {"search": true, "query": "port strike news today", "acknowledge": "Fetching the latest, Sir."}]
 - User: "what's on my calendar today and will it rain" → [{"calendar": true, "action": "list", "text": "what's on my calendar today", "acknowledge": "Checking your calendar, Sir."}, {"weather": true, "question": "will it rain today?", "acknowledge": "Checking the forecast, Sir."}]
 
@@ -173,7 +180,8 @@ RULES:
 - "Schedule/add a meeting/appointment/event", "put X on my calendar", or asking what's on the calendar for a day/range → calendar
 - NEVER refuse a reminder request — always route to remind and let the reminder system handle it
 - Smart home device control (turn on/off, toggle lights/switches/plugs/fans/covers) → ha
-- Server operations (check status, read logs, restart services) → delegate
+- Server operations (check status, read logs, restart services, run commands) → delegate
+- Changing your OWN code/behaviour, adding a feature to yourself, fixing a bug in your own scripts/commands, making a check self-healing → selfdev (this edits the codebase; delegate only RUNS things, it does not change your source)
 - API calls, curl requests, HTTP endpoints that need headers/auth → delegate (server has full network access)
 - Local weather / forecast (here, Netanya, "the weather", rain, temperature outlook) → weather
 - Weather for a DIFFERENT city → search
@@ -199,7 +207,7 @@ function mcpPromptSection() {
     .join('\n');
   return `
 
-11. Connected external tool providers (MCP). Route requests matching one of these here:
+12. Connected external tool providers (MCP). Route requests matching one of these here:
 ${list}
 {"mcp": true, "task": "the user's full request in natural language", "complex": false, "acknowledge": "brief message to user"}
 - Set "complex": true when the task spans MULTIPLE providers above OR needs multi-step reasoning (e.g. cross-referencing a recipe against inventory, then updating a list). Use false (or omit) for a single simple lookup or action.
@@ -286,7 +294,7 @@ async function runFrontModel(systemPrompt, userMessage) {
 
 // --- Action metadata + parsing ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research', 'mcp', 'jellyfin'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research', 'mcp', 'jellyfin', 'selfdev'];
 
 // Per-action presentation metadata (status emoji, default ack, error label)
 export const ACTION_META = {
@@ -301,6 +309,7 @@ export const ACTION_META = {
   research: { emoji: '🔬', ack: 'Researching that for you, Sir...', label: 'Research' },
   mcp:      { emoji: '🧰', ack: 'Checking that for you, Sir...', label: 'Tools' },
   jellyfin: { emoji: '🎬', ack: 'Checking the media library, Sir...', label: 'Jellyfin' },
+  selfdev:  { emoji: '🛠️', ack: 'Editing my own code, Sir — this may take a few minutes...', label: 'Self-update' },
 };
 
 export const actionKeyOf = (a) => ACTION_KEYS.find((k) => a?.[k]) || null;
@@ -477,6 +486,15 @@ async function runOne(action, sctx) {
         ? `(${remainingIn(opusCallLog, OPUS_RATE_MAX)} Opus calls remaining this hour)`
         : undefined;
       return { key, action, res: { ...res, footer } };
+    }
+    case 'selfdev': {
+      // Self-edits run an Opus-tier code agent — draw from the Opus budget.
+      if (isLimited(opusCallLog, OPUS_RATE_MAX)) {
+        return { key, action, res: { ok: false, output: `Opus rate limit reached (${OPUS_RATE_MAX}/hour). Try again later, Sir.` } };
+      }
+      recordTo(opusCallLog);
+      console.log(`[front] Self-development: ${action.task?.slice(0, 100)}`);
+      return { key, action, res: await runSelfDev(action.task || sctx.prompt) };
     }
     default:
       return { key: null, action, res: { ok: false, output: 'Unknown action.' } };

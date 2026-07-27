@@ -14,6 +14,7 @@ import {
 } from './memory.js';
 import { extractResponseContent } from './agents/shared.js';
 import { runOpus } from './agents/opus.js';
+import { registerDeploy } from './commands/deploy.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
 import {
   askCore, getOrRotateSession, forceNewSession as forceNewSessionByKey,
@@ -163,6 +164,16 @@ async function renderOne(ctx, { key, action, res }) {
     await ctx.replyWithHTML(`✅ ${escapeHtml(res.output)}`);
   } else if (key === 'remind') {
     await ctx.replyWithHTML(`⏰ ${escapeHtml(res.output)}`);
+  } else if (key === 'selfdev' && res.deploy) {
+    // Self-edit committed — offer a one-tap deploy (redeploy + restart).
+    const id = registerDeploy(res.deploy);
+    await sendLong(ctx, `🛠️ ${mdToHtml(res.output)}`, {
+      disable_web_page_preview: true,
+      ...Markup.inlineKeyboard([[
+        Markup.button.callback('🚀 Deploy now', `dep:go:${id}`),
+        Markup.button.callback('✖ Not yet', `dep:x:${id}`),
+      ]]),
+    });
   } else {
     let html = mdToHtml(res.output);
     if (res.footer) html += `\n\n<i>${escapeHtml(res.footer)}</i>`;
