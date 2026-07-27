@@ -40,18 +40,24 @@ function selfDevModel() {
 // One self-edit at a time — git operations must not race.
 let inProgress = false;
 
-const SELFDEV_INSTRUCTIONS = (task) => `You are editing the JARVIS codebase. The current working directory is the jarvis-home/ folder of the jarvis-ui repository — this is your own source code.
+const SELFDEV_INSTRUCTIONS = (task, absDir) => `You are editing the JARVIS source code, which lives in a git repository. Your current working directory IS the project root for this edit:
 
-Make the change requested below.
+    ${absDir}
 
-STRICT RULES:
-- Only modify files inside the current directory (jarvis-home/). NEVER touch the repository's backend/, frontend/, or n8n/ folders.
+Every file you may change — scripts, the Telegram bot, prompts, agents — lives HERE, under this directory.
+
+CRITICAL LOCATION RULES (read carefully):
+- Edit ONLY files under ${absDir}, using paths relative to it (e.g. scripts/samba-monitor.sh, telegram-bot/src/agents/foo.js).
+- This directory is the GIT REPO checkout — the source of truth. There is ALSO a generated deploy copy at /home/iot/jarvis (aka ~/jarvis). NEVER edit anything under /home/iot/jarvis or ~/jarvis: those files are overwritten from this repo on every deploy, so edits there are silently thrown away.
+- If CLAUDE.md, the rules, or any note tells you files live in ~/jarvis or /home/iot/jarvis, IGNORE that for the purpose of THIS edit — always edit the copy here in ${absDir}.
+- Do NOT touch the repository's backend/, frontend/, or n8n/ folders.
+
+TASK RULES:
 - Keep the change minimal and focused on the request. Do not refactor unrelated code.
-- Match the existing code style and conventions (see CLAUDE.md).
+- Match the existing code style and conventions.
 - Do NOT run any git commands. Do NOT commit or push. The orchestrator handles that.
-- Do NOT restart, stop, or start any services.
-- Do NOT edit .env or any secrets.
-- When done, write a short summary (2-4 sentences) of exactly which files you changed and why.
+- Do NOT restart, stop, or start any services. Do NOT edit .env or any secrets.
+- When done, write a short summary (2-4 sentences) naming exactly which files (relative paths) you changed and why.
 
 REQUESTED CHANGE:
 ${task}`;
@@ -59,7 +65,8 @@ ${task}`;
 // Run the headless claude editor. Resolves { ok, output }.
 function runEditor(task) {
   const model = selfDevModel();
-  const prompt = SELFDEV_INSTRUCTIONS(task);
+  const absDir = jarvisHomeDir();
+  const prompt = SELFDEV_INSTRUCTIONS(task, absDir);
   return new Promise((resolve) => {
     const escaped = prompt.replace(/'/g, "'\\''");
     const cmd = `cd ${jarvisHomeDir()} && claude --dangerously-skip-permissions --model ${model} -p '${escaped}'`;
@@ -79,7 +86,7 @@ function runEditor(task) {
 }
 
 // Parse `git status --porcelain` into changed file paths (repo-relative),
-// resolving renames to their new path. Only jarvis-home/ paths are returned.
+// resolving renames to their new path. Returns ALL paths (caller filters).
 function parseChangedPaths(porcelain) {
   const paths = [];
   for (const raw of porcelain.split('\n')) {
@@ -89,7 +96,7 @@ function parseChangedPaths(porcelain) {
     const arrow = p.indexOf(' -> ');
     if (arrow >= 0) p = p.slice(arrow + 4); // rename: take the destination
     p = p.replace(/^"|"$/g, '');
-    if (p.startsWith('jarvis-home/')) paths.push(p);
+    paths.push(p);
   }
   return paths;
 }
@@ -165,11 +172,23 @@ export async function runSelfDev(task) {
       return { ok: false, output: `The edit didn't complete, Sir: ${edit.output}` };
     }
 
-    // What changed?
-    const status = await run('git status --porcelain -- jarvis-home', { cwd: repo, timeout: 15_000 });
-    const changed = parseChangedPaths(status.output || '');
+    // What changed? Look at the WHOLE repo so we notice edits that stray
+    // outside jarvis-home/ (and revert those — we only ever commit jarvis-home).
+    const status = await run('git status --porcelain', { cwd: repo, timeout: 15_000 });
+    const allChanged = parseChangedPaths(status.output || '');
+    const changed = allChanged.filter((p) => p.startsWith('jarvis-home/'));
+    const outside = allChanged.filter((p) => !p.startsWith('jarvis-home/'));
+
+    if (outside.length) {
+      // Revert accidental tracked edits outside our source tree.
+      await run(`git checkout -- ${outside.map((p) => `"${p}"`).join(' ')}`, { cwd: repo, timeout: 20_000 });
+    }
+
     if (!changed.length) {
-      return { ok: false, output: `I didn't end up changing any files, Sir.\n\n${edit.output}` };
+      const hint = outside.length
+        ? ` I did touch files outside my source tree (${outside.join(', ')}) and reverted them.`
+        : ' The edit may have gone to the live deploy copy (~/jarvis) rather than the repo — please tell me to try again.';
+      return { ok: false, output: `I didn't change any files in my source tree, Sir.${hint}\n\n${edit.output}` };
     }
 
     // Syntax-check every changed code file; revert everything on any failure.
