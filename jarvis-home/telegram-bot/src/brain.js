@@ -134,7 +134,7 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 10. Media library (Jellyfin — search the movie/TV library, what's recently added, continue watching / next up, "what should I watch tonight" recommendations, what's playing now, or trigger a library scan):
 {"jellyfin": true, "query": "the user's full request", "acknowledge": "brief message to user"}
 
-11. Self-development — modify your OWN source code / behaviour (add a feature to yourself, fix a bug in your own code or monitoring scripts, change how one of your commands works, make a check self-healing). This edits the jarvis-ui codebase, commits it, and offers a deploy:
+11. Self-development — modify your OWN source code / behaviour. Your source lives in the jarvis-ui repository and includes: your monitoring scripts (scripts/*.sh — e.g. samba-monitor.sh, disk-watchdog.sh), your Telegram bot code (telegram-bot/src/**), your prompts, and your .claude config. ANY request to add/edit/comment/rename/refactor those files, add a feature or command to yourself, fix a bug in your own code, or make one of your checks self-healing → selfdev. This edits the codebase, syntax-checks, commits, and offers a deploy:
 {"selfdev": true, "task": "a clear, complete description of the code change to make, with all context", "acknowledge": "brief message to user"}
 
 MULTIPLE ACTIONS:
@@ -168,6 +168,7 @@ EXAMPLES:
 - User: "do we have the movie Dune on jellyfin" → {"jellyfin": true, "query": "Is the movie Dune in the library?", "acknowledge": "Checking the library, Sir."}
 - User: "what's been added to jellyfin recently" → {"jellyfin": true, "query": "recently added", "acknowledge": "Checking what's new, Sir."}
 - User: "what am I in the middle of watching" → {"jellyfin": true, "query": "continue watching", "acknowledge": "Let me check, Sir."}
+- User: "add a comment at the top of scripts/samba-monitor.sh noting it self-heals mounts" → {"selfdev": true, "task": "Add a comment near the top of scripts/samba-monitor.sh (right after the shebang) explaining that the script self-heals mounts before alerting", "acknowledge": "Adding that note to my code, Sir."}
 - User: "add a self-healing retry to your disk watchdog script" → {"selfdev": true, "task": "In the disk-watchdog monitoring script, add self-healing: if the disk check fails, attempt cleanup/remount and retry up to 3 times before alerting", "acknowledge": "Let me update my own code for that, Sir."}
 - User: "make your morning briefing also include the weather for tomorrow" → {"selfdev": true, "task": "Modify the morning briefing so it also includes tomorrow's weather forecast, not just today's", "acknowledge": "I'll amend my briefing code, Sir."}
 - User: "add a /gpu command that shows GPU temperature" → {"selfdev": true, "task": "Add a new Telegram command /gpu that reports GPU temperature and utilisation", "acknowledge": "Adding that command to myself, Sir."}
@@ -181,7 +182,7 @@ RULES:
 - NEVER refuse a reminder request — always route to remind and let the reminder system handle it
 - Smart home device control (turn on/off, toggle lights/switches/plugs/fans/covers) → ha
 - Server operations (check status, read logs, restart services, run commands) → delegate
-- Changing your OWN code/behaviour, adding a feature to yourself, fixing a bug in your own scripts/commands, making a check self-healing → selfdev (this edits the codebase; delegate only RUNS things, it does not change your source)
+- Changing your OWN code/behaviour, adding a feature to yourself, fixing a bug in your own scripts/commands, editing or adding a comment to any of your scripts (scripts/*.sh) or bot code (telegram-bot/src/**), making a check self-healing → selfdev (this edits the source and commits it; delegate only RUNS things and edits the throwaway deploy copy, so NEVER use delegate to change a file in your own codebase)
 - API calls, curl requests, HTTP endpoints that need headers/auth → delegate (server has full network access)
 - Local weather / forecast (here, Netanya, "the weather", rain, temperature outlook) → weather
 - Weather for a DIFFERENT city → search
@@ -358,37 +359,41 @@ function parseActions(text) {
   const isAction = (o) => o && typeof o === 'object' && ACTION_KEYS.some((k) => o[k]);
   const tryParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
-  let trimmed = text.trim();
-  if (trimmed.startsWith('```')) {
-    trimmed = trimmed.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
-  }
-  trimmed = normalize(trimmed);
-
-  // Array of actions
-  if (trimmed.startsWith('[')) {
-    const parsed = tryParse(trimmed);
+  // Try to interpret a candidate string as one-or-more actions.
+  const fromCandidate = (s) => {
+    const parsed = tryParse(s);
     if (Array.isArray(parsed)) {
       const actions = parsed.filter(isAction);
       if (actions.length) return actions;
     }
-  }
-
-  // Single object
-  if (trimmed.startsWith('{')) {
-    const parsed = tryParse(trimmed);
     if (isAction(parsed)) return [parsed];
+    return null;
+  };
+
+  let trimmed = normalize(text.trim());
+
+  // 1. Fenced code block anywhere (```json ... ```), even with prose around it.
+  //    Haiku sometimes adds a preamble sentence before the fence.
+  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) {
+    const hit = fromCandidate(fence[1].trim());
+    if (hit) return hit;
   }
 
-  // Fallback: extract a single JSON object embedded in prose
-  for (const key of ACTION_KEYS) {
-    const marker = `{"${key}"`;
-    const jsonStart = trimmed.indexOf(marker);
-    if (jsonStart >= 0) {
-      const jsonEnd = trimmed.lastIndexOf('}');
-      if (jsonEnd > jsonStart) {
-        const parsed = tryParse(trimmed.slice(jsonStart, jsonEnd + 1));
-        if (isAction(parsed)) return [parsed];
-      }
+  // 2. Whole message is JSON (array or object).
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    const hit = fromCandidate(trimmed);
+    if (hit) return hit;
+  }
+
+  // 3. JSON embedded in prose: slice from the first bracket to the matching
+  //    last bracket and try. Handles pretty-printed JSON + leading/trailing text.
+  for (const [open, close] of [['[', ']'], ['{', '}']]) {
+    const start = trimmed.indexOf(open);
+    const end = trimmed.lastIndexOf(close);
+    if (start >= 0 && end > start) {
+      const hit = fromCandidate(trimmed.slice(start, end + 1));
+      if (hit) return hit;
     }
   }
 
