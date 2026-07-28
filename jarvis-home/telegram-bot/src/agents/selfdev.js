@@ -18,6 +18,7 @@
 //     the current branch, but the actual deploy is behind a one-tap button.
 
 import { exec } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { run } from '../utils.js';
 
 const DEFAULT_MODEL = 'claude-opus-4-8';
@@ -97,13 +98,19 @@ function parseChangedPaths(porcelain) {
   return paths;
 }
 
-// Syntax-check one file based on extension. Returns { ok, output }.
-async function syntaxCheck(repo, relPath) {
-  if (relPath.endsWith('.js') || relPath.endsWith('.mjs')) {
-    return run(`node --check "${relPath}"`, { cwd: repo, timeout: 30_000 });
+// Syntax-check one changed file. `rel` is whatever `git status` reported; it may
+// be repo-root-relative ("jarvis-home/scripts/x.sh") or jarvis-home-relative
+// ("scripts/x.sh") depending on git's cwd behaviour, so we normalise it to an
+// ABSOLUTE path (no cwd dependence) before checking. Returns { ok, output }.
+async function syntaxCheck(root, rel) {
+  const relFromHome = rel.startsWith('jarvis-home/') ? rel.slice('jarvis-home/'.length) : rel;
+  const abs = `${root}/jarvis-home/${relFromHome}`;
+  if (!existsSync(abs)) return { ok: true, output: '' }; // deleted/moved — nothing to check
+  if (abs.endsWith('.js') || abs.endsWith('.mjs')) {
+    return run(`node --check "${abs}"`, { cwd: root, timeout: 30_000 });
   }
-  if (relPath.endsWith('.sh')) {
-    return run(`bash -n "${relPath}"`, { cwd: repo, timeout: 30_000 });
+  if (abs.endsWith('.sh')) {
+    return run(`bash -n "${abs}"`, { cwd: root, timeout: 30_000 });
   }
   return { ok: true, output: '' }; // non-code file — nothing to check
 }
