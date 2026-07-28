@@ -27,9 +27,6 @@ const SELFDEV_TIMEOUT = 15 * 60 * 1000; // 15 min — code edits are slow
 export function repoDir() {
   return process.env.JARVIS_REPO_DIR || `${process.env.HOME}/repos/jarvis-ui`;
 }
-function jarvisHomeDir() {
-  return `${repoDir()}/jarvis-home`;
-}
 function selfDevEnabled() {
   return String(process.env.SELFDEV_ENABLED || '').toLowerCase() === 'true';
 }
@@ -62,14 +59,13 @@ TASK RULES:
 REQUESTED CHANGE:
 ${task}`;
 
-// Run the headless claude editor. Resolves { ok, output }.
-function runEditor(task) {
+// Run the headless claude editor in `absDir`. Resolves { ok, output }.
+function runEditor(task, absDir) {
   const model = selfDevModel();
-  const absDir = jarvisHomeDir();
   const prompt = SELFDEV_INSTRUCTIONS(task, absDir);
   return new Promise((resolve) => {
     const escaped = prompt.replace(/'/g, "'\\''");
-    const cmd = `cd ${jarvisHomeDir()} && claude --dangerously-skip-permissions --model ${model} -p '${escaped}'`;
+    const cmd = `cd ${absDir} && claude --dangerously-skip-permissions --model ${model} -p '${escaped}'`;
     exec(cmd, { timeout: SELFDEV_TIMEOUT, shell: '/bin/bash', maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
         if (err.killed) {
@@ -146,58 +142,51 @@ export async function runSelfDev(task) {
   }
 
   inProgress = true;
-  const repo = repoDir();
   try {
-    // Repo sanity + branch/SHA capture.
-    const branchRes = await run('git rev-parse --abbrev-ref HEAD', { cwd: repo, timeout: 15_000 });
-    if (!branchRes.ok) {
-      return { ok: false, output: `I couldn't read the repository at ${repo}, Sir: ${branchRes.output}` };
+    // Resolve the TRUE repo root, so every git command prints repo-root-relative
+    // paths deterministically (git otherwise prints paths relative to cwd, which
+    // made prefix checks unreliable). Works even if JARVIS_REPO_DIR points at a
+    // subdirectory of the repo.
+    const topRes = await run('git rev-parse --show-toplevel', { cwd: repoDir(), timeout: 15_000 });
+    if (!topRes.ok || !topRes.output.trim()) {
+      return { ok: false, output: `I couldn't find a git repository at ${repoDir()}, Sir: ${topRes.output}` };
     }
-    const branch = branchRes.output.trim();
-    const prevShaRes = await run('git rev-parse HEAD', { cwd: repo, timeout: 15_000 });
-    const prevSha = prevShaRes.output.trim();
+    const root = topRes.output.trim();
+    const absHome = `${root}/jarvis-home`;
+
+    const branch = (await run('git rev-parse --abbrev-ref HEAD', { cwd: root, timeout: 15_000 })).output.trim();
+    const prevSha = (await run('git rev-parse HEAD', { cwd: root, timeout: 15_000 })).output.trim();
 
     // Refuse if jarvis-home already has uncommitted changes — we won't risk
     // sweeping unrelated work into our commit.
-    const dirty = await run('git status --porcelain -- jarvis-home', { cwd: repo, timeout: 15_000 });
+    const dirty = await run('git status --porcelain -- jarvis-home', { cwd: root, timeout: 15_000 });
     if (dirty.ok && dirty.output.trim()) {
-      return { ok: false, output: 'The repository already has uncommitted changes under jarvis-home/, Sir. Commit or discard them first, then ask me again.' };
+      return { ok: false, output: 'The repository already has uncommitted changes under jarvis-home/, Sir. Discard them from a shell first (git -C ~/repos/jarvis-ui checkout -- jarvis-home), then ask me again.' };
     }
 
-    // Let claude make the edit.
+    // Let claude make the edit (cwd = the repo's jarvis-home).
     console.log(`[selfdev] Editing (${selfDevModel()}) on branch ${branch}: ${task.slice(0, 100)}`);
-    const edit = await runEditor(task);
+    const edit = await runEditor(task, absHome);
     if (!edit.ok) {
-      await run('git checkout -- jarvis-home', { cwd: repo, timeout: 20_000 });
+      await run('git checkout -- jarvis-home', { cwd: root, timeout: 20_000 });
       return { ok: false, output: `The edit didn't complete, Sir: ${edit.output}` };
     }
 
-    // What changed? Look at the WHOLE repo so we notice edits that stray
-    // outside jarvis-home/ (and revert those — we only ever commit jarvis-home).
-    const status = await run('git status --porcelain', { cwd: repo, timeout: 15_000 });
-    const allChanged = parseChangedPaths(status.output || '');
-    const changed = allChanged.filter((p) => p.startsWith('jarvis-home/'));
-    const outside = allChanged.filter((p) => !p.startsWith('jarvis-home/'));
-
-    if (outside.length) {
-      // Revert accidental tracked edits outside our source tree.
-      await run(`git checkout -- ${outside.map((p) => `"${p}"`).join(' ')}`, { cwd: repo, timeout: 20_000 });
-    }
-
+    // What changed under jarvis-home? Pathspec-scoped + run from the repo root,
+    // so reported paths are repo-root-relative (jarvis-home/...).
+    const status = await run('git status --porcelain -- jarvis-home', { cwd: root, timeout: 15_000 });
+    const changed = parseChangedPaths(status.output || '');
     if (!changed.length) {
-      const hint = outside.length
-        ? ` I did touch files outside my source tree (${outside.join(', ')}) and reverted them.`
-        : ' The edit may have gone to the live deploy copy (~/jarvis) rather than the repo — please tell me to try again.';
-      return { ok: false, output: `I didn't change any files in my source tree, Sir.${hint}\n\n${edit.output}` };
+      return { ok: false, output: `I didn't change any files in my source tree, Sir — the edit may have gone somewhere outside the repo. Nothing was committed.\n\n${edit.output}` };
     }
 
     // Syntax-check every changed code file; revert everything on any failure.
     const codeFiles = changed.filter((p) => /\.(js|mjs|sh)$/.test(p));
     for (const rel of codeFiles) {
-      const check = await syntaxCheck(repo, rel);
+      const check = await syntaxCheck(root, rel);
       if (!check.ok) {
-        await run('git checkout -- jarvis-home', { cwd: repo, timeout: 20_000 });
-        await run('git clean -fd -- jarvis-home', { cwd: repo, timeout: 20_000 });
+        await run('git checkout -- jarvis-home', { cwd: root, timeout: 20_000 });
+        await run('git clean -fd -- jarvis-home', { cwd: root, timeout: 20_000 });
         return { ok: false, output: `Syntax check failed on ${rel}, so I reverted the change, Sir:\n${check.output.slice(-500)}` };
       }
     }
@@ -205,21 +194,21 @@ export async function runSelfDev(task) {
     // Commit (pathspec-scoped to jarvis-home) and push.
     const shortTask = task.trim().replace(/\s+/g, ' ').slice(0, 60);
     const msg = `jarvis: ${shortTask}`.replace(/'/g, "'\\''");
-    const add = await run('git add -- jarvis-home', { cwd: repo, timeout: 20_000 });
+    const add = await run('git add -- jarvis-home', { cwd: root, timeout: 20_000 });
     if (!add.ok) {
-      await run('git checkout -- jarvis-home', { cwd: repo, timeout: 20_000 });
+      await run('git checkout -- jarvis-home', { cwd: root, timeout: 20_000 });
       return { ok: false, output: `Failed to stage the change, Sir: ${add.output}` };
     }
-    const commit = await run(`git commit -m '${msg}'`, { cwd: repo, timeout: 20_000 });
+    const commit = await run(`git commit -m '${msg}'`, { cwd: root, timeout: 20_000 });
     if (!commit.ok) {
       return { ok: false, output: `Failed to commit, Sir: ${commit.output}` };
     }
-    const newSha = (await run('git rev-parse HEAD', { cwd: repo, timeout: 15_000 })).output.trim();
+    const newSha = (await run('git rev-parse HEAD', { cwd: root, timeout: 15_000 })).output.trim();
 
-    const push = await pushBranch(repo, branch);
+    const push = await pushBranch(root, branch);
     const pushed = push.ok;
 
-    const stat = await run(`git diff --stat ${prevSha} HEAD -- jarvis-home`, { cwd: repo, timeout: 15_000 });
+    const stat = await run(`git diff --stat ${prevSha} HEAD -- jarvis-home`, { cwd: root, timeout: 15_000 });
 
     const parts = [
       edit.output.trim(),
