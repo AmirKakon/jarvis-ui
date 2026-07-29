@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { createCalendarEvent } from '../services/calendar-sync.js';
+import { haikuModel } from '../models.js';
 const { Pool } = pg;
 
 const TZ = 'Asia/Jerusalem';
@@ -102,7 +103,7 @@ async function parseWithHaiku(userMessage) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: haikuModel(),
         max_tokens: 256,
         system: `You parse reminder requests into structured JSON.
 

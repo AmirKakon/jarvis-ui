@@ -20,6 +20,7 @@ import { runWeatherQuery } from './agents/weather.js';
 import { runJellyfinQuery } from './agents/jellyfin.js';
 import { runSelfDev } from './agents/selfdev.js';
 import { startClaudeJob } from './agents/jobs.js';
+import { frontModel, haikuModel, sonnetModel, opusModel } from './models.js';
 import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
 import { createEvent, listEvents } from './agents/calendar.js';
@@ -232,7 +233,7 @@ async function runFrontModel(systemPrompt, userMessage) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: frontModel(),
           max_tokens: 1024,
           system: systemPrompt,
           messages: [{ role: 'user', content: userMessage }],
@@ -319,17 +320,12 @@ export const actionKeyOf = (a) => ACTION_KEYS.find((k) => a?.[k]) || null;
 // Routine server ops are haiku-tier work (the docker-ops/diagnostics subagents
 // are already model: haiku); only genuinely complex tasks warrant Opus.
 
-const DELEGATE_MODELS = {
-  opus: 'claude-opus-5',
-  sonnet: 'claude-sonnet-5',
-  haiku: 'claude-haiku-4-5-20251001',
-};
-
-// Known subagents (from .claude/agents/) → tier + backing model.
+// Known subagents (from .claude/agents/) → tier + backing model getter
+// (models resolve lazily from models.js / .env at request time).
 const DELEGATE_AGENTS = {
-  'docker-ops':  { tier: 'cheap', model: DELEGATE_MODELS.haiku },
-  'diagnostics': { tier: 'cheap', model: DELEGATE_MODELS.haiku },
-  'research':    { tier: 'cheap', model: DELEGATE_MODELS.sonnet },
+  'docker-ops':  { tier: 'cheap', model: haikuModel },
+  'diagnostics': { tier: 'cheap', model: haikuModel },
+  'research':    { tier: 'cheap', model: sonnetModel },
 };
 
 // Keyword fallback when the front model didn't supply an `agent` hint.
@@ -344,8 +340,11 @@ function classifyDelegate(task) {
 function resolveDelegateTarget(action) {
   let agent = typeof action.agent === 'string' ? action.agent.toLowerCase() : null;
   if (!agent || !DELEGATE_AGENTS[agent]) agent = classifyDelegate(action.task);
-  if (agent && DELEGATE_AGENTS[agent]) return { agent, ...DELEGATE_AGENTS[agent] };
-  return { agent: null, tier: 'opus', model: DELEGATE_MODELS.opus };
+  if (agent && DELEGATE_AGENTS[agent]) {
+    const a = DELEGATE_AGENTS[agent];
+    return { agent, tier: a.tier, model: a.model() };
+  }
+  return { agent: null, tier: 'opus', model: opusModel() };
 }
 
 // Parse the front model output into an ARRAY of action objects.

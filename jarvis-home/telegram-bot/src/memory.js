@@ -16,6 +16,7 @@
 
 import pg from 'pg';
 import { exec } from 'node:child_process';
+import { haikuModel } from './models.js';
 
 const { Pool } = pg;
 
@@ -27,7 +28,6 @@ const DECAY_LAMBDA = 0.023; // ln(2)/30 ≈ 30-day half-life
 const SIMILARITY_THRESHOLD = 0.25;
 const FACT_DEDUP_THRESHOLD = 0.92;
 
-const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 
 // --- Fact categorization & context bounding ---
@@ -320,7 +320,7 @@ async function runSmallModel(prompt) {
 
   // Fallback: Claude CLI
   const escaped = prompt.replace(/'/g, "'\\''");
-  const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model ${HAIKU_MODEL} -p '${escaped}' 2>&1`;
+  const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model ${haikuModel()} -p '${escaped}' 2>&1`;
   return new Promise((resolve) => {
     exec(cmd, { timeout: 60_000, shell: '/bin/bash', maxBuffer: 1024 * 1024 }, (err, stdout) => {
       if (err) {

@@ -1,4 +1,5 @@
 import { extractResponseContent } from './shared.js';
+import { researchModel } from '../models.js';
 
 // Deep-research agent: a capable model (Sonnet by default) with the full
 // server-tool set, chaining web search -> web fetch -> code execution
@@ -6,12 +7,12 @@ import { extractResponseContent } from './shared.js';
 // tool-heavy / multi-step queries the Haiku front model can't handle
 // (Haiku only supports direct, single-tool calls — see agents/search.js).
 //
-// Model is overridable via RESEARCH_MODEL. Defaults to Sonnet 5 — capable
-// enough to chain tools and synthesise well, and it supports dynamic filtering.
-// To unlock dynamic filtering (code-execution-backed result filtering, lower
-// token use), switch web_search below to web_search_20260209 once this is
-// confirmed working. Use claude-opus-5 (or claude-fable-5) for maximum depth at higher cost.
-const RESEARCH_MODEL = process.env.RESEARCH_MODEL || 'claude-sonnet-5';
+// Model is overridable via RESEARCH_MODEL (see models.js). Defaults to the
+// Sonnet tier — capable enough to chain tools and synthesise well, and it
+// supports dynamic filtering. To unlock dynamic filtering (code-execution-backed
+// result filtering, lower token use), switch web_search below to
+// web_search_20260209 once confirmed working. Point RESEARCH_MODEL at the Opus
+// or Fable tier for maximum depth at higher cost.
 
 const RESEARCH_SYSTEM = `You are JARVIS's deep-research analyst, working for a user in Netanya, Israel.
 
@@ -56,7 +57,7 @@ export async function runResearch(query) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: RESEARCH_MODEL,
+        model: researchModel(),
         max_tokens: 4096,
         system: RESEARCH_SYSTEM,
         messages: [{ role: 'user', content: query }],

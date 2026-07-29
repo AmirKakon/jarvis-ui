@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, unlinkSync, readdirSync, existsSync, statS
 import { basename, dirname } from 'node:path';
 import { Markup } from 'telegraf';
 import { run, bold, code, pre, escapeHtml, sendLong, editOrReply } from '../utils.js';
+import { haikuModel } from '../models.js';
 
 const HOME = process.env.HOME || '/home/iot';
 const PENDING_DIR = HOME + '/jarvis/downloads/pending';
@@ -453,7 +454,7 @@ Omit year for TV, omit season/episode for movies.`;
 
   const escaped = prompt.replace(/'/g, "'\\''");
   const { ok, output } = await run(
-    `cd ${HOME}/jarvis && claude --dangerously-skip-permissions --model claude-haiku-4-5-20251001 -p '${escaped}'`,
+    `cd ${HOME}/jarvis && claude --dangerously-skip-permissions --model ${haikuModel()} -p '${escaped}'`,
     { timeout: 60_000 }
   );
 

@@ -14,6 +14,7 @@ import {
 } from './memory.js';
 import { extractResponseContent } from './agents/shared.js';
 import { runOpus } from './agents/opus.js';
+import { opusModel, sonnetModel, haikuModel } from './models.js';
 import { registerDeploy } from './commands/deploy.js';
 import { generateSpeech, isValidVoice, VALID_VOICES } from './agents/tts.js';
 import {
@@ -90,9 +91,9 @@ async function maybeSendVoice(ctx, text) {
 
 export async function sendToClaude(ctx, prompt, thinkingMsg = '🧠 <i>Thinking...</i>', model = 'sonnet') {
   const MODELS = {
-    opus: 'claude-opus-5',
-    sonnet: 'claude-sonnet-5',
-    haiku: 'claude-haiku-4-5-20251001',
+    opus: opusModel(),
+    sonnet: sonnetModel(),
+    haiku: haikuModel(),
   };
   const TIMEOUTS = { opus: 360_000, sonnet: 120_000, haiku: 60_000 };
 

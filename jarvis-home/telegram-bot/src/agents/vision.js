@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { haikuModel } from '../models.js';
 
 const MEDIA_TYPES = {
   '.jpg': 'image/jpeg',
@@ -37,7 +38,7 @@ export async function describeImage(filepath, question) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: haikuModel(),
         max_tokens: 1024,
         system: 'You are a concise image analyst. Describe what you see factually. For receipts, invoices, or documents, extract all text, numbers, dates, and amounts. For screenshots, describe the UI and any visible text. For photos, describe the scene. Use British English. Be thorough but not verbose.',
         messages: [{

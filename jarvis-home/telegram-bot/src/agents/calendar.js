@@ -1,6 +1,7 @@
 import { fetchHA, getStates } from './ha.js';
 import { escapeHtml } from '../utils.js';
 import { createCalendarEvent } from '../services/calendar-sync.js';
+import { haikuModel } from '../models.js';
 import { nowJerusalemISO, insertReminder } from './remind.js';
 
 const TZ = 'Asia/Jerusalem';
@@ -154,7 +155,7 @@ async function parseEventWithHaiku(userMessage) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: haikuModel(),
         max_tokens: 300,
         system: `You parse calendar event / meeting requests into structured JSON.
 
@@ -318,7 +319,7 @@ async function resolveRange(text) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: haikuModel(),
         max_tokens: 150,
         system: `You resolve a calendar date-range query to JSON. CURRENT TIME: ${isoNow}.
 Return ONLY: {"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","label":"short human label"}

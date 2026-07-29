@@ -1,4 +1,5 @@
 import { extractResponseContent } from './shared.js';
+import { haikuModel } from '../models.js';
 
 function extractCodeImages(data) {
   const images = [];
@@ -26,7 +27,7 @@ export async function runCodeExecution(task) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: haikuModel(),
         max_tokens: 2048,
         system: 'You are a precise computation assistant. Write and execute code to solve the task. Show results clearly. Use British English. IMPORTANT: The sandbox has NO internet access — do not attempt HTTP requests, curl, wget, or any network calls. Work only with the data provided in the task.',
         messages: [{ role: 'user', content: task }],

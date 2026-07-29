@@ -1,4 +1,5 @@
 import { getMcpTools, callMcpTool } from '../services/mcp-client.js';
+import { mcpSimpleModel, mcpComplexModel } from '../models.js';
 
 // MCP tool-use agent: runs a short tool-calling loop over every tool exposed by
 // the connected MCP servers (see services/mcp-client.js). The front router hands
@@ -8,11 +9,8 @@ import { getMcpTools, callMcpTool } from '../services/mcp-client.js';
 // Two tiers: simple single-provider lookups run on cheap/fast Haiku; complex or
 // cross-provider tasks (e.g. cross-referencing a recipe against inventory) run
 // on Sonnet, which is markedly more reliable at multi-step tool chaining. The
-// front router flags which via the `complex` hint. Both are env-overridable.
-const MCP_MODELS = {
-  simple:  process.env.MCP_AGENT_MODEL || 'claude-haiku-4-5-20251001',
-  complex: process.env.MCP_AGENT_MODEL_COMPLEX || 'claude-sonnet-5',
-};
+// front router flags which via the `complex` hint. Both resolve lazily from
+// models.js (env-overridable via MCP_AGENT_MODEL / MCP_AGENT_MODEL_COMPLEX).
 // Complex tasks get more tool-call rounds (e.g. checking many recipe ingredients
 // against inventory one by one) before hitting the safety ceiling.
 const MAX_ITERATIONS = { simple: 6, complex: 10 };
@@ -33,7 +31,7 @@ export async function runMcpAgent(task, { complex = false } = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured' };
 
-  const model = complex ? MCP_MODELS.complex : MCP_MODELS.simple;
+  const model = complex ? mcpComplexModel() : mcpSimpleModel();
   const maxIterations = complex ? MAX_ITERATIONS.complex : MAX_ITERATIONS.simple;
 
   let tools, lookup;

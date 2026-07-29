@@ -1,3 +1,5 @@
+import { haikuModel } from '../models.js';
+
 const CONTROLLABLE_DOMAINS = ['light', 'switch', 'fan', 'cover', 'climate', 'media_player', 'scene', 'script'];
 
 const DOMAIN_SERVICE_MAP = {
@@ -107,7 +109,7 @@ async function resolveEntity(command, entityList) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: haikuModel(),
         max_tokens: 256,
         system: `You resolve Home Assistant commands. Given a user command and entity list, return ONLY a JSON object with "action" (turn_on, turn_off, or toggle) and "entity_id". If the command is ambiguous, pick the most likely match. If no entity matches, return {"error": "reason"}.`,
         messages: [{

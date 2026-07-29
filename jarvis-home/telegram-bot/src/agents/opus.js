@@ -1,20 +1,21 @@
 import { exec } from 'node:child_process';
+import { opusModel, sonnetModel, haikuModel } from '../models.js';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 
-const DEFAULT_MODEL = 'claude-opus-5';
-
-// Per-model timeouts — cheaper/faster models get shorter leashes.
-const MODEL_TIMEOUTS = {
-  'claude-opus-5': 360_000,            // 6 min
-  'claude-sonnet-5': 120_000,          // 2 min
-  'claude-haiku-4-5-20251001': 60_000, // 1 min
-};
+// Timeout by tier — cheaper/faster models get shorter leashes. Resolved by
+// comparing against the configured tier IDs so it stays correct even when the
+// model IDs are overridden in .env (see models.js).
+function timeoutFor(model) {
+  if (model === haikuModel()) return 60_000;   // 1 min
+  if (model === sonnetModel()) return 120_000; // 2 min
+  return 360_000;                              // 6 min (opus/fable/default)
+}
 
 // Build the shell command that runs a headless Claude Code agent for `prompt`
 // on the given `model`, in the deploy dir. Shared by runOpus (awaited) and the
 // background job runner (agents/jobs.js), so both escape/quote identically.
-export function claudeCmd(prompt, model = DEFAULT_MODEL) {
+export function claudeCmd(prompt, model = opusModel()) {
   const escaped = prompt.replace(/'/g, "'\\''");
   return {
     cmd: `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model ${model} -p '${escaped}'`,
@@ -26,8 +27,8 @@ export function claudeCmd(prompt, model = DEFAULT_MODEL) {
 // obvious server ops can run on haiku (cheaper + faster) while complex
 // reasoning stays on Opus. Subagents in .claude/agents/ remain available
 // to whichever model runs, via the Task tool.
-export function runOpus(prompt, model = DEFAULT_MODEL) {
-  const timeout = MODEL_TIMEOUTS[model] || MODEL_TIMEOUTS[DEFAULT_MODEL];
+export function runOpus(prompt, model = opusModel()) {
+  const timeout = timeoutFor(model);
   return new Promise((resolve) => {
     const { cmd, shell } = claudeCmd(prompt, model);
 

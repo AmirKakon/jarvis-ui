@@ -10,8 +10,9 @@
 //   JELLYFIN_TOKEN     Jellyfin API key (Dashboard → API Keys)
 //   JELLYFIN_USER_ID   optional; otherwise the first user is used
 
+import { haikuModel } from '../models.js';
+
 const DEFAULT_JELLYFIN_URL = 'http://localhost:20002';
-const HAIKU = 'claude-haiku-4-5-20251001';
 
 // Read config at CALL time, not module-load time: imported modules evaluate
 // before index.js loads ~/jarvis/.env into process.env, so anything captured at
@@ -187,7 +188,7 @@ async function classify(question) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: HAIKU,
+        model: haikuModel(),
         max_tokens: 160,
         system: `You classify a Jellyfin media request. Return ONLY JSON:
 {"intent": "search"|"recent"|"resume"|"nextup"|"recommend"|"nowplaying"|"libraries"|"scan",
@@ -235,7 +236,7 @@ async function summarise(question, payload) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: HAIKU,
+        model: haikuModel(),
         max_tokens: 700,
         system: CONCIERGE_SYSTEM,
         messages: [{ role: 'user', content: `Request: ${question}\n\nLibrary data (JSON):\n${JSON.stringify(payload)}` }],

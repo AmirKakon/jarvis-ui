@@ -20,8 +20,8 @@
 import { exec } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { run } from '../utils.js';
+import { opusModel } from '../models.js';
 
-const DEFAULT_MODEL = 'claude-opus-5';
 const SELFDEV_TIMEOUT = 15 * 60 * 1000; // 15 min — code edits are slow
 
 // Lazy env reads so .env values loaded at startup are respected.
@@ -32,7 +32,7 @@ function selfDevEnabled() {
   return String(process.env.SELFDEV_ENABLED || '').toLowerCase() === 'true';
 }
 function selfDevModel() {
-  return process.env.SELFDEV_MODEL || DEFAULT_MODEL;
+  return process.env.SELFDEV_MODEL || opusModel();
 }
 
 // One self-edit at a time — git operations must not race.
