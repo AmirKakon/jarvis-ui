@@ -320,7 +320,7 @@ export const actionKeyOf = (a) => ACTION_KEYS.find((k) => a?.[k]) || null;
 // are already model: haiku); only genuinely complex tasks warrant Opus.
 
 const DELEGATE_MODELS = {
-  opus: 'claude-opus-4-8',
+  opus: 'claude-opus-5',
   sonnet: 'claude-sonnet-5',
   haiku: 'claude-haiku-4-5-20251001',
 };

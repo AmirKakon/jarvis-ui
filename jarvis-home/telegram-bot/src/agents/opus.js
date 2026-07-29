@@ -2,11 +2,11 @@ import { exec } from 'node:child_process';
 
 const JARVIS_DIR = process.env.HOME + '/jarvis';
 
-const DEFAULT_MODEL = 'claude-opus-4-8';
+const DEFAULT_MODEL = 'claude-opus-5';
 
 // Per-model timeouts — cheaper/faster models get shorter leashes.
 const MODEL_TIMEOUTS = {
-  'claude-opus-4-8': 360_000,          // 6 min
+  'claude-opus-5': 360_000,            // 6 min
   'claude-sonnet-5': 120_000,          // 2 min
   'claude-haiku-4-5-20251001': 60_000, // 1 min
 };

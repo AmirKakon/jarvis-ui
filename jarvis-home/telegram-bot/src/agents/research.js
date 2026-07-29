@@ -10,7 +10,7 @@ import { extractResponseContent } from './shared.js';
 // enough to chain tools and synthesise well, and it supports dynamic filtering.
 // To unlock dynamic filtering (code-execution-backed result filtering, lower
 // token use), switch web_search below to web_search_20260209 once this is
-// confirmed working. Use claude-opus-4-8 for maximum depth at higher cost.
+// confirmed working. Use claude-opus-5 (or claude-fable-5) for maximum depth at higher cost.
 const RESEARCH_MODEL = process.env.RESEARCH_MODEL || 'claude-sonnet-5';
 
 const RESEARCH_SYSTEM = `You are JARVIS's deep-research analyst, working for a user in Netanya, Israel.

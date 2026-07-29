@@ -21,7 +21,7 @@ import { exec } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { run } from '../utils.js';
 
-const DEFAULT_MODEL = 'claude-opus-4-8';
+const DEFAULT_MODEL = 'claude-opus-5';
 const SELFDEV_TIMEOUT = 15 * 60 * 1000; // 15 min — code edits are slow
 
 // Lazy env reads so .env values loaded at startup are respected.

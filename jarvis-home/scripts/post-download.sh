@@ -141,7 +141,7 @@ Content name: $CONTENT_BASENAME
 Is directory: $IS_DIR"
 
     ESCAPED_PROMPT=$(echo "$CLAUDE_PROMPT" | sed "s/'/'\\\\''/g")
-    PARSE_RESULT=$(cd "$HOME/jarvis" && claude --dangerously-skip-permissions --model claude-haiku-4-20250514 -p "$ESCAPED_PROMPT" 2>/dev/null | grep -Pzo '\{[^}]*\}' | tr '\0' '\n' | head -1) || true
+    PARSE_RESULT=$(cd "$HOME/jarvis" && claude --dangerously-skip-permissions --model claude-haiku-4-5-20251001 -p "$ESCAPED_PROMPT" 2>/dev/null | grep -Pzo '\{[^}]*\}' | tr '\0' '\n' | head -1) || true
 
     if [ -z "$PARSE_RESULT" ]; then
         log "Claude parse also failed, writing raw pending entry"
