@@ -7,12 +7,15 @@ import { researchModel } from '../models.js';
 // tool-heavy / multi-step queries the Haiku front model can't handle
 // (Haiku only supports direct, single-tool calls — see agents/search.js).
 //
-// Model is overridable via RESEARCH_MODEL (see models.js). Defaults to the
-// Sonnet tier — capable enough to chain tools and synthesise well, and it
-// supports dynamic filtering. To unlock dynamic filtering (code-execution-backed
-// result filtering, lower token use), switch web_search below to
-// web_search_20260209 once confirmed working. Point RESEARCH_MODEL at the Opus
-// or Fable tier for maximum depth at higher cost.
+// DYNAMIC FILTERING: on capable models (Sonnet 5 / 4.6, Opus 4.6–4.8/5, Fable 5)
+// the newer web_search_20260209 / web_fetch_20260209 tools let Claude write and
+// run code that filters raw search results BEFORE they hit the context window —
+// keeping only what's relevant, so heavy research is cheaper and sharper. That
+// filtering runs inside a code-execution sandbox (allowed_callers defaults to
+// ["code_execution_20260120"]); we declare that SAME sandbox as a tool so the
+// model can also use it for our own analysis/charts — one shared environment,
+// not a second one. Older models fall back to the basic tools. Force the basic
+// path with RESEARCH_DYNAMIC_FILTER=false. Model via RESEARCH_MODEL (models.js).
 
 const RESEARCH_SYSTEM = `You are JARVIS's deep-research analyst, working for a user in Netanya, Israel.
 
@@ -31,10 +34,50 @@ Rules:
 - Always cite your sources.
 - Be thorough but concise. Use British English.`;
 
+// Which models support the dynamic-filtering (20260209) tools. Everything
+// current-gen except Haiku; Haiku and older models use the basic variants.
+function supportsDynamicFiltering(model) {
+  const m = (model || '').toLowerCase();
+  if (m.includes('haiku')) return false;
+  return /(sonnet-5|sonnet-4-6|opus-5|opus-4-6|opus-4-7|opus-4-8|fable-5)/.test(m);
+}
+
+function useDynamicFilter(model) {
+  if (String(process.env.RESEARCH_DYNAMIC_FILTER || '').toLowerCase() === 'false') return false;
+  return supportsDynamicFiltering(model);
+}
+
+const USER_LOCATION = {
+  // Israel ('IL') is not a supported web_search country code — omit it.
+  // city + timezone still localise results (at least one field is required).
+  type: 'approximate',
+  city: 'Netanya',
+  timezone: 'Asia/Jerusalem',
+};
+
+// Tool set for the request. Dynamic-filtering variants on capable models,
+// basic variants (direct web_search) otherwise.
+function buildTools(dynamic) {
+  if (dynamic) {
+    return [
+      { type: 'web_search_20260209', name: 'web_search', max_uses: 5, user_location: USER_LOCATION },
+      { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 5, max_content_tokens: 20000 },
+      { type: 'code_execution_20260120', name: 'code_execution' },
+    ];
+  }
+  return [
+    { type: 'web_search_20250305', name: 'web_search', max_uses: 5, allowed_callers: ['direct'], user_location: USER_LOCATION },
+    { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 5, max_content_tokens: 20000 },
+    { type: 'code_execution_20250825', name: 'code_execution' },
+  ];
+}
+
+// Pull any base64 images out of code-execution result blocks. Tolerant of the
+// block-type name changing across code_execution versions.
 function extractCodeImages(data) {
   const images = [];
   for (const block of (data.content || [])) {
-    if (block.type !== 'code_execution_result') continue;
+    if (!/code_execution/.test(block.type || '')) continue;
     for (const item of (block.content || [])) {
       if (item.type === 'image' && item.source?.type === 'base64') {
         images.push({ base64: item.source.data, mediaType: item.source.media_type || 'image/png' });
@@ -48,6 +91,10 @@ export async function runResearch(query) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured', sources: [], images: [] };
 
+  const model = researchModel();
+  const dynamic = useDynamicFilter(model);
+  console.log(`[research] model=${model} dynamicFilter=${dynamic}`);
+
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -57,34 +104,13 @@ export async function runResearch(query) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: researchModel(),
+        model,
         max_tokens: 4096,
         system: RESEARCH_SYSTEM,
         messages: [{ role: 'user', content: query }],
-        tools: [
-          {
-            type: 'web_search_20250305',
-            name: 'web_search',
-            max_uses: 5,
-            allowed_callers: ['direct'],
-            user_location: {
-              // Israel ('IL') is not a supported web_search country code — omit it.
-              // city + timezone still localise results (at least one field is required).
-              type: 'approximate',
-              city: 'Netanya',
-              timezone: 'Asia/Jerusalem',
-            },
-          },
-          {
-            type: 'web_fetch_20250910',
-            name: 'web_fetch',
-            max_uses: 5,
-            max_content_tokens: 20000,
-          },
-          { type: 'code_execution_20250825', name: 'code_execution' },
-        ],
+        tools: buildTools(dynamic),
       }),
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(240_000),
     });
 
     if (!res.ok) {

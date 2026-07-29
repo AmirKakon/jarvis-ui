@@ -1,8 +1,15 @@
 const TOOL_RESULT_TYPES = ['web_search_tool_result', 'web_fetch_tool_result', 'code_execution_result'];
 
+// Match known result-block types plus any future *_tool_result variants (e.g.
+// the newer code_execution / dynamic-filtering block names), so the "text after
+// the last tool result" logic keeps working as tool versions evolve.
+function isToolResult(type) {
+  return TOOL_RESULT_TYPES.includes(type) || /_tool_result$/.test(type || '');
+}
+
 function extractResponseContent(data) {
   const blocks = data.content || [];
-  const lastToolIdx = blocks.findLastIndex((b) => TOOL_RESULT_TYPES.includes(b.type));
+  const lastToolIdx = blocks.findLastIndex((b) => isToolResult(b.type));
   const hasToolResults = lastToolIdx >= 0;
 
   const textParts = [];
@@ -28,4 +35,4 @@ function extractResponseContent(data) {
   };
 }
 
-export { TOOL_RESULT_TYPES, extractResponseContent };
+export { TOOL_RESULT_TYPES, isToolResult, extractResponseContent };
