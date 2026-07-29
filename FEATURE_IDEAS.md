@@ -63,6 +63,36 @@ _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on 
 2. **Phase B** — unified `userId` + shared session/memory across surfaces; add HA Companion Assist on phones.
 3. **Phase C** — wake-word-gated Realtime session with function-calling into existing agents; iOS Shortcut + Samsung/Android adapter.
 
+### Home Assistant (config review & backlog)
+
+_Findings from a review of the HA instance (`http://192.168.68.113:8123`) — its `automations.yaml`, `scripts.yaml`, and helpers. Actionable cleanup + improvement backlog for the smart-home side, kept here so JARVIS can reference/execute it later (it has HA access via `HA_TOKEN`)._
+
+**✅ Shipped — Living-room AC panel rebuilt (Option A).** The three `scene.turn_on_livingroom_ac` / `_heat` / `turn_off_livingroom_ac` "scenes" are **not HA scenes** — they're Tuya/Smart-Life cloud tap-to-run macros imported by the integration (they carry a Device, aren't in any YAML, are read-only, and survive restarts). There's **no `climate.livingroom_ac` entity** (IR-only; only a smart plug `switch.livingroom_ac_plug_*`). So instead of a climate card: added `input_select.livingroom_ac_mode` (cool/heat/off) as the state tracker, three scripts (`livingroom_ac_cool/heat/off`) that fire the cloud scene **and** set the tracker, and a `livingroom_ac_smart_toggle` script (off → pick heat/cool by `weather.forecast_home_2` outdoor temp <22 °C; on → off) behind the top tile. Dashboard `custom:button-card` reads the tracker so the view updates and Cool/Heat/Off highlight independently. `Leave the house - turn off` now calls `script.livingroom_ac_off` to keep the tracker in sync. _Cleanup remaining:_ delete the disabled `Livingroom AC Toggle` automation + the now-unused `input_boolean.livingroom_a_c`. (Note: IR has no feedback — tracker reflects last command, not physical state.)
+
+**🔴 Bugs to fix**
+1. **Motion lights never auto-off** — `script.delay_turn_off_light` reads `{{ lights }}` but the bathroom + work-room automations pass `light:` (singular) → undefined → `light.turn_off` gets an empty entity_id and fails. Fix: change those callers to `lights:`. (Red-alert callers already pass `lights:` correctly.)
+2. **`bathroom_lights_mode` uses `light.toggle` in a `mode: restart` motion flow** — continued presence re-fires and toggles an already-on light *off*. Change the three `light.toggle` → `light.turn_on`.
+
+**🧹 Cleanup / dead code**
+- `script.red_alert_voice_loop` (v1) is orphaned — automations use `red_alert_voice_loop_2`. Delete v1.
+- `KakonShare IP` template helper is erroring (unavailable) — fix or remove.
+- Retire AC leftovers: disabled `Livingroom AC Toggle` automation + `input_boolean.livingroom_a_c`.
+
+**🎯 Consistency**
+- Standardise notifications: mixed `notify.mobile_app_amir_phone` vs `notify.mobile_app_sm_g981u1` (same phone) vs raw `device_id:` notifies (CPU Warning, Red Alert v2 — fragile, break on re-add). Move to entity form + a `notify.household` group.
+- `CPU Warning` at >50 % for 1 min is too twitchy → ~85–90 % for 5 min.
+- Two morning briefings (HA→ChatGPT→Alexa `ChatGpt Morning Chat` vs JARVIS Telegram briefing) — pick one canonical brain to avoid drift; JARVIS could drive the Alexa TTS too.
+
+**🗂️ Structure**
+- Split the flat 18-automation `automations.yaml` into **packages** (`homeassistant: packages: !include_dir_named packages/`), one file per feature (`red_alert`, `climate_ac`, `motion_lights`, `gate`, `jewish_calendar`, `system_health`, `morning_brief`) so each feature's automations + scripts + helpers live together. Biggest maintainability win. UI-managed `automations.yaml` can coexist.
+
+**✨ Capability ideas (by value)**
+1. Presence-aware AC + lights — replace the fixed 09:00 "Leave the house" with an "everyone left `zone.home`" trigger (AC off + lights off); on the gate-arrival automation, pre-run `livingroom_ac_smart_toggle` so the AC is running before you walk in.
+2. Generalise `bathroom_lights_mode` → `adaptive_light_on` with an optional illuminance condition (skip when the room is already bright).
+3. One data-driven low-battery automation (template/group over all `*_battery` sensors) replacing the 2–3 separate ones; auto-covers new devices.
+4. Harden `red_alert_voice_loop_2` termination — also stop when `binary_sensor.oref_alert` clears (v1 did this), not only on `time_to_shelter`.
+5. Route HA alerts (low battery / CPU / mini-pc offline) through JARVIS (Telegram + actionable buttons) for consistent formatting and one place to manage.
+
 ### Automations
 
 1. HA improvements recommendations (analyze entities and suggest automations)
