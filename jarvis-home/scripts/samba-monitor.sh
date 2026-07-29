@@ -1,4 +1,3 @@
-# Note: this script self-heals mounts.
 #!/bin/bash
 # Samba share monitoring script.
 # Checks smbd service status and share mount accessibility.

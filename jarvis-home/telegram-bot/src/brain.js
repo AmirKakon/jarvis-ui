@@ -19,7 +19,7 @@ import { mcpServerSummaries } from './services/mcp-client.js';
 import { runWeatherQuery } from './agents/weather.js';
 import { runJellyfinQuery } from './agents/jellyfin.js';
 import { runSelfDev } from './agents/selfdev.js';
-import { runOpus } from './agents/opus.js';
+import { startClaudeJob } from './agents/jobs.js';
 import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
 import { createEvent, listEvents } from './agents/calendar.js';
@@ -485,12 +485,38 @@ async function runOne(action, sctx) {
       console.log(`[front] Delegating (${target.agent || 'opus'} / ${target.model}): ${action.task?.slice(0, 100)}`);
 
       const hint = target.agent ? `\n\nPrefer using the ${target.agent} subagent for this if appropriate.` : '';
-      const res = await runOpus(`${sctx.contextPrompt}\n\nTask to execute: ${action.task}${hint}`, target.model);
-
+      const prompt = `${sctx.contextPrompt}\n\nTask to execute: ${action.task}${hint}`;
       const footer = target.tier === 'opus'
         ? `(${remainingIn(opusCallLog, OPUS_RATE_MAX)} Opus calls remaining this hour)`
         : undefined;
-      return { key, action, res: { ...res, footer } };
+
+      // Run in the background so slow ops can't hit the old inline timeout.
+      const label = action.acknowledge || ACTION_META.delegate.ack;
+      const { id, promise } = startClaudeJob({ prompt, model: target.model, label, task: action.task });
+
+      // Headless callers (no onBackground hook — e.g. HTTP /ask) await the full
+      // result so their response carries the answer, not just an ack.
+      if (!sctx.onBackground) {
+        const res = await promise;
+        return { key, action, res: { ...res, footer } };
+      }
+
+      // Telegram (async): return an ack now; deliver the real result — and
+      // persist it to memory — when the job finishes.
+      promise.then(async (res) => {
+        try {
+          await storeMessage(sctx.sessionId, 'assistant', res.ok ? res.output : `Task failed: ${res.output}`);
+        } catch (err) {
+          console.error('[core] background persist failed:', err.message);
+        }
+        try {
+          await sctx.onBackground({ key, action, res: { ...res, footer } });
+        } catch (err) {
+          console.error('[core] onBackground delivery failed:', err.message);
+        }
+      });
+
+      return { key, action, res: { ok: true, output: label, background: true, jobId: id } };
     }
     case 'selfdev': {
       // Self-edits run an Opus-tier code agent — draw from the Opus budget.
@@ -519,8 +545,10 @@ async function runOne(action, sctx) {
 //   source      session metadata tag (default 'api')
 //   chatId      Telegram chat id for chat-bound actions (reminders/calendar); null on headless surfaces
 //   onPlan      optional async hook called with the parsed actions before execution (for progress UX)
+//   onBackground optional async hook to deliver a long/delegated action's result AFTER askCore returns
+//                (fire-and-follow-up). When omitted, such actions are awaited inline instead.
 
-export async function askCore(prompt, { sessionKey = 'api:default', source = 'api', chatId = null, onPlan = null } = {}) {
+export async function askCore(prompt, { sessionKey = 'api:default', source = 'api', chatId = null, onPlan = null, onBackground = null } = {}) {
   const text = (prompt || '').trim();
   if (!text) return { ok: false, kind: 'empty', sessionId: null, text: '', results: [] };
 
@@ -574,23 +602,30 @@ export async function askCore(prompt, { sessionKey = 'api:default', source = 'ap
 
   console.log(`[core] Dispatching ${actions.length} action(s): ${actions.map(actionKeyOf).join(', ')}`);
 
-  const sctx = { sessionId, prompt: text, contextPrompt, chatId };
+  const sctx = { sessionId, prompt: text, contextPrompt, chatId, onBackground };
   const results = await Promise.all(
     actions.map((a) => runOne(a, sctx).catch((err) => ({
       key: actionKeyOf(a), action: a, res: { ok: false, output: err.message },
     })))
   );
 
-  // Persist ONE combined assistant message (previously done per-action in the
-  // Telegram renderer). Include failure markers so memory reflects what happened.
-  const memoryParts = results.map((r) => {
-    const meta = ACTION_META[r.key] || { label: 'Action' };
-    return r.res.ok ? r.res.output : `${meta.label} failed: ${r.res.output}`;
-  });
-  await storeMessage(sessionId, 'assistant', memoryParts.join('\n\n'));
+  // Background actions (delegated jobs) deliver + persist their own result later
+  // via onBackground; only the synchronous results are handled here and now.
+  const immediate = results.filter((r) => !r.res.background);
 
-  // Reply text = successful outputs joined (used for voice + fact extraction).
-  const combined = results
+  // Persist ONE combined assistant message for the synchronous results
+  // (previously done per-action in the Telegram renderer). Include failure
+  // markers so memory reflects what happened.
+  if (immediate.length) {
+    const memoryParts = immediate.map((r) => {
+      const meta = ACTION_META[r.key] || { label: 'Action' };
+      return r.res.ok ? r.res.output : `${meta.label} failed: ${r.res.output}`;
+    });
+    await storeMessage(sessionId, 'assistant', memoryParts.join('\n\n'));
+  }
+
+  // Reply text = successful synchronous outputs joined (voice + fact extraction).
+  const combined = immediate
     .filter((r) => r.res.ok && r.res.output)
     .map((r) => r.res.output)
     .join('\n\n');

@@ -216,7 +216,21 @@ export async function askClaude(ctx, textOverride = null) {
     ).catch(() => {});
   };
 
-  const result = await askCore(prompt, { sessionKey: `tg:${chatId}`, source: 'telegram', chatId, onPlan });
+  // Delivery hook for background (delegated) actions that finish after askCore
+  // returns — render them as a follow-up message, plus voice + fact extraction.
+  const onBackground = async ({ key, action, res }) => {
+    const r = await renderOne(ctx, { key, action, res });
+    if (r.ok && r.text) {
+      await maybeSendVoice(ctx, r.text);
+      if (prompt.length > 10) {
+        offerFactExtraction(ctx, prompt, r.text).catch((err) =>
+          console.error('Fact extraction failed:', err.message)
+        );
+      }
+    }
+  };
+
+  const result = await askCore(prompt, { sessionKey: `tg:${chatId}`, source: 'telegram', chatId, onPlan, onBackground });
 
   // Rate-limited or front-model error → edit the thinking message.
   if (!result.ok) {
@@ -232,6 +246,9 @@ export async function askClaude(ctx, textOverride = null) {
   if (result.kind === 'actions') {
     const texts = [];
     for (const run of result.results) {
+      // Background (delegated) actions were only acked in onPlan; their real
+      // result arrives later through onBackground. Skip the ack stub here.
+      if (run.res.background) continue;
       const r = await renderOne(ctx, run);
       if (r.ok && r.text) texts.push(r.text);
     }
