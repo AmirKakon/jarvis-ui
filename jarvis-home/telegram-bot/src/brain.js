@@ -24,6 +24,7 @@ import { frontModel, haikuModel, sonnetModel, opusModel } from './models.js';
 import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
 import { createEvent, listEvents } from './agents/calendar.js';
+import { clockContext } from './utils.js';
 
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -87,7 +88,11 @@ export async function forceNewSession(sessionKey, source = 'telegram') {
 
 // --- Front-layer system prompt ---
 
-const FRONT_SYSTEM_PROMPT = `You are JARVIS — a British AI assistant modelled after the AI from Iron Man, running on a home server (kamuri-mini-pc) in Netanya, Israel.
+// Built at request time so CURRENT TIME stays accurate (models otherwise hallucinate dates).
+function frontSystemPrompt() {
+  return `You are JARVIS — a British AI assistant modelled after the AI from Iron Man, running on a home server (kamuri-mini-pc) in Netanya, Israel.
+
+${clockContext()}
 
 PERSONA:
 - Address the user as "Sir"
@@ -197,6 +202,7 @@ RULES:
 - Several independent requests in one message → return a JSON ARRAY of actions
 - NEVER invent tool call formats like <function_calls>, <tool_use>, or XML tags. Only use the JSON formats above.
 - Never mention actions, models, or architecture to the user. Just respond naturally.`;
+}
 
 // Connected MCP tool providers are declared in ~/jarvis/mcp.json (see
 // services/mcp-client.js). They're injected into the front prompt at runtime so
@@ -215,6 +221,8 @@ ${list}
 - Set "complex": true when the task spans MULTIPLE providers above OR needs multi-step reasoning (e.g. cross-referencing a recipe against inventory, then updating a list). Use false (or omit) for a single simple lookup or action.
 - EXAMPLE (simple): "how many eggs do I have left" → {"mcp": true, "task": "How many eggs are in stock?", "acknowledge": "Checking your inventory, Sir."}
 - EXAMPLE (simple): "add milk to the shopping list" → {"mcp": true, "task": "Add milk to the shopping list", "acknowledge": "Adding milk to your list, Sir."}
+- EXAMPLE (simple): "what's my meal plan for Friday night" → {"mcp": true, "task": "What is on the meal plan for this coming Friday night / dinner?", "acknowledge": "Checking your meal plan, Sir."}
+- EXAMPLE (simple): "what meal plan do you see for the week" → {"mcp": true, "task": "List the meal plan for this week (from today through the coming Sunday)", "acknowledge": "Pulling this week's meals, Sir."}
 - EXAMPLE (bridging): "add the missing ingredients for spaghetti bolognese to my shopping list" → {"mcp": true, "task": "Look up the spaghetti bolognese recipe, check which of its ingredients are missing from my inventory, and add the missing ones to the shopping list", "complex": true, "acknowledge": "Cross-referencing the recipe with your inventory, Sir."}
 - EXAMPLE (bridging): "what can I cook with what's expiring soon" → {"mcp": true, "task": "Find items expiring soon in my inventory, then suggest recipes I can make with them", "complex": true, "acknowledge": "Let me see what needs using up, Sir."}`;
 }
@@ -566,7 +574,7 @@ export async function askCore(prompt, { sessionKey = 'api:default', source = 'ap
   }
   recordTo(frontCallLog);
 
-  const front = await runFrontModel(FRONT_SYSTEM_PROMPT + mcpPromptSection(), contextPrompt);
+  const front = await runFrontModel(frontSystemPrompt() + mcpPromptSection(), contextPrompt);
   if (!front.ok) {
     return { ok: false, kind: 'error', sessionId, text: front.output, results: [] };
   }

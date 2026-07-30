@@ -59,7 +59,7 @@ _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on 
 **Constraints:** Hebrew/English multilingual STT + voices; local wake word (+ optional local Whisper) for privacy; LAN hop is fast, the model call is the latency variable (another reason to wake-word-gate Realtime).
 
 **Phased roadmap:**
-1. **Phase A** — extract the brain behind `/ask` ✅ _done_ (`brain.js` + `server.js`, see prerequisite above). _Remaining for full home voice:_ HA Assist + one Voice PE + "Jarvis" wake word + Whisper → reply via existing TTS. _(The endpoint is ready; this is now HA-side wiring + hardware.)_
+1. **Phase A** — extract the brain behind `/ask` ✅ _done_ (`brain.js` + `server.js`, see prerequisite above). _Remaining for full home voice:_ entity naming/aliases pass (see **Home Assistant** capability #6 — makes voice commands resolve), HA Assist + one Voice PE + "Jarvis" wake word + Whisper → reply via existing TTS. _(The endpoint is ready; this is now HA-side wiring + hardware.)_
 2. **Phase B** — unified `userId` + shared session/memory across surfaces; add HA Companion Assist on phones.
 3. **Phase C** — wake-word-gated Realtime session with function-calling into existing agents; iOS Shortcut + Samsung/Android adapter.
 
@@ -92,6 +92,7 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 3. One data-driven low-battery automation (template/group over all `*_battery` sensors) replacing the 2–3 separate ones; auto-covers new devices.
 4. Harden `red_alert_voice_loop_2` termination — also stop when `binary_sensor.oref_alert` clears (v1 did this), not only on `time_to_shelter`.
 5. Route HA alerts (low battery / CPU / mini-pc offline) through JARVIS (Telegram + actionable buttons) for consistent formatting and one place to manage.
+6. **Entity naming / aliases pass (voice prerequisite)** — audit every exposed entity and give it clean, speakable names + HA aliases so voice ("turn on the living-room AC", "close the office blinds") and JARVIS's HA agent resolve reliably. HA supports multiple aliases per entity (Settings → Voice assistants → Expose, or per-entity aliases) plus friendly-name overrides and area assignment. Do this as part of Voice Phase A/B (see **Voice & Multi-Surface**): decide which entities to expose to Assist, normalise names (drop vendor cruft like `switch.livingroom_ac_plug_2`, IDs, duplicates), add synonyms/aliases, and confirm areas so room-scoped commands work. Feeding the same alias map to JARVIS's `ha` agent keeps text and voice control consistent.
 
 ### Automations
 

@@ -16,6 +16,38 @@ export function run(cmd, { timeout = 30_000, cwd } = {}) {
   });
 }
 
+const TZ = 'Asia/Jerusalem';
+
+/** Human-readable "now" in Israel local time, e.g. "Thursday, 30 July 2026, 09:10". */
+export function nowJerusalem(date = new Date()) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
+/** ISO calendar date (YYYY-MM-DD) in Asia/Jerusalem. */
+export function todayJerusalemISO(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+/** Short block to inject into LLM system prompts so relative dates resolve correctly. */
+export function clockContext() {
+  return `CURRENT TIME (Asia/Jerusalem): ${nowJerusalem()} (ISO date ${todayJerusalemISO()}).
+Use this for any relative date ("today", "tonight", "Friday", "this week", "next weekend"). Never invent or guess the current date.`;
+}
+
 export function escapeHtml(text) {
   return text
     .replace(/&/g, '&amp;')

@@ -1,5 +1,6 @@
 import { getMcpTools, callMcpTool } from '../services/mcp-client.js';
 import { mcpSimpleModel, mcpComplexModel } from '../models.js';
+import { clockContext, nowJerusalem, todayJerusalemISO } from '../utils.js';
 
 // MCP tool-use agent: runs a short tool-calling loop over every tool exposed by
 // the connected MCP servers (see services/mcp-client.js). The front router hands
@@ -15,14 +16,19 @@ import { mcpSimpleModel, mcpComplexModel } from '../models.js';
 // against inventory one by one) before hitting the safety ceiling.
 const MAX_ITERATIONS = { simple: 6, complex: 10 };
 
-const SYSTEM = `You are JARVIS, a British AI assistant, using external tools on the user's behalf.
+function mcpSystemPrompt() {
+  return `You are JARVIS, a British AI assistant, using external tools on the user's behalf.
+
+${clockContext()}
 
 - Use the provided tools to fulfil the request, chaining calls when needed.
 - You may combine tools from DIFFERENT providers in a single task — e.g. read a recipe's ingredients from one provider, then check stock and update a shopping list via another. Chain across them freely to satisfy the request.
 - When matching names across providers (e.g. a recipe ingredient vs. an inventory item), normalise and search rather than expecting an exact string match; suggest sensible alternatives from what's available when something is missing.
+- Resolve relative dates ("Friday night", "this week", "tonight") against the CURRENT TIME above before querying tools. Prefer concrete ISO dates in tool arguments when the tool accepts them.
 - When the user asks to change something (add/consume/finish an item, update a shopping list), perform the action, then confirm concisely what you did.
 - Give a short, clear final answer in British English, addressing the user as "Sir".
 - If the tools return nothing useful or an item can't be found, say so honestly rather than inventing data.`;
+}
 
 const toText = (content) =>
   (content || []).map((c) => (c?.type === 'text' ? c.text : '')).join('');
@@ -45,7 +51,10 @@ export async function runMcpAgent(task, { complex = false } = {}) {
   }
 
   console.log(`[mcp-agent] ${complex ? 'complex' : 'simple'} run on ${model} (max ${maxIterations} rounds)`);
-  const messages = [{ role: 'user', content: task }];
+  // Pin the clock in the user turn too — models attend more reliably to task text
+  // than system text when resolving "Friday" / "this week" for meal-plan tools.
+  const datedTask = `[Today is ${nowJerusalem()} (ISO ${todayJerusalemISO()}, Asia/Jerusalem).]\n\n${task}`;
+  const messages = [{ role: 'user', content: datedTask }];
 
   for (let i = 0; i < maxIterations; i++) {
     let data;
@@ -60,7 +69,7 @@ export async function runMcpAgent(task, { complex = false } = {}) {
         body: JSON.stringify({
           model,
           max_tokens: 2048,
-          system: SYSTEM,
+          system: mcpSystemPrompt(),
           tools,
           messages,
         }),
