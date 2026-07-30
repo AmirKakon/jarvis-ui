@@ -92,3 +92,39 @@ export function startClaudeJob({ prompt, model, label, task }) {
 
   return { id, promise };
 }
+
+// Start a background job that runs an arbitrary async function (e.g. complex MCP
+// agent). Same return shape as startClaudeJob so Telegram /ask can fire-and-follow-up.
+// `run` should resolve to { ok, output } (extra fields are fine).
+export function startAsyncJob({ run, label, task }) {
+  prune();
+  const id = crypto.randomBytes(4).toString('hex');
+  const job = {
+    id,
+    label: label || 'Task',
+    task: task || '',
+    model: 'async',
+    status: 'running',
+    startedAt: Date.now(),
+    finishedAt: null,
+    output: '',
+  };
+  jobs.set(id, job);
+
+  const promise = Promise.resolve()
+    .then(() => run())
+    .then((res) => {
+      job.finishedAt = Date.now();
+      job.status = res?.ok ? 'done' : 'failed';
+      job.output = res?.output || (res?.ok ? 'Done.' : 'Failed.');
+      return { ok: !!res?.ok, output: job.output, status: job.status, ...res };
+    })
+    .catch((err) => {
+      job.finishedAt = Date.now();
+      job.status = 'failed';
+      job.output = err?.message || String(err);
+      return { ok: false, output: job.output, status: job.status };
+    });
+
+  return { id, promise };
+}

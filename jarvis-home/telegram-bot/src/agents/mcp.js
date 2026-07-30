@@ -15,6 +15,10 @@ import { clockContext, nowJerusalem, todayJerusalemISO } from '../utils.js';
 // Complex tasks get more tool-call rounds (e.g. checking many recipe ingredients
 // against inventory one by one) before hitting the safety ceiling.
 const MAX_ITERATIONS = { simple: 6, complex: 10 };
+// Per Anthropic Messages round. Complex/cross-provider runs (Sonnet + many tools)
+// regularly need >90s for a single thinking+tool_use turn.
+const ROUND_TIMEOUT_MS = { simple: 120_000, complex: 240_000 };
+const TOOL_TIMEOUT_MS = 45_000;
 
 function mcpSystemPrompt() {
   return `You are JARVIS, a British AI assistant, using external tools on the user's behalf.
@@ -24,10 +28,20 @@ ${clockContext()}
 - Use the provided tools to fulfil the request, chaining calls when needed.
 - You may combine tools from DIFFERENT providers in a single task — e.g. read a recipe's ingredients from one provider, then check stock and update a shopping list via another. Chain across them freely to satisfy the request.
 - When matching names across providers (e.g. a recipe ingredient vs. an inventory item), normalise and search rather than expecting an exact string match; suggest sensible alternatives from what's available when something is missing.
+- Prefer batch/list tools over one-item-at-a-time lookups when available (e.g. fetch full inventory or shopping list once, then reason locally). Keep tool rounds short.
 - Resolve relative dates ("Friday night", "this week", "tonight") against the CURRENT TIME above before querying tools. Prefer concrete ISO dates in tool arguments when the tool accepts them.
 - When the user asks to change something (add/consume/finish an item, update a shopping list), perform the action, then confirm concisely what you did.
 - Give a short, clear final answer in British English, addressing the user as "Sir".
 - If the tools return nothing useful or an item can't be found, say so honestly rather than inventing data.`;
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    }),
+  ]);
 }
 
 const toText = (content) =>
@@ -50,7 +64,8 @@ export async function runMcpAgent(task, { complex = false } = {}) {
     return { ok: false, output: 'No MCP tools are available. Check ~/jarvis/mcp.json.' };
   }
 
-  console.log(`[mcp-agent] ${complex ? 'complex' : 'simple'} run on ${model} (max ${maxIterations} rounds)`);
+  const roundTimeout = complex ? ROUND_TIMEOUT_MS.complex : ROUND_TIMEOUT_MS.simple;
+  console.log(`[mcp-agent] ${complex ? 'complex' : 'simple'} run on ${model} (max ${maxIterations} rounds, ${roundTimeout / 1000}s/round)`);
   // Pin the clock in the user turn too — models attend more reliably to task text
   // than system text when resolving "Friday" / "this week" for meal-plan tools.
   const datedTask = `[Today is ${nowJerusalem()} (ISO ${todayJerusalemISO()}, Asia/Jerusalem).]\n\n${task}`;
@@ -73,7 +88,7 @@ export async function runMcpAgent(task, { complex = false } = {}) {
           tools,
           messages,
         }),
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(roundTimeout),
       });
 
       if (!res.ok) {
@@ -85,7 +100,10 @@ export async function runMcpAgent(task, { complex = false } = {}) {
       }
       data = await res.json();
     } catch (err) {
-      return { ok: false, output: err.message };
+      const msg = err?.name === 'TimeoutError' || /timed out/i.test(err?.message || '')
+        ? `That tool task took too long (over ${Math.round(roundTimeout / 1000)}s on one step), Sir. Try a narrower ask, or ask me to retry.`
+        : (err.message || String(err));
+      return { ok: false, output: msg };
     }
 
     const toolUses = (data.content || []).filter((b) => b.type === 'tool_use');
@@ -106,7 +124,11 @@ export async function runMcpAgent(task, { complex = false } = {}) {
       }
       try {
         console.log(`[mcp-agent] ${target.server}.${target.tool}(${JSON.stringify(tu.input || {}).slice(0, 200)})`);
-        const r = await callMcpTool(target.server, target.tool, tu.input || {});
+        const r = await withTimeout(
+          callMcpTool(target.server, target.tool, tu.input || {}),
+          TOOL_TIMEOUT_MS,
+          `${target.server}.${target.tool}`,
+        );
         const text = toText(r.content) || JSON.stringify(r.content ?? r);
         results.push({
           type: 'tool_result',

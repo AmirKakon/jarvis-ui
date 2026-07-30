@@ -19,7 +19,7 @@ import { mcpServerSummaries } from './services/mcp-client.js';
 import { runWeatherQuery } from './agents/weather.js';
 import { runJellyfinQuery } from './agents/jellyfin.js';
 import { runSelfDev } from './agents/selfdev.js';
-import { startClaudeJob } from './agents/jobs.js';
+import { startClaudeJob, startAsyncJob } from './agents/jobs.js';
 import { frontModel, haikuModel, sonnetModel, opusModel } from './models.js';
 import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
@@ -458,8 +458,36 @@ async function runOne(action, sctx) {
       return { key, action, res: await runWebFetch(action.url, action.question) };
     case 'compute':
       return { key, action, res: await runCodeExecution(action.task) };
-    case 'mcp':
-      return { key, action, res: await runMcpAgent(action.task || sctx.prompt, { complex: !!action.complex }) };
+    case 'mcp': {
+      const complex = !!action.complex;
+      const task = action.task || sctx.prompt;
+      // Complex/cross-provider MCP (RecipeRack ↔ QRganize, multi-step shopping
+      // lists) can run for several minutes across many tool rounds. On Telegram
+      // fire-and-follow-up so a slow Sonnet turn can't strand the chat; headless
+      // /ask still awaits the full answer.
+      if (complex && sctx.onBackground) {
+        const label = action.acknowledge || ACTION_META.mcp.ack;
+        const { id, promise } = startAsyncJob({
+          label,
+          task,
+          run: () => runMcpAgent(task, { complex: true }),
+        });
+        promise.then(async (res) => {
+          try {
+            await storeMessage(sctx.sessionId, 'assistant', res.ok ? res.output : `Task failed: ${res.output}`);
+          } catch (err) {
+            console.error('[core] mcp background persist failed:', err.message);
+          }
+          try {
+            await sctx.onBackground({ key, action, res });
+          } catch (err) {
+            console.error('[core] mcp onBackground delivery failed:', err.message);
+          }
+        });
+        return { key, action, res: { ok: true, output: label, background: true, jobId: id } };
+      }
+      return { key, action, res: await runMcpAgent(task, { complex }) };
+    }
     case 'jellyfin':
       return { key, action, res: await runJellyfinQuery(action.query || sctx.prompt) };
     case 'ha':
