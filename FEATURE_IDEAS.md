@@ -17,6 +17,7 @@
 - ~~gate auto-open on arrival~~ — Home Assistant automation pair: when the phone (`device_tracker.amir_phone`, GPS) comes within 700 m of `zone.home` **and** the car Bluetooth is connected (`sensor.sm_g981u1_bluetooth_connection`), an actionable notification ("🏠 Almost home / Open the gate?") is pushed to the phone; tapping **🚪 Open gate** opens the Palgate garage cover (`cover.4g600204039`), gated by a 1 km safety check so a stale prompt can't open it from afar. Template-distance trigger fires only on approach (not departure); no extra zone needed. Built directly in HA via the config API.
 - ~~self-development (JARVIS edits its own code)~~ — a `{"selfdev": true, "task": …}` route lets JARVIS modify its **own source** on request ("add a feature to yourself", "make the samba check self-healing", "add a /gpu command"). `agents/selfdev.js` runs an Opus-tier headless `claude` editor scoped to the repo's `jarvis-home/` (cwd-scoped so it can't touch backend/frontend/n8n), then the orchestrator **syntax-checks** every changed `.js` (`node --check`) / `.sh` (`bash -n`), reverts on failure, and only then commits (pathspec-scoped to `jarvis-home`) and pushes to the **currently checked-out branch** — resolved dynamically via `git rev-parse --abbrev-ref HEAD`, so it always matches what the server deploys, no hardcoded branch. Guardrails: opt-in `SELFDEV_ENABLED`, refuses to run if the tree already has uncommitted `jarvis-home` changes, one edit at a time, Opus-rate-limited, records the pre-change SHA for rollback. **Deploy is gated** — a one-tap "🚀 Deploy" button (`commands/deploy.js`) redeploys + restarts via a detached `systemd-run --user` unit (survives the bot's own restart), and the message prints the exact rollback command in case it can't come back. Push auth via optional `GIT_PUSH_TOKEN` (inline credential helper, token never in argv/config). One-time prereq: chown the repo to the bot user + drop `sudo` from the update alias. `agents/selfdev.js`, `commands/deploy.js`
 - ~~Jellyfin media agent~~ — natural-language access to the home media server (`agents/jellyfin.js`, `/jellyfin` command, front router `{"jellyfin": true}`). Haiku classifies intent (search / recommend / recently-added / continue-watching / next-up / now-playing / libraries / scan) and extracts genre + item-type; recommendations draw on the **whole catalogue** (randomised, genre/type-filtered) plus in-progress signals, and Haiku phrases the reply as a concierge over real library data (never invents titles). **Poster thumbnails**: content replies now include an album of primary posters (`/Items/{id}/Images/Primary`) — the bot downloads the bytes (Telegram can't reach the LAN server) and uploads them as a media group with title/year/★rating captions, choosing the titles the summary actually mentions (episodes use the series artwork). Reads config lazily at call time (`JELLYFIN_URL` default `:20002`, `JELLYFIN_TOKEN`, optional `JELLYFIN_USER_ID`).
+- ~~Voice Phase A — OpenAI Assist shim~~ — `server.js` exposes OpenAI-compatible `POST /v1/chat/completions` + `GET /v1/models` over the same `askCore` brain (chat-only; JARVIS keeps device control). HA OpenAI Conversation / Companion Assist can point at `http://<mini-pc>:20010/v1` with `ASK_HTTP_TOKEN`. Set `ASK_HTTP_BIND=0.0.0.0` when HA is on another host. Entity aliases + Assist wiring are the remaining HA-side ops (see Voice & Multi-Surface Phase A checklist). No Voice PE required.
 
 ## 🔧 Planned
 
@@ -39,15 +40,19 @@ _Foundational improvements to how requests are routed and executed — stepping 
 
 _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on every phone — not just Telegram text. We already own ~80% of the pieces (the brain, Home Assistant, TTS, Postgres/PGVector memory), so this is mostly integration._
 
-**Prerequisite — decouple the "brain" from the transport.** ✅ _shipped (the extraction half)._ The brain now lives in `telegram-bot/src/brain.js` as a headless `askCore(prompt, { sessionKey, source, chatId, onPlan })` — session rotation, memory, the front-model router, action dispatch, and assistant-message persistence, all transport-agnostic (returns plain `{ ok, kind, text, results }`, no Telegram `ctx`). `claude.js` is now a thin Telegram adapter that calls `askCore` and renders the result; an embedded HTTP endpoint (`server.js`, `POST /ask` + `GET /health`, bearer-token auth, localhost bind, opt-in via `ASK_HTTP_TOKEN`) exposes the same brain so any surface can capture → send text → speak reply. Session keys are namespaced (`tg:<chatId>`, `api:default`, …); reminders/calendar-create stay Telegram-only for now (they need a real chatId) and degrade gracefully on headless surfaces. _Still TODO:_ an OpenAI-compatible `/v1/chat/completions` shim (so HA's Extended OpenAI Conversation can point straight at JARVIS), audio responses from `/ask`, unified cross-surface `userId`, and consolidating the **two brains** — the Node bot vs the legacy Python FastAPI backend (`jarvis-ui`/`orchestrator.py`) — into one so behaviour/memory don't drift.
+**Prerequisite — decouple the "brain" from the transport.** ✅ _shipped._ The brain lives in `telegram-bot/src/brain.js` as a headless `askCore(prompt, { sessionKey, source, chatId, onPlan })` — session rotation, memory, the front-model router, action dispatch, and assistant-message persistence, all transport-agnostic (returns plain `{ ok, kind, text, results }`, no Telegram `ctx`). `claude.js` is a thin Telegram adapter; `server.js` exposes the same brain over HTTP (opt-in via `ASK_HTTP_TOKEN`):
+- `POST /ask` — JARVIS-native `{ text, sessionKey?, source? }`
+- `POST /v1/chat/completions` + `GET /v1/models` — **OpenAI-compatible chat-only shim** for HA OpenAI Conversation / Assist (no tools advertised; JARVIS owns all agency inside `askCore`). Session keys: `ha:<user|conversation_id>` or `ha:default`.
+- `GET /health` — liveness
+
+Default bind is localhost; for HA on another host set `ASK_HTTP_BIND=0.0.0.0` and point Assist at `http://<mini-pc-ip>:20010/v1` with API key = `ASK_HTTP_TOKEN`. Session keys are namespaced (`tg:<chatId>`, `ha:…`, `api:default`); reminders/calendar-create stay Telegram-only for now and degrade gracefully on headless surfaces. _Still TODO:_ audio responses from `/ask`, unified cross-surface `userId`, consolidating the **two brains** (Node bot vs legacy Python FastAPI) so behaviour/memory don't drift.
 
 **Unified identity + shared memory.** Memory is currently keyed by Telegram `chatId`. Introduce a stable `userId` that every surface attaches, backed by the existing Postgres store, so a conversation started on the kitchen mic continues on the phone and shows up in Telegram history.
 
 **In-home mic → Home Assistant is the hub.** Reuse HA's Assist pipeline instead of building mic/wake-word infra:
-- Hardware: [Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/) puck (~$60, ESP32-S3) per room, or a repurposed phone / Pi + mic.
-- Wake word: `openWakeWord` runs locally — enable **"Jarvis"** so nothing leaves the house until spoken (privacy win).
-- STT: local Whisper (handles Hebrew + English) or cloud STT.
-- Wiring: set HA Assist's conversation agent to hit the JARVIS `/ask` endpoint; speak → satellite → STT → JARVIS brain → existing TTS back out the speaker.
+- **Now (no Voice PE):** HA Companion Assist (phone mic / Assist UI) → OpenAI Conversation → JARVIS `/v1/chat/completions`.
+- **Later (optional hardware):** [Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/) puck (~$60) or a Pi + mic; local `openWakeWord` ("Jarvis"); Whisper STT — same Assist → JARVIS pipeline, no brain changes.
+- Wiring: HA OpenAI Conversation Base URL `http://<mini-pc>:20010/v1`, API key = `ASK_HTTP_TOKEN`, model `jarvis`; set that agent as the Assist conversation agent. Chat-only — do **not** enable Extended OpenAI `execute_service` functions (JARVIS already controls devices via its `ha` agent).
 
 **Realtime API (phase-2 UX upgrade).** [OpenAI Realtime](https://platform.openai.com/docs/guides/realtime) / Gemini Live give speech-to-speech (~300ms, barge-in) for a natural conversation feel. Trade-offs: (a) gate it behind the local wake word — never stream continuously — to control cost; (b) it bypasses the tiered Haiku-router, so bridge via **function calling**: the fast conversational model handles chit-chat and calls into existing agents (`ha`, `remind`, `research`, `delegate`…) for real work.
 
@@ -59,8 +64,14 @@ _Goal: talk to JARVIS out loud — a mic in the house and the same assistant on 
 **Constraints:** Hebrew/English multilingual STT + voices; local wake word (+ optional local Whisper) for privacy; LAN hop is fast, the model call is the latency variable (another reason to wake-word-gate Realtime).
 
 **Phased roadmap:**
-1. **Phase A** — extract the brain behind `/ask` ✅ _done_ (`brain.js` + `server.js`, see prerequisite above). _Remaining for full home voice:_ entity naming/aliases pass (see **Home Assistant** capability #6 — makes voice commands resolve), HA Assist + one Voice PE + "Jarvis" wake word + Whisper → reply via existing TTS. _(The endpoint is ready; this is now HA-side wiring + hardware.)_
-2. **Phase B** — unified `userId` + shared session/memory across surfaces; add HA Companion Assist on phones.
+1. **Phase A** — ✅ _brain + OpenAI shim shipped_ (`brain.js` + `server.js` `/ask` and `/v1/chat/completions`). **Companion Assist path** (no Voice PE owned yet):
+   1. Mini-pc: `ASK_HTTP_BIND=0.0.0.0`, `ASK_HTTP_TOKEN` set, `jarvis-update` / restart bot; open firewall TCP 20010 from HA if needed.
+   2. HA: Settings → Devices → add **OpenAI Conversation** — Base URL `http://<mini-pc-ip>:20010/v1`, API key = token, model `jarvis`.
+   3. Voice assistants → Assist: set conversation agent to that integration; keep preferred TTS.
+   4. **Entity aliases pass** (capability #6 below) — areas, expose list, friendly names, synonyms for AC / lights / gate.
+   5. Smoke tests (Assist UI or Companion): “What's the date?”, “Turn on the bathroom light”, “What's for Friday dinner?” — confirm JARVIS persona + bot logs `[ask-http]` / `[front]`.
+   _Later:_ optional Voice PE + openWakeWord + Whisper on the same pipeline.
+2. **Phase B** — unified `userId` + shared session/memory across surfaces; harden Companion as the daily phone surface.
 3. **Phase C** — wake-word-gated Realtime session with function-calling into existing agents; iOS Shortcut + Samsung/Android adapter.
 
 ### Home Assistant (config review & backlog)
@@ -92,7 +103,13 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 3. One data-driven low-battery automation (template/group over all `*_battery` sensors) replacing the 2–3 separate ones; auto-covers new devices.
 4. Harden `red_alert_voice_loop_2` termination — also stop when `binary_sensor.oref_alert` clears (v1 did this), not only on `time_to_shelter`.
 5. Route HA alerts (low battery / CPU / mini-pc offline) through JARVIS (Telegram + actionable buttons) for consistent formatting and one place to manage.
-6. **Entity naming / aliases pass (voice prerequisite)** — audit every exposed entity and give it clean, speakable names + HA aliases so voice ("turn on the living-room AC", "close the office blinds") and JARVIS's HA agent resolve reliably. HA supports multiple aliases per entity (Settings → Voice assistants → Expose, or per-entity aliases) plus friendly-name overrides and area assignment. Do this as part of Voice Phase A/B (see **Voice & Multi-Surface**): decide which entities to expose to Assist, normalise names (drop vendor cruft like `switch.livingroom_ac_plug_2`, IDs, duplicates), add synonyms/aliases, and confirm areas so room-scoped commands work. Feeding the same alias map to JARVIS's `ha` agent keeps text and voice control consistent.
+6. **Entity naming / aliases pass (voice prerequisite)** — audit every exposed entity and give it clean, speakable names + HA aliases so voice ("turn on the living-room AC", "close the office blinds") and JARVIS's HA agent resolve reliably. JARVIS `agents/ha.js` already matches on `friendly_name` + `entity_id`, so cleaning names helps Telegram and Assist equally. Do this as part of Voice Phase A (see **Voice & Multi-Surface**):
+   1. **Areas** — assign rooms (Living room, Bathroom, Work room, …).
+   2. **Expose** — Settings → Voice assistants → Expose only entities you want voice to touch (lights, covers, AC scripts, gate); hide sensors/noise.
+   3. **Friendly names** — speakable (`Living room AC`, not `Livingroom Ac Plug 2`); drop vendor cruft / IDs / duplicates.
+   4. **Aliases** — synonyms per entity (`AC`, `air con`, `living room air conditioner`).
+   5. **First-pass priority:** living-room AC scripts / mode, bathroom + work-room lights, gate/cover, a few common switches.
+   _Optional later:_ feed HA aliases into the HA agent prompt if friendly names alone are insufficient.
 
 ### Automations
 
