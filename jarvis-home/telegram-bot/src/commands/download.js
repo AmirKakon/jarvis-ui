@@ -47,7 +47,7 @@ async function qbtLogin() {
     { timeout: 10_000 }
   );
   if (ok && output.includes('SID')) {
-    const match = output.match(/SID\s+(\S+)/);
+    const match = output.match(/QBT_SID(?:_\d+)?\s+(\S+)/);
     if (match) sid = match[1];
     loginCooldownUntil = 0;
     return true;
