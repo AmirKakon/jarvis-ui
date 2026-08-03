@@ -215,8 +215,11 @@ async function handleAdd(ctx, input, category) {
     return editOrReply(ctx, placeholder.message_id, `🔴 ${escapeHtml(output)}`);
   }
 
-  // qBT returns plain "Ok." on success; anything else (incl. "Fails.") is a real failure.
-  if (!/^Ok\.?\s*$/i.test(output.trim())) {
+  // Success shapes:
+  //   classic: plain "Ok."
+  //   newer qBT: JSON { success_count, added_torrent_ids, failure_count, … }
+  // Failures: "Fails." or JSON with failure_count > 0 / success_count === 0
+  if (!isTorrentsAddSuccess(output)) {
     return editOrReply(ctx, placeholder.message_id,
       `🔴 qBittorrent refused the torrent: ${code(output.slice(0, 200) || '(empty)')}`
     );
@@ -226,6 +229,23 @@ async function handleAdd(ctx, input, category) {
   return editOrReply(ctx, placeholder.message_id,
     `🟢 Torrent added${catInfo}\n\nHash: ${code(hash)}\n\nUse /download list to check progress.`
   );
+}
+
+function isTorrentsAddSuccess(body) {
+  const text = (body || '').trim();
+  if (!text) return false;
+  if (/^Ok\.?\s*$/i.test(text)) return true;
+  if (/^Fails\.?\s*$/i.test(text)) return false;
+  try {
+    const j = JSON.parse(text);
+    if (typeof j.success_count === 'number') {
+      return j.success_count > 0 && !(j.failure_count > 0);
+    }
+    if (Array.isArray(j.added_torrent_ids) && j.added_torrent_ids.length > 0) {
+      return !(j.failure_count > 0);
+    }
+  } catch { /* not JSON */ }
+  return false;
 }
 
 async function handleList(ctx) {
