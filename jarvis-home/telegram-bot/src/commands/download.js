@@ -1,5 +1,8 @@
-import { readFileSync, writeFileSync, unlinkSync, readdirSync, existsSync, statSync } from 'node:fs';
-import { basename, dirname } from 'node:path';
+import {
+  readFileSync, writeFileSync, unlinkSync, readdirSync, existsSync, statSync,
+  mkdirSync, renameSync, cpSync, rmSync,
+} from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { Markup } from 'telegraf';
 import { run, bold, code, pre, escapeHtml, sendLong, editOrReply } from '../utils.js';
 import { haikuModel } from '../models.js';
@@ -332,23 +335,65 @@ async function handleOrganizeConfirm(ctx, shortHash) {
   await ctx.answerCbQuery('Moving...');
 
   const dest = meta.destination;
-  const src = meta.source_file;
-  const isDir = meta.is_dir === true || meta.is_dir === 'true';
+  let src = meta.source_file;
 
-  let moveCmd;
-  if (isDir) {
-    moveCmd = `mkdir -p "$(dirname "${dest}")" && mv "${src}" "${dest}"`;
-  } else {
-    const destDir = dest.replace(/\/[^/]+$/, '');
-    moveCmd = `mkdir -p "${destDir}" && mv "${src}" "${dest}"`;
+  // Re-resolve if the path went stale (qBT content_path often lags / differs).
+  if (!existsSync(src) && meta.hash) {
+    const { ok, output } = await qbtApi(`torrents/info?hashes=${meta.hash}`);
+    if (ok) {
+      try {
+        const [t] = JSON.parse(output);
+        if (t) {
+          const resolved = resolveHostSource(t);
+          if (resolved.path) {
+            src = resolved.path;
+            meta.source_file = src;
+            meta.is_dir = resolved.isDir;
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }
+  if (!existsSync(src)) {
+    const hint = findUnderDownloads(meta.title || basename(src));
+    if (hint) {
+      src = hint;
+      meta.source_file = src;
+      meta.is_dir = statSync(src).isDirectory();
+    }
   }
 
-  const { ok, output } = await run(moveCmd, { timeout: 30_000 });
-
-  if (!ok) {
-    return ctx.replyWithHTML(`🔴 Move failed:\n${pre(output)}`);
+  // Already organized (e.g. previous move, Radarr, or manual) — treat as success.
+  if (!existsSync(src) && pathExists(dest)) {
+    return finishOrganize(ctx, pendingFile, meta, dest, { alreadyThere: true });
   }
 
+  if (!existsSync(src)) {
+    const maybe = findAlreadyOrganized(meta);
+    if (maybe) {
+      return finishOrganize(ctx, pendingFile, meta, maybe, { alreadyThere: true });
+    }
+    return ctx.replyWithHTML(
+      `🔴 Move failed — source not found:\n${pre(src)}\n\n` +
+      `<i>If it’s already under movies/tv-shows, you’re done — tap Skip on leftover prompts ` +
+      `and remove the torrent from qBittorrent if it’s still listed.</i>`
+    );
+  }
+
+  if (pathExists(dest) && sameInodeOrName(src, dest)) {
+    return finishOrganize(ctx, pendingFile, meta, dest, { alreadyThere: true });
+  }
+
+  const isDir = meta.is_dir === true || meta.is_dir === 'true' || statSync(src).isDirectory();
+  const moved = movePath(src, dest, isDir);
+  if (!moved.ok) {
+    return ctx.replyWithHTML(`🔴 Move failed:\n${pre(moved.output)}`);
+  }
+
+  return finishOrganize(ctx, pendingFile, meta, dest, { alreadyThere: false });
+}
+
+async function finishOrganize(ctx, pendingFile, meta, dest, { alreadyThere }) {
   try { unlinkSync(pendingFile); } catch { /* ignore */ }
 
   // Remove torrent from qBittorrent (files already moved, skip for orphans)
@@ -363,12 +408,14 @@ async function handleOrganizeConfirm(ctx, shortHash) {
     { timeout: 10_000 }
   );
 
-  const shortDest = dest.replace(/.*shared-storage-2\//, '');
-  await editOrReply(
-    ctx,
-    ctx.callbackQuery?.message?.message_id,
-    `🟢 <b>Organized</b>\n\nMoved to:\n<code>${escapeHtml(shortDest)}</code>`
-  );
+  const shortDest = shortSharedPath(dest);
+  const header = alreadyThere
+    ? `🟢 <b>Already in place</b>`
+    : `🟢 <b>Organized</b>`;
+  const body = alreadyThere
+    ? `Found at:\n<code>${escapeHtml(shortDest)}</code>`
+    : `Moved to:\n<code>${escapeHtml(shortDest)}</code>`;
+  await editOrReply(ctx, ctx.callbackQuery?.message?.message_id, `${header}\n\n${body}`);
 }
 
 async function handleOrganizeEdit(ctx, shortHash) {
@@ -446,7 +493,131 @@ function titleCase(str) {
 }
 
 function containerToHostPath(containerPath) {
-  return containerPath.replace(/^\/downloads/, DOWNLOADS_HOST);
+  if (!containerPath) return '';
+  return String(containerPath)
+    .replace(/^\/downloads\/?/, `${DOWNLOADS_HOST}/`)
+    .replace(/\/+$/, '') || DOWNLOADS_HOST;
+}
+
+/** Map qBT torrent fields → host path under shared-storage-2. */
+function resolveHostSource(t) {
+  const candidates = [t.content_path, t.save_path && join(t.save_path, t.name), t.save_path]
+    .filter(Boolean)
+    .map(containerToHostPath);
+  for (const path of candidates) {
+    if (path && existsSync(path)) {
+      return { path, isDir: statSync(path).isDirectory() };
+    }
+  }
+  // Last resort: look under downloads by torrent name / basename
+  const byName = findUnderDownloads(t.name) || findUnderDownloads(basename(t.content_path || ''));
+  if (byName) return { path: byName, isDir: statSync(byName).isDirectory() };
+  return { path: candidates[0] || '', isDir: false };
+}
+
+function pathExists(p) {
+  try { return !!(p && existsSync(p)); } catch { return false; }
+}
+
+function sameInodeOrName(a, b) {
+  try {
+    if (!existsSync(a) || !existsSync(b)) return false;
+    const sa = statSync(a);
+    const sb = statSync(b);
+    if (sa.ino && sb.ino && sa.dev === sb.dev && sa.ino === sb.ino) return true;
+    return basename(a) === basename(b) && sa.size === sb.size;
+  } catch { return false; }
+}
+
+/** Shallow + one-level search under downloads for a name/title fragment. */
+function findUnderDownloads(nameHint) {
+  if (!nameHint || !existsSync(DOWNLOADS_HOST)) return null;
+  const needle = normalizeName(nameHint);
+  if (!needle) return null;
+  try {
+    for (const name of readdirSync(DOWNLOADS_HOST)) {
+      if (name === 'incomplete' || name.startsWith('.')) continue;
+      const full = join(DOWNLOADS_HOST, name);
+      if (normalizeName(name).includes(needle) || needle.includes(normalizeName(name))) {
+        return full;
+      }
+      try {
+        if (!statSync(full).isDirectory()) continue;
+        for (const child of readdirSync(full)) {
+          if (normalizeName(child).includes(needle) || needle.includes(normalizeName(child))) {
+            return join(full, child);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/** If source is gone, look for a matching folder under movies/tv by title. */
+function findAlreadyOrganized(meta) {
+  if (pathExists(meta.destination)) return meta.destination;
+  const title = meta.title;
+  if (!title) return null;
+  const roots = meta.type === 'tv' ? [TV_HOST] : meta.type === 'movie' ? [MOVIES_HOST] : [MOVIES_HOST, TV_HOST];
+  const needle = normalizeName(title);
+  for (const root of roots) {
+    if (!existsSync(root)) continue;
+    try {
+      for (const name of readdirSync(root)) {
+        const n = normalizeName(name);
+        if (n.includes(needle) || needle.includes(n)) {
+          const full = join(root, name);
+          if (meta.year && !name.includes(String(meta.year)) && !n.includes(String(meta.year))) {
+            // year mismatch — keep looking unless it's the only hit later
+            continue;
+          }
+          return full;
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  // Year-less fallback: first title match
+  for (const root of roots) {
+    if (!existsSync(root)) continue;
+    try {
+      for (const name of readdirSync(root)) {
+        const n = normalizeName(name);
+        if (n.includes(needle) || needle.includes(n)) return join(root, name);
+      }
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+function normalizeName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\[.*?\]/g, ' ')
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** Move file/dir with rename; fall back to copy+rm across devices. */
+function movePath(src, dest, isDir) {
+  try {
+    mkdirSync(dirname(dest), { recursive: true });
+    if (existsSync(dest)) {
+      return { ok: false, output: `destination already exists: ${dest}` };
+    }
+    try {
+      renameSync(src, dest);
+      return { ok: true, output: '' };
+    } catch (err) {
+      if (err.code !== 'EXDEV') throw err;
+      cpSync(src, dest, { recursive: !!isDir });
+      rmSync(src, { recursive: !!isDir, force: true });
+      return { ok: true, output: '' };
+    }
+  } catch (err) {
+    return { ok: false, output: err.message || String(err) };
+  }
 }
 
 function parseTorrentName(name, containerContentPath, category = '') {
@@ -554,21 +725,58 @@ const COMPLETED_STATES = new Set([
 function scanOrphanedDownloads(knownTorrents) {
   if (!existsSync(DOWNLOADS_HOST)) return [];
 
-  const knownNames = new Set(knownTorrents.map(t => basename(t.content_path)));
+  const knownNames = new Set(knownTorrents.map(t => basename(t.content_path || '')));
+  const skipNames = new Set(['incomplete', 'temp', '.incomplete']);
   const entries = [];
 
   try {
     for (const name of readdirSync(DOWNLOADS_HOST)) {
-      if (name.startsWith('.') || knownNames.has(name)) continue;
-      const fullPath = `${DOWNLOADS_HOST}/${name}`;
+      if (name.startsWith('.') || knownNames.has(name) || skipNames.has(name.toLowerCase())) continue;
+      const fullPath = join(DOWNLOADS_HOST, name);
       try {
-        const isDir = statSync(fullPath).isDirectory();
+        const st = statSync(fullPath);
+        const isDir = st.isDirectory();
+        // Skip empty dirs (e.g. leftover incomplete/ mirrors) — nothing to organize.
+        if (isDir) {
+          const kids = readdirSync(fullPath).filter(n => !n.startsWith('.'));
+          if (!kids.length) continue;
+        } else if (st.size === 0) {
+          continue;
+        }
         entries.push({ name, path: fullPath, isDir });
       } catch { /* stat failed */ }
     }
   } catch { /* readdir failed */ }
 
   return entries;
+}
+
+/** Ensure Claude/regex meta always has usable paths before UI / move. */
+function normalizeOrganizeMeta(meta, entry) {
+  const fallbackSrc = entry?.path || meta?.source_file || '';
+  const fallbackName = entry?.name || basename(fallbackSrc) || 'unknown';
+  const out = meta && typeof meta === 'object' ? { ...meta } : {};
+  out.title = out.title || fallbackName;
+  out.type = out.type || 'unknown';
+  out.quality = out.quality || 'unknown';
+  out.source_file = out.source_file || fallbackSrc;
+  out.is_dir = out.is_dir === true || out.is_dir === 'true' ||
+    (out.source_file && existsSync(out.source_file) && statSync(out.source_file).isDirectory());
+  if (!out.destination || typeof out.destination !== 'string') {
+    out.destination = out.type === 'tv'
+      ? `${TV_HOST}/${out.title}/${basename(out.source_file || fallbackName)}`
+      : `${MOVIES_HOST}/${out.title}`;
+  }
+  // Claude sometimes returns a relative or placeholder destination
+  if (!out.destination.startsWith('/')) {
+    out.destination = `${HOME}/shared-storage-2/${out.destination.replace(/^shared-storage-2\//, '')}`;
+  }
+  return out;
+}
+
+function shortSharedPath(p) {
+  const s = String(p || '');
+  return s.replace(/.*shared-storage-2\//, '') || s || '(unknown path)';
 }
 
 async function handleOrganize(ctx) {
@@ -607,16 +815,7 @@ async function handleOrganize(ctx) {
 
       let meta = parseTorrentName(entry.name, `/downloads/${entry.name}`, '');
       if (!meta) meta = await claudeParseFallback(entry.name, `/downloads/${entry.name}`);
-      if (!meta) {
-        meta = {
-          type: 'unknown',
-          title: entry.name,
-          quality: 'unknown',
-          is_dir: entry.isDir,
-          source_file: entry.path,
-          destination: `${DOWNLOADS_HOST}/${entry.name}`,
-        };
-      }
+      meta = normalizeOrganizeMeta(meta, entry);
 
       meta.hash = fakeHash;
       meta.orphan = true;
@@ -629,7 +828,7 @@ async function handleOrganize(ctx) {
       }
 
       const icon = meta.type === 'tv' ? '📺' : meta.type === 'movie' ? '🎬' : '❓';
-      const shortDest = meta.destination.replace(new RegExp(`^${HOME}/`), '');
+      const shortDest = shortSharedPath(meta.destination);
 
       await ctx.replyWithHTML(
         [
@@ -659,19 +858,12 @@ async function handleOrganize(ctx) {
 
     let meta = parseTorrentName(t.name, t.content_path, t.category);
     if (!meta) meta = await claudeParseFallback(t.name, t.content_path);
-
-    if (!meta) {
-      const hostPath = containerToHostPath(t.content_path);
-      const isDir = existsSync(hostPath) && statSync(hostPath).isDirectory();
-      meta = {
-        type: 'unknown',
-        title: t.name,
-        quality: 'unknown',
-        is_dir: isDir,
-        source_file: hostPath,
-        destination: `${DOWNLOADS_HOST}/${basename(hostPath)}`,
-      };
-    }
+    const hostPath = containerToHostPath(t.content_path);
+    meta = normalizeOrganizeMeta(meta, {
+      name: t.name,
+      path: hostPath || join(DOWNLOADS_HOST, t.name),
+      isDir: hostPath && existsSync(hostPath) ? statSync(hostPath).isDirectory() : false,
+    });
 
     meta.hash = t.hash;
 
@@ -683,7 +875,7 @@ async function handleOrganize(ctx) {
     }
 
     const icon = meta.type === 'tv' ? '📺' : meta.type === 'movie' ? '🎬' : '❓';
-    const shortDest = meta.destination.replace(new RegExp(`^${HOME}/`), '');
+    const shortDest = shortSharedPath(meta.destination);
 
     await ctx.replyWithHTML(
       [
