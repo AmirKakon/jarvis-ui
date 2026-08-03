@@ -8,7 +8,7 @@ import { networkCommand, networkRefresh } from './commands/network.js';
 import { servicesCommand, servicesRefresh } from './commands/services.js';
 import { haCommand, haCallback } from './commands/ha.js';
 import { n8nCommand } from './commands/n8n.js';
-import { downloadCommand, downloadCallback, downloadRefresh, handlePendingDownloadEdit } from './commands/download.js';
+import { downloadCommand, downloadCallback, downloadRefresh, handlePendingDownloadEdit, tryDownloadFromText } from './commands/download.js';
 import { askClaude, askOpusDirect, closePool, toggleVoice, setVoice, getVoiceStatus, VALID_VOICES } from './claude.js';
 import { storeFact, getPendingBatch, deletePendingBatch } from './memory.js';
 import {
@@ -324,9 +324,10 @@ bot.on('sticker', handleSticker);
 bot.on('location', handleLocation);
 bot.on('contact', handleContact);
 
-// --- Free-text: check pending download edit first, then Claude ---
-bot.on('text', (ctx, next) => {
+// --- Free-text: pending download edit → Stremio/magnet/hash → Claude ---
+bot.on('text', async (ctx, next) => {
   if (handlePendingDownloadEdit(ctx)) return;
+  if (await tryDownloadFromText(ctx)) return;
   return next();
 });
 bot.on('text', askClaude);

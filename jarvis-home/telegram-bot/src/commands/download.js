@@ -19,6 +19,35 @@ const QBT_PASS = () => process.env.QBT_PASSWORD || '';
 let sid = '';
 let loginCooldownUntil = 0;
 
+/** qBittorrent CSRF: Referer/Origin must match the WebUI host:port exactly. */
+function qbtHeaders() {
+  const base = QBT_URL().replace(/\/$/, '');
+  return `-H "Referer: ${base}/" -H "Origin: ${base}"`;
+}
+
+function qbtCookieFlag(sessionId) {
+  let port = '20008';
+  try { port = new URL(QBT_URL()).port || port; } catch { /* keep default */ }
+  // Classic cookie name is SID; some builds use QBT_SID_<port>.
+  return `-b "SID=${sessionId}; QBT_SID_${port}=${sessionId}"`;
+}
+
+function splitHttpCode(output) {
+  const lines = (output || '').split('\n');
+  const httpCode = (lines.pop() || '').trim();
+  return { httpCode, body: lines.join('\n').trim() };
+}
+
+function parseSidCookie(cookieJarText) {
+  // Prefer QBT_SID_<port> (newer linuxserver/qBT), then classic SID.
+  // Netscape jar: …\tQBT_SID_20008\tvalue   or Set-Cookie: SID=value
+  const m = cookieJarText.match(/(?:^|\s)QBT_SID(?:_\d+)?\s+(\S+)/m)
+    || cookieJarText.match(/Set-Cookie:\s*QBT_SID(?:_\d+)?=([^;\s]+)/i)
+    || cookieJarText.match(/(?:^|\s)SID\s+(\S+)/m)
+    || cookieJarText.match(/Set-Cookie:\s*SID=([^;\s]+)/i);
+  return m ? m[1] : '';
+}
+
 async function diagnoseUnreachable() {
   const { ok: loopback } = await run('ping -c 1 -W 2 127.0.0.1', { timeout: 5_000 });
   if (!loopback) return 'System networking is down entirely.';
@@ -41,51 +70,89 @@ async function qbtLogin() {
   if (Date.now() < loginCooldownUntil) {
     return false;
   }
+  const user = encodeURIComponent(QBT_USER());
+  const pass = encodeURIComponent(QBT_PASS());
   const { ok, output } = await run(
-    `curl -s -c - -X POST "${QBT_URL()}/api/v2/auth/login" ` +
-    `-d "username=${QBT_USER()}&password=${QBT_PASS()}"`,
+    `curl -sS -i ${qbtHeaders()} -X POST "${QBT_URL()}/api/v2/auth/login" ` +
+    `-d "username=${user}&password=${pass}"`,
     { timeout: 10_000 }
   );
-  if (ok && output.includes('SID')) {
-    const match = output.match(/QBT_SID(?:_\d+)?\s+(\S+)/);
-    if (match) sid = match[1];
+  const cookieSid = parseSidCookie(output);
+  if (ok && cookieSid) {
+    sid = cookieSid;
     loginCooldownUntil = 0;
     return true;
   }
-  console.error(`qBT login failed: ok=${ok} output=${output}`);
+  // Fallback: netscape cookie jar style (-c -)
+  const jar = await run(
+    `curl -sS ${qbtHeaders()} -c - -X POST "${QBT_URL()}/api/v2/auth/login" ` +
+    `-d "username=${user}&password=${pass}"`,
+    { timeout: 10_000 }
+  );
+  const jarSid = parseSidCookie(jar.output || '');
+  if (jar.ok && jarSid) {
+    sid = jarSid;
+    loginCooldownUntil = 0;
+    return true;
+  }
+  console.error(`qBT login failed: ok=${ok} output=${(output || '').slice(0, 300)}`);
   loginCooldownUntil = Date.now() + 60_000;
+  sid = '';
   return false;
 }
 
-async function qbtApi(endpoint, method = 'GET', body = null) {
+async function qbtRequest(endpoint, method = 'GET', formData = null) {
   if (!sid) {
-    if (!await qbtLogin()) return { ok: false, output: 'qBittorrent login failed — check credentials in ~/jarvis/.env' };
+    if (!await qbtLogin()) {
+      return { ok: false, httpCode: '0', output: 'qBittorrent login failed — check QBT_USERNAME / QBT_PASSWORD in ~/jarvis/.env' };
+    }
   }
-  const bodyFlag = body ? `-d '${body}'` : '';
+
+  const formFlags = formData || '';
   const curlCmd = (sessionId) =>
-    `curl -sS -w "\\n%{http_code}" -X ${method} -b "SID=${sessionId}" ` +
-    `${bodyFlag} "${QBT_URL()}/api/v2/${endpoint}"`;
+    `curl -sS -w "\\n%{http_code}" -X ${method} ${qbtHeaders()} ${qbtCookieFlag(sessionId)} ` +
+    `${formFlags} "${QBT_URL()}/api/v2/${endpoint}"`;
 
-  const { ok, output } = await run(curlCmd(sid), { timeout: 15_000 });
+  const once = async (sessionId) => {
+    const { ok, output } = await run(curlCmd(sessionId), { timeout: 15_000 });
+    const { httpCode, body } = splitHttpCode(output);
+    return { curlOk: ok, httpCode, body };
+  };
 
-  // Extract HTTP status code from last line
-  const lines = output.split('\n');
-  const httpCode = lines.pop()?.trim();
-  const responseBody = lines.join('\n');
+  let res = await once(sid);
 
-  if (httpCode === '403' || (!ok && /403|Forbidden/i.test(output))) {
+  // Stale session or CSRF rejection → fresh login + one retry.
+  if (res.httpCode === '403' || /Forbidden/i.test(res.body)) {
     sid = '';
-    if (!await qbtLogin()) return { ok: false, output: 'qBittorrent session expired and re-login failed' };
-    const retry = await run(curlCmd(sid), { timeout: 15_000 });
-    return { ok: retry.ok, output: retry.ok ? retry.output.split('\n').slice(0, -1).join('\n') : 'qBittorrent request failed after re-login' };
+    if (!await qbtLogin()) {
+      return { ok: false, httpCode: '403', output: 'qBittorrent Forbidden — session expired and re-login failed. Check credentials / WebUI CSRF settings.' };
+    }
+    res = await once(sid);
   }
 
-  if (!ok) {
+  if (res.httpCode === '403' || /Forbidden/i.test(res.body)) {
+    return {
+      ok: false,
+      httpCode: '403',
+      output: 'qBittorrent Forbidden (CSRF/auth). Ensure QBT_URL matches the WebUI (e.g. http://localhost:20008) and credentials in ~/jarvis/.env are correct.',
+    };
+  }
+
+  if (!res.curlOk || !res.httpCode || res.httpCode[0] === '0') {
     const diagnosis = await diagnoseUnreachable();
-    return { ok: false, output: diagnosis || 'qBittorrent is unreachable.' };
+    return { ok: false, httpCode: res.httpCode || '0', output: diagnosis || 'qBittorrent is unreachable.' };
   }
 
-  return { ok: true, output: responseBody };
+  if (res.httpCode[0] !== '2') {
+    return { ok: false, httpCode: res.httpCode, output: `qBittorrent HTTP ${res.httpCode}: ${res.body.slice(0, 200) || '(empty)'}` };
+  }
+
+  return { ok: true, httpCode: res.httpCode, output: res.body };
+}
+
+async function qbtApi(endpoint, method = 'GET', body = null) {
+  const form = body ? `-d '${body}'` : '';
+  return qbtRequest(endpoint, method, form);
 }
 
 function extractHash(input) {
@@ -139,32 +206,19 @@ async function handleAdd(ctx, input, category) {
   const magnetUri = isMagnet ? input : buildMagnet(hash);
   const placeholder = await ctx.replyWithHTML('<i>Adding torrent...</i>');
 
-  if (!sid) await qbtLogin();
+  let form = `--data-urlencode "urls=${magnetUri}" --data-urlencode "savepath=/downloads"`;
+  if (category) form += ` --data-urlencode "category=${category}"`;
 
-  const buildAddCmd = (sessionId) => {
-    let c = `curl -sS -w "\\n%{http_code}" -X POST -b "SID=${sessionId}" ` +
-      `--data-urlencode "urls=${magnetUri}" ` +
-      `--data-urlencode "savepath=/downloads" `;
-    if (category) c += `--data-urlencode "category=${category}" `;
-    c += `"${QBT_URL()}/api/v2/torrents/add"`;
-    return c;
-  };
-
-  let { ok, output } = await run(buildAddCmd(sid), { timeout: 15_000 });
-
-  // Check for 403 (stale session)
-  if (!ok || /403|Forbidden/i.test(output)) {
-    sid = '';
-    await qbtLogin();
-    if (sid) {
-      ({ ok, output } = await run(buildAddCmd(sid), { timeout: 15_000 }));
-    }
-  }
+  const { ok, output } = await qbtRequest('torrents/add', 'POST', form);
 
   if (!ok) {
-    const diagnosis = await diagnoseUnreachable();
+    return editOrReply(ctx, placeholder.message_id, `🔴 ${escapeHtml(output)}`);
+  }
+
+  // qBT returns plain "Ok." on success; anything else (incl. "Fails.") is a real failure.
+  if (!/^Ok\.?\s*$/i.test(output.trim())) {
     return editOrReply(ctx, placeholder.message_id,
-      `🔴 ${diagnosis || 'Failed to add torrent — qBittorrent unreachable.'}`
+      `🔴 qBittorrent refused the torrent: ${code(output.slice(0, 200) || '(empty)')}`
     );
   }
 
@@ -186,7 +240,9 @@ async function handleList(ctx) {
   try {
     torrents = JSON.parse(output);
   } catch {
-    return editOrReply(ctx, placeholder.message_id, '🔴 Failed to parse response.');
+    return editOrReply(ctx, placeholder.message_id,
+      `🔴 Failed to parse qBittorrent response: ${code((output || '').slice(0, 120) || '(empty)')}`
+    );
   }
 
   if (!torrents.length) {
@@ -507,7 +563,9 @@ async function handleOrganize(ctx) {
 
   let torrents;
   try { torrents = JSON.parse(output); } catch {
-    return editOrReply(ctx, placeholder.message_id, '🔴 Failed to parse qBT response.');
+    return editOrReply(ctx, placeholder.message_id,
+      `🔴 Failed to parse qBittorrent response: ${code((output || '').slice(0, 120) || '(empty)')}`
+    );
   }
 
   const completed = torrents.filter(t => COMPLETED_STATES.has(t.state));
@@ -624,9 +682,39 @@ async function handleOrganize(ctx) {
   }
 }
 
+/** True for Stremio stream URLs, magnets, or bare 40-char info hashes. */
+export function looksLikeDownloadLink(text) {
+  const t = (text || '').trim();
+  if (!t) return false;
+  if (/^magnet:\?/i.test(t)) return true;
+  if (/https?:\/\/(?:127\.0\.0\.1|localhost):\d{2,5}\/[a-fA-F0-9]{40}\//i.test(t)) return true;
+  if (/https?:\/\/[^\s]*:11470\/[a-fA-F0-9]{40}\//i.test(t)) return true;
+  // Bare hash, optionally followed by movie/tv
+  if (/^[a-fA-F0-9]{40}(?:\s+(?:movie|tv))?$/i.test(t)) return true;
+  // Full message: URL + optional category
+  if (/https?:\/\/\S+\s+(?:movie|tv)\s*$/i.test(t) && extractHash(t)) return true;
+  return false;
+}
+
+/**
+ * Handle a free-text Stremio/magnet/hash message as /download (so the front
+ * model doesn't try to web-fetch 127.0.0.1:11470).
+ * Returns true if handled.
+ */
+export async function tryDownloadFromText(ctx) {
+  const text = (ctx.message?.text || '').trim();
+  if (!looksLikeDownloadLink(text)) return false;
+  const parts = text.split(/\s+/);
+  const input = parts[0];
+  const category = parts[1]?.toLowerCase();
+  const validCategories = ['movie', 'tv'];
+  await handleAdd(ctx, input, validCategories.includes(category) ? category : '');
+  return true;
+}
+
 export async function downloadCommand(ctx) {
-  const text = (ctx.message.text || '').replace(/^\/download\s*/, '').trim();
-  const args = text.split(/\s+/);
+  const text = (ctx.message.text || '').replace(/^\/download(@\w+)?\s*/i, '').trim();
+  const args = text.split(/\s+/).filter(Boolean);
   const sub = args[0]?.toLowerCase();
 
   if (!sub || sub === 'help') {
@@ -635,12 +723,12 @@ export async function downloadCommand(ctx) {
         bold('Media Downloads'),
         '',
         bold('Add torrent:'),
-        'Send a hash, Stremio URL, or magnet link.',
+        'Send a hash, Stremio URL, or magnet link (with or without <code>/download</code>).',
         'Append <code>movie</code> or <code>tv</code> for category.',
         '',
         bold('Input formats:'),
         '• 40-char info hash',
-        '• Stremio streaming URL',
+        '• Stremio streaming URL (<code>http://127.0.0.1:11470/HASH/…</code>)',
         '• Magnet link',
       ].join('\n'),
       Markup.inlineKeyboard([
@@ -717,7 +805,9 @@ export async function downloadRefresh(ctx) {
   try {
     torrents = JSON.parse(output);
   } catch {
-    return ctx.replyWithHTML('🔴 Failed to parse response.');
+    return ctx.replyWithHTML(
+      `🔴 Failed to parse qBittorrent response: ${code((output || '').slice(0, 120) || '(empty)')}`
+    );
   }
 
   if (!torrents.length) {

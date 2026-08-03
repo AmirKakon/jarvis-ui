@@ -196,6 +196,7 @@ RULES:
 - Multi-step research: comparing options, cross-referencing several sources, reading multiple pages, or search combined with calculations/charts → research
 - Movies / TV / media library: "what should I watch", search titles, recently added, continue watching, now playing, library scan → jellyfin
 - Read/summarise a public web page or PDF → fetch
+- Stremio / local stream URLs (http://127.0.0.1:11470/HASH/…), magnet links, or bare 40-char torrent info hashes → do NOT fetch. On Telegram the download handler catches these; if asked in chat, tell the user to send the link (optionally with movie/tv) and it will be added to qBittorrent.
 - Math, conversions, data analysis, generate charts → compute (NO internet — cannot make HTTP requests)
 - Knowledge questions (what is X, explain Y) → answer directly
 - If unsure whether to delegate or search → delegate (safer)
@@ -610,14 +611,18 @@ export async function askCore(prompt, { sessionKey = 'api:default', source = 'ap
   let actions = parseActions(front.output);
 
   // Fallback: user sent a URL but the front model didn't return a fetch action.
+  // Skip Stremio/local stream URLs — those are download links, not web pages.
   if (!actions.length) {
     const urlMatch = text.match(/https?:\/\/[^\s]+/i);
-    if (urlMatch) {
-      console.log(`[core] URL fallback — auto-fetch for: ${urlMatch[0].slice(0, 100)}`);
-      const questionPart = text.replace(urlMatch[0], '').trim();
+    const url = urlMatch?.[0] || '';
+    const isStreamDownload = /:11470\//i.test(url)
+      || /(?:127\.0\.0\.1|localhost):\d+\/[a-fA-F0-9]{40}\//i.test(url);
+    if (url && !isStreamDownload) {
+      console.log(`[core] URL fallback — auto-fetch for: ${url.slice(0, 100)}`);
+      const questionPart = text.replace(url, '').trim();
       actions = [{
         fetch: true,
-        url: urlMatch[0],
+        url,
         question: questionPart || 'Provide an overview of the content.',
         acknowledge: 'Reading the page, Sir...',
       }];
