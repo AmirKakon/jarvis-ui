@@ -1,0 +1,329 @@
+#!/usr/bin/env node
+/**
+ * Bus 608 commute monitor — Open Bus Stride → Home Assistant sensors + alerts.
+ *
+ * Windows (Asia/Jerusalem), Sun/Mon/Wed only:
+ *   08:00–09:00  home → work  (board 39360)
+ *   17:00–18:00  work → home  (board 26749)
+ *
+ * Updates HA sensors, and when ETA ≤ 10 min announces on Echo Dot + Amir's phone
+ * (debounced per vehicle/window).
+ *
+ * Cron: every minute (no-ops outside windows). Requires HA_URL + HA_TOKEN in ~/jarvis/.env
+ */
+
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const HOME = process.env.HOME || homedir();
+const ENV_PATH = join(HOME, 'jarvis/.env');
+const STATE_PATH = join(HOME, 'jarvis/state/bus-monitor.json');
+const LOG_PATH = join(HOME, 'jarvis/logs/bus-monitor.log');
+const STRIDE = 'https://open-bus-stride-api.hasadna.org.il';
+
+const LINE_SHORT = '608';
+const ETA_ANNOUNCE_MIN = 10;
+
+const LEGS = {
+  to_work: {
+    label: 'home → work',
+    boardCode: 39360,
+    boardName: 'מרכז דוד/דרך דגניה',
+    alightCode: 26966,
+    alightName: 'סינמה סיטי/כביש 2',
+    // Netanya → TLV
+    direction: '1',
+    stop: { lat: 32.308448, lon: 34.874746 },
+  },
+  from_work: {
+    label: 'work → home',
+    boardCode: 26749,
+    boardName: 'סינמה סיטי/כביש 2',
+    alightCode: 39525,
+    alightName: 'האוניברסיטה/דרך דגניה',
+    // TLV → Netanya
+    direction: '2',
+    stop: { lat: 32.148067, lon: 34.803856 },
+  },
+};
+
+function loadEnv() {
+  const out = { ...process.env };
+  if (!existsSync(ENV_PATH)) return out;
+  for (const line of readFileSync(ENV_PATH, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!m) continue;
+    let v = m[2].trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      v = v.slice(1, -1);
+    }
+    out[m[1]] = v;
+  }
+  return out;
+}
+
+function log(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}`;
+  try {
+    mkdirSync(join(HOME, 'jarvis/logs'), { recursive: true });
+    writeFileSync(LOG_PATH, line + '\n', { flag: 'a' });
+  } catch { /* ignore */ }
+  console.log(line);
+}
+
+function jerusalemNow() {
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    weekday: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date()).map(p => [p.type, p.value]));
+  const weekday = parts.weekday; // Sun, Mon, …
+  const hour = parseInt(parts.hour, 10);
+  const minute = parseInt(parts.minute, 10);
+  const date = `${parts.year}-${parts.month}-${parts.day}`;
+  return { weekday, hour, minute, date, minutesOfDay: hour * 60 + minute };
+}
+
+function activeLeg(now) {
+  const dayOk = ['Sun', 'Mon', 'Wed'].includes(now.weekday);
+  if (!dayOk) return null;
+  if (now.minutesOfDay >= 8 * 60 && now.minutesOfDay < 9 * 60) return { key: 'to_work', ...LEGS.to_work };
+  if (now.minutesOfDay >= 17 * 60 && now.minutesOfDay < 18 * 60) return { key: 'from_work', ...LEGS.from_work };
+  return null;
+}
+
+async function strideGet(path, params = {}) {
+  const url = new URL(STRIDE + path);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    url.searchParams.set(k, String(v));
+  }
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(`Stride ${path} ${res.status}`);
+  return res.json();
+}
+
+function haversineKm(a, b) {
+  const R = 6371;
+  const toRad = d => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+async function resolveLineRefs(date, direction) {
+  const routes = await strideGet('/gtfs_routes/list', {
+    route_short_name: LINE_SHORT,
+    date_from: date,
+    date_to: date,
+    limit: 50,
+  });
+  const matches = (routes || []).filter(r => String(r.route_direction) === String(direction));
+  const refs = [...new Set(matches.map(r => r.line_ref).filter(Boolean))];
+  return { refs, agency: matches[0]?.agency_name || 'מטרופולין' };
+}
+
+async function nearestEta(lineRefs, stop) {
+  if (!lineRefs.length) return null;
+  const to = new Date();
+  const from = new Date(to.getTime() - 12 * 60 * 1000);
+  const iso = d => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+  let best = null;
+  for (const lineRef of lineRefs) {
+    const locs = await strideGet('/siri_vehicle_locations/list', {
+      siri_routes__line_ref: lineRef,
+      recorded_at_time_from: iso(from),
+      recorded_at_time_to: iso(to),
+      order_by: 'recorded_at_time desc',
+      limit: 40,
+    });
+    // Keep freshest point per vehicle
+    const byVehicle = new Map();
+    for (const loc of locs || []) {
+      const v = loc.siri_ride__vehicle_ref || loc.id;
+      if (!byVehicle.has(v)) byVehicle.set(v, loc);
+    }
+    for (const loc of byVehicle.values()) {
+      if (loc.lat == null || loc.lon == null) continue;
+      const dist = haversineKm({ lat: loc.lat, lon: loc.lon }, stop);
+      if (dist > 45) continue; // ignore far-away ghosts
+      // SIRI velocity is often m/s or km/h depending on feed — clamp to plausible bus speeds
+      let speedKmh = Number(loc.velocity) || 0;
+      if (speedKmh > 0 && speedKmh < 3) speedKmh *= 3.6; // treat as m/s
+      if (speedKmh < 12) speedKmh = 28; // corridor average when crawling/stopped
+      if (speedKmh > 90) speedKmh = 50;
+      const etaMin = Math.max(1, Math.round((dist / speedKmh) * 60));
+      const candidate = {
+        etaMin,
+        distKm: Math.round(dist * 10) / 10,
+        vehicle: loc.siri_ride__vehicle_ref || String(loc.siri_ride__id || ''),
+        lineRef,
+        recordedAt: loc.recorded_at_time,
+        lat: loc.lat,
+        lon: loc.lon,
+      };
+      if (!best || candidate.etaMin < best.etaMin) best = candidate;
+    }
+  }
+  return best;
+}
+
+async function haCall(env, method, path, body) {
+  const base = (env.HA_URL || 'http://192.168.68.113:8123').replace(/\/$/, '');
+  const token = env.HA_TOKEN;
+  if (!token) throw new Error('HA_TOKEN not set');
+  const res = await fetch(base + path, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`HA ${path} ${res.status} ${t.slice(0, 200)}`);
+  }
+  return res.status === 204 ? null : res.json().catch(() => null);
+}
+
+async function setSensor(env, entityId, state, attributes = {}) {
+  return haCall(env, 'POST', `/api/states/${entityId}`, {
+    state: state === null || state === undefined ? 'unknown' : String(state),
+    attributes: {
+      friendly_name: attributes.friendly_name || entityId,
+      ...attributes,
+    },
+  });
+}
+
+async function notifyAll(env, title, message) {
+  await haCall(env, 'POST', '/api/services/notify/mobile_app_amir_phone', {
+    title,
+    message,
+  });
+  await haCall(env, 'POST', '/api/services/notify/alexa_media_alines_echo_dot', {
+    message,
+    data: { type: 'announce' },
+  });
+}
+
+function loadState() {
+  try {
+    return JSON.parse(readFileSync(STATE_PATH, 'utf8'));
+  } catch {
+    return { announced: {} };
+  }
+}
+
+function saveState(state) {
+  mkdirSync(join(HOME, 'jarvis/state'), { recursive: true });
+  writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
+}
+
+async function main() {
+  const env = loadEnv();
+  const now = jerusalemNow();
+  const leg = activeLeg(now);
+
+  if (!leg) {
+    // Keep a cheap idle heartbeat on HA outside windows
+    if (env.HA_TOKEN) {
+      try {
+        await setSensor(env, 'sensor.bus_608_status', 'idle', {
+          friendly_name: 'Bus 608 status',
+          icon: 'mdi:bus-clock',
+          window: 'outside',
+          jerusalem: `${now.weekday} ${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`,
+        });
+      } catch (e) {
+        log(`idle HA update failed: ${e.message}`);
+      }
+    }
+    return;
+  }
+
+  log(`Active leg ${leg.key} (${leg.label})`);
+
+  let best = null;
+  let lineRefs = [];
+  try {
+    const resolved = await resolveLineRefs(now.date, leg.direction);
+    lineRefs = resolved.refs;
+    log(`line_refs dir=${leg.direction}: ${lineRefs.join(',') || '(none)'}`);
+    best = await nearestEta(lineRefs, leg.stop);
+  } catch (e) {
+    log(`Stride error: ${e.message}`);
+  }
+
+  const eta = best?.etaMin ?? null;
+  const status = best
+    ? `ETA ${eta} min · ${best.distKm} km · veh ${best.vehicle}`
+    : 'no live vehicle';
+
+  try {
+    await setSensor(env, 'sensor.bus_608_eta', eta ?? 'unknown', {
+      friendly_name: 'Bus 608 ETA (min)',
+      unit_of_measurement: 'min',
+      icon: 'mdi:bus-clock',
+      device_class: 'duration',
+      leg: leg.key,
+      leg_label: leg.label,
+      board_stop: `${leg.boardName} (${leg.boardCode})`,
+      alight_stop: `${leg.alightName} (${leg.alightCode})`,
+      vehicle: best?.vehicle || null,
+      distance_km: best?.distKm ?? null,
+      line_refs: lineRefs.join(','),
+      recorded_at: best?.recordedAt || null,
+    });
+    await setSensor(env, 'sensor.bus_608_status', status, {
+      friendly_name: 'Bus 608 status',
+      icon: 'mdi:bus',
+      leg: leg.key,
+      board_stop_code: leg.boardCode,
+    });
+    await setSensor(env, 'sensor.bus_608_leg', leg.key, {
+      friendly_name: 'Bus 608 active leg',
+      icon: 'mdi:routes',
+      label: leg.label,
+    });
+  } catch (e) {
+    log(`HA sensor update failed: ${e.message}`);
+    return;
+  }
+
+  log(status);
+
+  if (eta != null && eta <= ETA_ANNOUNCE_MIN) {
+    const state = loadState();
+    const dedupeKey = `${now.date}:${leg.key}:${best.vehicle || 'unknown'}`;
+    if (!state.announced[dedupeKey]) {
+      const title = `🚌 קו ${LINE_SHORT}`;
+      const message = `קו ${LINE_SHORT} בעוד כ־${eta} דקות מ${leg.boardName}. יעד: ${leg.alightName}.`;
+      try {
+        await notifyAll(env, title, message);
+        state.announced[dedupeKey] = new Date().toISOString();
+        // prune old keys
+        for (const k of Object.keys(state.announced)) {
+          if (!k.startsWith(now.date)) delete state.announced[k];
+        }
+        saveState(state);
+        log(`Announced ${dedupeKey}`);
+      } catch (e) {
+        log(`Notify failed: ${e.message}`);
+      }
+    }
+  }
+}
+
+main().catch(err => {
+  log(`Fatal: ${err.message}`);
+  process.exit(1);
+});

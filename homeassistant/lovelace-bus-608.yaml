@@ -1,0 +1,12 @@
+# Paste into a Lovelace dashboard (Manual card → entities / markdown).
+# Sensors are created by jarvis-home/scripts/bus-monitor.mjs on the mini-pc.
+
+type: entities
+title: קו 608
+entities:
+  - entity: sensor.bus_608_eta
+    name: דקות להגעה
+  - entity: sensor.bus_608_status
+    name: סטטוס
+  - entity: sensor.bus_608_leg
+    name: כיוון פעיל

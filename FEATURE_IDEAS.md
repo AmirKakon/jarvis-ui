@@ -127,7 +127,7 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 2. qBittorrent agent — search/add torrents, monitor downloads, auto-organize completed media (already has `/download` command, extend with NL control)
 3. multi-room audio / music control — control speakers via HA from Telegram
 4. HA energy dashboard via Telegram — daily/weekly consumption, cost estimates, peak hours
-5. personal app integrations — ✅ _shipped via the generic MCP client (see Done)._ **QRganize** (home inventory) and **RecipeRack** (recipes & meal planning) are live over MCP, with cross-provider orchestration. Adding more self-hosted apps is now a `~/jarvis/mcp.json` entry (if the app exposes an MCP endpoint) — no code. _Next candidates:_ any other self-hosted app with an MCP server.
+5. personal app integrations — ✅ _shipped via the generic MCP client (see Done)._ **QRganize** (home inventory) and **RecipeRack** (recipes & meal planning) are live over MCP, with cross-provider orchestration. Adding more self-hosted apps is now a `~/jarvis/mcp.json` entry (HTTP `url` or local stdio `command`/`args`) — no code. _Next candidates:_ **openbus** MCP (see #14), any other self-hosted / Skills IL MCP server.
 
 #### New service integrations
 6. calendar integration (Google Calendar / CalDAV — "what's on my schedule today?", "add meeting tomorrow at 3pm") — _partial: reminders now write to GCal (see Done); still TODO: NL "add meeting" events + Phase 2 GCal-trigger nudges for events created outside JARVIS_
@@ -138,15 +138,31 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 11. Spotify / music — playback control, playlist management, listening stats, music recommendations
 12. GitHub integration — repo status, PR notifications, issue management, commit summaries
 13. note-taking integration (Obsidian / Notion API — "save this to my notes", "find my notes about X")
-14. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?")
-15. food delivery / restaurant (Wolt / 10bis API — "order lunch", "what's nearby?")
+14. **Israel buses (Open Bus / Stride) — live times, near-stop alerts, NL Q&A** — split by surface so ambient UI stays cheap and chat stays flexible:
+    - **Data:** [Open Bus Stride API](https://open-bus-stride-api.hasadna.org.il/docs) (Hasadna; GTFS + SIRI; no API key). Consumer MCP: [`@skills-il/openbus-mcp`](https://agentskills.co.il/he/mcp/openbus) (`npx -y @skills-il/openbus-mcp`) — catalog: [agentskills.co.il/he/mcp/openbus](https://agentskills.co.il/he/mcp/openbus).
+    - **HA dashboard:** poller (REST sensors / AppDaemon / small cron — **not** the LLM) for a few favorite stops/lines → `sensor.bus_*` entities; Lovelace card with next arrivals / delay.
+    - **HA announcements:** automation when ETA crosses a threshold (e.g. 5→3 min) or SIRI vehicle nears the stop → Alexa (`notify.alexa_media`) and/or phone; debounce to avoid spam.
+    - **JARVIS + MCP:** add `openbus` to `~/jarvis/mcp.json` (stdio). Ad-hoc questions via existing `{"mcp": true}` — “מתי האוטובוס הבא בתחנה …?”, “איפה קו 601?”, stops in a city, punctuality. Do **not** put the LLM in the dashboard poll loop.
+    - **Phase 1 (implemented in repo):** `jarvis-home/scripts/bus-monitor.mjs` (+ `bus-monitor.sh` cron wrapper) polls Stride during Sun/Mon/Wed **08:00–09:00** / **17:00–18:00**, writes `sensor.bus_608_{eta,status,leg}`, announces at ≤10 min via `notify.alexa_media_alines_echo_dot` + `notify.mobile_app_amir_phone`. Install cron via `scripts/install-cron.sh`. Lovelace snippet: `homeassistant/lovelace-bus-608.yaml`. MCP: add `openbus` from `mcp.json.example` to `~/jarvis/mcp.json` and restart bot.
+    - **Later:** leave-home “leave by …” window; direction-aware favorites (home↔work `line_ref`s); missed-bus → next ride; daily punctuality digest in briefing; nearest stop from phone GPS; optional Israel Rail MCP for bus+train; porch light when bus imminent after dark.
+    - **Note:** Stride `/stop_arrivals` is weak as a Moovit-style board; prefer MCP tools + composed GTFS/SIRI. True stop-boards may later need MOT SIRI StopMonitoring if MCP isn’t enough.
+    - **Amir’s commute (Metropoline 608) — verified on Stride 2026-08-05:**
+      | Leg | From (code) | To (code) | When |
+      |-----|-------------|-----------|------|
+      | Home → work | מרכז דוד/דרך דגניה **39360** (נתניה) | סינמה סיטי/כביש 2 **26966** (הרצליה) | Sun/Mon/Wed mornings |
+      | Work → home | סינמה סיטי/כביש 2 **26749** (רמת השרון, opposite side) | האוניברסיטה/דרך דגניה **39525** (נתניה) | Sun/Mon/Wed evenings |
+      Line **608**; GTFS `line_ref`s today include dir 1 (נתניה→ת״א) `21997`/`23309`, dir 2 (ת״א→נתניה) `21999`/`26789` — resolve by date at runtime.
+      **Alerts:** Echo Dot **and** Amir phone; announce at **≤10 min** ETA; windows **08:00–09:00** (to work) and **17:00–18:00** (from work), Sun/Mon/Wed only.
+15. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?") — complements #14 for driving; buses are the Open Bus track above.
+16. food delivery / restaurant (Wolt / 10bis API — "order lunch", "what's nearby?")
 
 ### MCP servers (reference)
 
-_Connecting a new provider = add an entry to `~/jarvis/mcp.json` (see `jarvis-home/mcp.json.example`) and restart the bot. Both live servers below use hosted Streamable-HTTP endpoints._
+_Connecting a new provider = add an entry to `~/jarvis/mcp.json` (see `jarvis-home/mcp.json.example`) and restart the bot. HTTP servers use `url` (+ optional `headers`); local servers use `command` + `args` (+ optional `env`)._
 
 - **QRganize** (home inventory) — `https://us-central1-qrganize-f651b.cloudfunctions.net/app/api/mcp` (Bearer token). Local inspector: `cd QRganize/mcp; $env:QRGANIZE_UUID="…"; npx @modelcontextprotocol/inspector node index.js`.
 - **RecipeRack** (recipes & meal planning) — `https://us-central1-recipe-rack-ighp8.cloudfunctions.net/app/mcp` (no auth). Local inspector: `cd recipe-rack/mcp-server; npx @modelcontextprotocol/inspector node index.js`.
+- **openbus** (Israel buses) — stdio: `npx -y @skills-il/openbus-mcp` ([Skills IL](https://agentskills.co.il/he/mcp/openbus); wraps [Stride API](https://open-bus-stride-api.hasadna.org.il/docs)). No API key. Example entry in `mcp.json.example`. Ambient commute alerts: `scripts/bus-monitor.mjs` (see Integrations #14).
 
 ### Personal Assistant
 
