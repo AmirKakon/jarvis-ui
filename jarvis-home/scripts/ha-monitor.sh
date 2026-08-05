@@ -12,8 +12,8 @@ STATE_FILE="$HOME/jarvis/state/ha-monitor.state"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 NOW=$(date +%s)
 
-HA_HOST="192.168.68.113"
-HA_PORT=8123
+HA_HOST="${HA_HOST:-192.168.68.113}"
+HA_PORT="${HA_PORT:-8123}"
 
 # Minimum seconds between repeat "still down" alerts, to avoid spam.
 ALERT_COOLDOWN=300
