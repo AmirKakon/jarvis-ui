@@ -9,6 +9,7 @@ const ALLOWED_SCRIPTS = new Set([
   'backup-checker',
   'samba-monitor',
   'ha-update',
+  'ha-monitor',
   'network-scanner',
   'ssh-monitor',
   'docker-security',

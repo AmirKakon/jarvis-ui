@@ -32,6 +32,9 @@ cat >> /tmp/jarvis-cron-clean << EOF
 # jarvis-monitor: Samba share health (every 15 min)
 */15 * * * * $SCRIPTS_DIR/samba-monitor.sh
 
+# jarvis-monitor: Home Assistant liveness (every 2 min)
+*/2 * * * * $SCRIPTS_DIR/ha-monitor.sh
+
 # jarvis-monitor: network device scanner (every hour)
 0 */1 * * * $SCRIPTS_DIR/network-scanner.sh
 
@@ -56,6 +59,7 @@ rm -f /tmp/jarvis-cron-clean
 
 echo "  Cron jobs installed:"
 echo ""
+echo "    Every 2 min   — ha-monitor.sh       (Home Assistant liveness)"
 echo "    Every 15 min  — service-monitor.sh  (Docker + systemd health)"
 echo "    Every 15 min  — samba-monitor.sh   (Samba share health)"
 echo "    Every 6 hours — disk-watchdog.sh    (filesystem usage)"
