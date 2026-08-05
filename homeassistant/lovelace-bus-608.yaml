@@ -1,12 +1,23 @@
-# Paste into a Lovelace dashboard (Manual card → entities / markdown).
+# Paste into a Lovelace dashboard (Manual card → vertical stack / entities).
 # Sensors are created by jarvis-home/scripts/bus-monitor.mjs on the mini-pc.
 
-type: entities
-title: קו 608
-entities:
-  - entity: sensor.bus_608_eta
-    name: דקות להגעה
-  - entity: sensor.bus_608_status
-    name: סטטוס
-  - entity: sensor.bus_608_leg
-    name: כיוון פעיל
+type: vertical-stack
+cards:
+  - type: entities
+    title: קו 608 (בית ↔ עבודה)
+    entities:
+      - entity: sensor.bus_608_eta
+        name: דקות להגעה
+      - entity: sensor.bus_608_status
+        name: סטטוס
+      - entity: sensor.bus_608_leg
+        name: כיוון פעיל
+  - type: entities
+    title: קו 65 (בית ↔ רכבת)
+    entities:
+      - entity: sensor.bus_65_eta
+        name: דקות להגעה
+      - entity: sensor.bus_65_status
+        name: סטטוס
+      - entity: sensor.bus_65_leg
+        name: כיוון פעיל

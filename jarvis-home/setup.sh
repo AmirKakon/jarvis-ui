@@ -71,6 +71,12 @@ mkdir -p "$JARVIS_DIR/logs"
 mkdir -p "$JARVIS_DIR/downloads/pending"
 mkdir -p "$JARVIS_DIR/telegram-media"
 cp "$SCRIPT_DIR/scripts/"*.sh "$JARVIS_DIR/scripts/"
+# Node helpers used by cron wrappers (e.g. bus-monitor.mjs)
+shopt -s nullglob
+for f in "$SCRIPT_DIR/scripts/"*.mjs; do
+    cp "$f" "$JARVIS_DIR/scripts/"
+done
+shopt -u nullglob
 chmod +x "$JARVIS_DIR/scripts/"*.sh
 if [ -f "$SCRIPT_DIR/known-devices-labels.conf" ]; then
     cp "$SCRIPT_DIR/known-devices-labels.conf" "$JARVIS_DIR/known-devices-labels.conf"

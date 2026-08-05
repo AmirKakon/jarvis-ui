@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * Bus 608 commute monitor — Open Bus Stride → Home Assistant sensors + alerts.
+ * Commute bus monitor — Open Bus Stride → Home Assistant sensors + alerts.
  *
- * Windows (Asia/Jerusalem), Sun/Mon/Wed only:
- *   08:00–09:00  home → work  (board 39360)
- *   17:00–18:00  work → home  (board 26749)
+ * Routes (Asia/Jerusalem):
+ *   608 Metropoline  Sun/Mon/Wed
+ *     08:00–09:00  home → work   (board 39360)
+ *     17:00–18:00  work → home   (board 26749)
+ *   65  Extra        Sun/Mon/Wed/Thu
+ *     08:00–09:00  home → train  (board 39358)
+ *     17:00–18:00  train → home  (board 33004)
  *
- * Updates HA sensors, and when ETA ≤ 10 min announces on Echo Dot + Amir's phone
- * (debounced per vehicle/window).
+ * Updates HA sensors; when ETA ≤ 10 min announces on Echo Dot + Amir's phone
+ * (debounced per line/vehicle/window).
  *
  * Cron: every minute (no-ops outside windows). Requires HA_URL + HA_TOKEN in ~/jarvis/.env
  */
@@ -22,31 +26,74 @@ const STATE_PATH = join(HOME, 'jarvis/state/bus-monitor.json');
 const LOG_PATH = join(HOME, 'jarvis/logs/bus-monitor.log');
 const STRIDE = 'https://open-bus-stride-api.hasadna.org.il';
 
-const LINE_SHORT = '608';
 const ETA_ANNOUNCE_MIN = 10;
 
-const LEGS = {
-  to_work: {
-    label: 'home → work',
-    boardCode: 39360,
-    boardName: 'מרכז דוד/דרך דגניה',
-    alightCode: 26966,
-    alightName: 'סינמה סיטי/כביש 2',
-    // Netanya → TLV
-    direction: '1',
-    stop: { lat: 32.308448, lon: 34.874746 },
+/** @type {Array<{
+ *  id: string, shortName: string, agencyRe: RegExp, longNameRe?: RegExp,
+ *  days: string[], morning: [number, number], evening: [number, number],
+ *  legs: Record<string, object>
+ * }>} */
+const ROUTES = [
+  {
+    id: '608',
+    shortName: '608',
+    agencyRe: /מטרופולין/,
+    days: ['Sun', 'Mon', 'Wed'],
+    morning: [8 * 60, 9 * 60],
+    evening: [17 * 60, 18 * 60],
+    legs: {
+      to_work: {
+        label: 'home → work',
+        boardCode: 39360,
+        boardName: 'מרכז דוד/דרך דגניה',
+        alightCode: 26966,
+        alightName: 'סינמה סיטי/כביש 2',
+        direction: '1',
+        stop: { lat: 32.308448, lon: 34.874746 },
+      },
+      from_work: {
+        label: 'work → home',
+        boardCode: 26749,
+        boardName: 'סינמה סיטי/כביש 2',
+        alightCode: 39525,
+        alightName: 'האוניברסיטה/דרך דגניה',
+        direction: '2',
+        stop: { lat: 32.148067, lon: 34.803856 },
+      },
+    },
   },
-  from_work: {
-    label: 'work → home',
-    boardCode: 26749,
-    boardName: 'סינמה סיטי/כביש 2',
-    alightCode: 39525,
-    alightName: 'האוניברסיטה/דרך דגניה',
-    // TLV → Netanya
-    direction: '2',
-    stop: { lat: 32.148067, lon: 34.803856 },
+  {
+    id: '65',
+    shortName: '65',
+    agencyRe: /אקסטרה/,
+    longNameRe: /נתניה/,
+    days: ['Sun', 'Mon', 'Wed', 'Thu'],
+    morning: [8 * 60, 9 * 60],
+    evening: [17 * 60, 18 * 60],
+    legs: {
+      to_train: {
+        label: 'home → train',
+        boardCode: 39358,
+        boardName: 'דרך דגניה/פרופסור יוסף קלאוזנר',
+        alightCode: 39427,
+        alightName: 'האורזים/העמל',
+        // Extra 65 dir 2: south → north (home → station / עין התכלת)
+        direction: '2',
+        stop: { lat: 32.307437, lon: 34.874793 },
+      },
+      from_train: {
+        label: 'train → home',
+        boardCode: 33004,
+        boardName: 'האורזים/העמל',
+        alightCode: 39360,
+        alightName: 'מרכז דוד/דרך דגניה',
+        // Extra 65 dir 1: north → south (station → home / פולג)
+        direction: '1',
+        stop: { lat: 32.319489, lon: 34.871658 },
+      },
+    },
   },
-};
+];
 
 function loadEnv() {
   const out = { ...process.env };
@@ -87,11 +134,18 @@ function jerusalemNow() {
   return { weekday, hour, minute, date, minutesOfDay: hour * 60 + minute };
 }
 
-function activeLeg(now) {
-  const dayOk = ['Sun', 'Mon', 'Wed'].includes(now.weekday);
-  if (!dayOk) return null;
-  if (now.minutesOfDay >= 8 * 60 && now.minutesOfDay < 9 * 60) return { key: 'to_work', ...LEGS.to_work };
-  if (now.minutesOfDay >= 17 * 60 && now.minutesOfDay < 18 * 60) return { key: 'from_work', ...LEGS.from_work };
+function activeLeg(route, now) {
+  if (!route.days.includes(now.weekday)) return null;
+  const [m0, m1] = route.morning;
+  const [e0, e1] = route.evening;
+  const morningKey = Object.keys(route.legs).find(k => k.startsWith('to_'));
+  const eveningKey = Object.keys(route.legs).find(k => k.startsWith('from_'));
+  if (now.minutesOfDay >= m0 && now.minutesOfDay < m1 && morningKey) {
+    return { key: morningKey, ...route.legs[morningKey] };
+  }
+  if (now.minutesOfDay >= e0 && now.minutesOfDay < e1 && eveningKey) {
+    return { key: eveningKey, ...route.legs[eveningKey] };
+  }
   return null;
 }
 
@@ -117,16 +171,21 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-async function resolveLineRefs(date, direction) {
+async function resolveLineRefs(route, date, direction) {
   const routes = await strideGet('/gtfs_routes/list', {
-    route_short_name: LINE_SHORT,
+    route_short_name: route.shortName,
     date_from: date,
     date_to: date,
-    limit: 50,
+    limit: 100,
   });
-  const matches = (routes || []).filter(r => String(r.route_direction) === String(direction));
+  const matches = (routes || []).filter(r => {
+    if (String(r.route_direction) !== String(direction)) return false;
+    if (route.agencyRe && !route.agencyRe.test(r.agency_name || '')) return false;
+    if (route.longNameRe && !route.longNameRe.test(r.route_long_name || '')) return false;
+    return true;
+  });
   const refs = [...new Set(matches.map(r => r.line_ref).filter(Boolean))];
-  return { refs, agency: matches[0]?.agency_name || 'מטרופולין' };
+  return { refs, agency: matches[0]?.agency_name || '' };
 }
 
 async function nearestEta(lineRefs, stop) {
@@ -144,7 +203,6 @@ async function nearestEta(lineRefs, stop) {
       order_by: 'recorded_at_time desc',
       limit: 40,
     });
-    // Keep freshest point per vehicle
     const byVehicle = new Map();
     for (const loc of locs || []) {
       const v = loc.siri_ride__vehicle_ref || loc.id;
@@ -153,11 +211,10 @@ async function nearestEta(lineRefs, stop) {
     for (const loc of byVehicle.values()) {
       if (loc.lat == null || loc.lon == null) continue;
       const dist = haversineKm({ lat: loc.lat, lon: loc.lon }, stop);
-      if (dist > 45) continue; // ignore far-away ghosts
-      // SIRI velocity is often m/s or km/h depending on feed — clamp to plausible bus speeds
+      if (dist > 45) continue;
       let speedKmh = Number(loc.velocity) || 0;
-      if (speedKmh > 0 && speedKmh < 3) speedKmh *= 3.6; // treat as m/s
-      if (speedKmh < 12) speedKmh = 28; // corridor average when crawling/stopped
+      if (speedKmh > 0 && speedKmh < 3) speedKmh *= 3.6;
+      if (speedKmh < 12) speedKmh = 28;
       if (speedKmh > 90) speedKmh = 50;
       const etaMin = Math.max(1, Math.round((dist / speedKmh) * 60));
       const candidate = {
@@ -228,39 +285,37 @@ function saveState(state) {
   writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
 }
 
-async function main() {
-  const env = loadEnv();
-  const now = jerusalemNow();
-  const leg = activeLeg(now);
+function sensorIds(routeId) {
+  return {
+    eta: `sensor.bus_${routeId}_eta`,
+    status: `sensor.bus_${routeId}_status`,
+    leg: `sensor.bus_${routeId}_leg`,
+  };
+}
 
-  if (!leg) {
-    // Keep a cheap idle heartbeat on HA outside windows
-    if (env.HA_TOKEN) {
-      try {
-        await setSensor(env, 'sensor.bus_608_status', 'idle', {
-          friendly_name: 'Bus 608 status',
-          icon: 'mdi:bus-clock',
-          window: 'outside',
-          jerusalem: `${now.weekday} ${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`,
-        });
-      } catch (e) {
-        log(`idle HA update failed: ${e.message}`);
-      }
-    }
-    return;
-  }
+async function setIdle(env, route, now) {
+  const ids = sensorIds(route.id);
+  await setSensor(env, ids.status, 'idle', {
+    friendly_name: `Bus ${route.shortName} status`,
+    icon: 'mdi:bus-clock',
+    window: 'outside',
+    jerusalem: `${now.weekday} ${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`,
+  });
+}
 
-  log(`Active leg ${leg.key} (${leg.label})`);
+async function processRoute(env, route, leg, now, state) {
+  const ids = sensorIds(route.id);
+  log(`[${route.shortName}] Active leg ${leg.key} (${leg.label})`);
 
   let best = null;
   let lineRefs = [];
   try {
-    const resolved = await resolveLineRefs(now.date, leg.direction);
+    const resolved = await resolveLineRefs(route, now.date, leg.direction);
     lineRefs = resolved.refs;
-    log(`line_refs dir=${leg.direction}: ${lineRefs.join(',') || '(none)'}`);
+    log(`[${route.shortName}] line_refs dir=${leg.direction}: ${lineRefs.join(',') || '(none)'}`);
     best = await nearestEta(lineRefs, leg.stop);
   } catch (e) {
-    log(`Stride error: ${e.message}`);
+    log(`[${route.shortName}] Stride error: ${e.message}`);
   }
 
   const eta = best?.etaMin ?? null;
@@ -269,8 +324,8 @@ async function main() {
     : 'no live vehicle';
 
   try {
-    await setSensor(env, 'sensor.bus_608_eta', eta ?? 'unknown', {
-      friendly_name: 'Bus 608 ETA (min)',
+    await setSensor(env, ids.eta, eta ?? 'unknown', {
+      friendly_name: `Bus ${route.shortName} ETA (min)`,
       unit_of_measurement: 'min',
       icon: 'mdi:bus-clock',
       device_class: 'duration',
@@ -283,43 +338,67 @@ async function main() {
       line_refs: lineRefs.join(','),
       recorded_at: best?.recordedAt || null,
     });
-    await setSensor(env, 'sensor.bus_608_status', status, {
-      friendly_name: 'Bus 608 status',
+    await setSensor(env, ids.status, status, {
+      friendly_name: `Bus ${route.shortName} status`,
       icon: 'mdi:bus',
       leg: leg.key,
       board_stop_code: leg.boardCode,
     });
-    await setSensor(env, 'sensor.bus_608_leg', leg.key, {
-      friendly_name: 'Bus 608 active leg',
+    await setSensor(env, ids.leg, leg.key, {
+      friendly_name: `Bus ${route.shortName} active leg`,
       icon: 'mdi:routes',
       label: leg.label,
     });
   } catch (e) {
-    log(`HA sensor update failed: ${e.message}`);
+    log(`[${route.shortName}] HA sensor update failed: ${e.message}`);
     return;
   }
 
-  log(status);
+  log(`[${route.shortName}] ${status}`);
 
   if (eta != null && eta <= ETA_ANNOUNCE_MIN) {
-    const state = loadState();
-    const dedupeKey = `${now.date}:${leg.key}:${best.vehicle || 'unknown'}`;
+    const dedupeKey = `${now.date}:${route.id}:${leg.key}:${best.vehicle || 'unknown'}`;
     if (!state.announced[dedupeKey]) {
-      const title = `🚌 קו ${LINE_SHORT}`;
-      const message = `קו ${LINE_SHORT} בעוד כ־${eta} דקות מ${leg.boardName}. יעד: ${leg.alightName}.`;
+      const title = `🚌 קו ${route.shortName}`;
+      const message = `קו ${route.shortName} בעוד כ־${eta} דקות מ${leg.boardName}. יעד: ${leg.alightName}.`;
       try {
         await notifyAll(env, title, message);
         state.announced[dedupeKey] = new Date().toISOString();
-        // prune old keys
-        for (const k of Object.keys(state.announced)) {
-          if (!k.startsWith(now.date)) delete state.announced[k];
-        }
-        saveState(state);
-        log(`Announced ${dedupeKey}`);
+        log(`[${route.shortName}] Announced ${dedupeKey}`);
       } catch (e) {
-        log(`Notify failed: ${e.message}`);
+        log(`[${route.shortName}] Notify failed: ${e.message}`);
       }
     }
+  }
+}
+
+async function main() {
+  const env = loadEnv();
+  const now = jerusalemNow();
+  const state = loadState();
+  let anyActive = false;
+
+  for (const route of ROUTES) {
+    const leg = activeLeg(route, now);
+    if (!leg) {
+      if (env.HA_TOKEN) {
+        try {
+          await setIdle(env, route, now);
+        } catch (e) {
+          log(`[${route.shortName}] idle HA update failed: ${e.message}`);
+        }
+      }
+      continue;
+    }
+    anyActive = true;
+    await processRoute(env, route, leg, now, state);
+  }
+
+  if (anyActive) {
+    for (const k of Object.keys(state.announced)) {
+      if (!k.startsWith(now.date)) delete state.announced[k];
+    }
+    saveState(state);
   }
 }
 

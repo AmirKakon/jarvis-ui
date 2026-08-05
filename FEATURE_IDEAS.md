@@ -143,16 +143,17 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
     - **HA dashboard:** poller (REST sensors / AppDaemon / small cron — **not** the LLM) for a few favorite stops/lines → `sensor.bus_*` entities; Lovelace card with next arrivals / delay.
     - **HA announcements:** automation when ETA crosses a threshold (e.g. 5→3 min) or SIRI vehicle nears the stop → Alexa (`notify.alexa_media`) and/or phone; debounce to avoid spam.
     - **JARVIS + MCP:** add `openbus` to `~/jarvis/mcp.json` (stdio). Ad-hoc questions via existing `{"mcp": true}` — “מתי האוטובוס הבא בתחנה …?”, “איפה קו 601?”, stops in a city, punctuality. Do **not** put the LLM in the dashboard poll loop.
-    - **Phase 1 (implemented in repo):** `jarvis-home/scripts/bus-monitor.mjs` (+ `bus-monitor.sh` cron wrapper) polls Stride during Sun/Mon/Wed **08:00–09:00** / **17:00–18:00**, writes `sensor.bus_608_{eta,status,leg}`, announces at ≤10 min via `notify.alexa_media_alines_echo_dot` + `notify.mobile_app_amir_phone`. Install cron via `scripts/install-cron.sh`. Lovelace snippet: `homeassistant/lovelace-bus-608.yaml`. MCP: add `openbus` from `mcp.json.example` to `~/jarvis/mcp.json` and restart bot.
+    - **Phase 1 (implemented in repo):** `jarvis-home/scripts/bus-monitor.mjs` (+ `bus-monitor.sh` cron wrapper) polls Stride for lines **608** + **65**, writes `sensor.bus_{608,65}_{eta,status,leg}`, announces at ≤10 min via `notify.alexa_media_alines_echo_dot` + `notify.mobile_app_amir_phone`. Install cron via `scripts/install-cron.sh`. Lovelace snippet: `homeassistant/lovelace-bus-608.yaml`. MCP: add `openbus` from `mcp.json.example` to `~/jarvis/mcp.json` and restart bot.
     - **Later:** leave-home “leave by …” window; direction-aware favorites (home↔work `line_ref`s); missed-bus → next ride; daily punctuality digest in briefing; nearest stop from phone GPS; optional Israel Rail MCP for bus+train; porch light when bus imminent after dark.
     - **Note:** Stride `/stop_arrivals` is weak as a Moovit-style board; prefer MCP tools + composed GTFS/SIRI. True stop-boards may later need MOT SIRI StopMonitoring if MCP isn’t enough.
-    - **Amir’s commute (Metropoline 608) — verified on Stride 2026-08-05:**
-      | Leg | From (code) | To (code) | When |
-      |-----|-------------|-----------|------|
-      | Home → work | מרכז דוד/דרך דגניה **39360** (נתניה) | סינמה סיטי/כביש 2 **26966** (הרצליה) | Sun/Mon/Wed mornings |
-      | Work → home | סינמה סיטי/כביש 2 **26749** (רמת השרון, opposite side) | האוניברסיטה/דרך דגניה **39525** (נתניה) | Sun/Mon/Wed evenings |
-      Line **608**; GTFS `line_ref`s today include dir 1 (נתניה→ת״א) `21997`/`23309`, dir 2 (ת״א→נתניה) `21999`/`26789` — resolve by date at runtime.
-      **Alerts:** Echo Dot **and** Amir phone; announce at **≤10 min** ETA; windows **08:00–09:00** (to work) and **17:00–18:00** (from work), Sun/Mon/Wed only.
+    - **Amir’s commute — verified on Stride 2026-08-05:**
+      | Line | Leg | From (code) | To (code) | Days / window |
+      |------|-----|-------------|-----------|---------------|
+      | **608** Metropoline | Home → work | מרכז דוד/דרך דגניה **39360** | סינמה סיטי/כביש 2 **26966** | Sun/Mon/Wed **08:00–09:00** |
+      | **608** | Work → home | סינמה סיטי/כביש 2 **26749** | האוניברסיטה/דרך דגניה **39525** | Sun/Mon/Wed **17:00–18:00** |
+      | **65** Extra (נתניה) | Home → train | דרך דגניה/קלאוזנר **39358** | האורזים/העמל **39427** | Sun/Mon/Wed/Thu **08:00–09:00** |
+      | **65** | Train → home | האורזים/העמל **33004** | מרכז דוד/דרך דגניה **39360** | Sun/Mon/Wed/Thu **17:00–18:00** |
+      **Alerts:** Echo Dot **and** Amir phone; announce at **≤10 min** ETA. Line 65 filters agency אקסטרה + נתניה (many nationwide “65”s).
 15. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?") — complements #14 for driving; buses are the Open Bus track above.
 16. food delivery / restaurant (Wolt / 10bis API — "order lunch", "what's nearby?")
 
