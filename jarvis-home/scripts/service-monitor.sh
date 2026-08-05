@@ -55,11 +55,22 @@ for ENTRY in $PORT_SERVICES; do
 done
 
 # --- Check Docker containers ---
+# n8n-postgres is intentionally disabled as of 2026-08-05, so its stopped state is expected.
+EXCLUDED_CONTAINERS="n8n-postgres"
+
+is_excluded_container() {
+    for EXCLUDED in $EXCLUDED_CONTAINERS; do
+        [ "$1" = "$EXCLUDED" ] && return 0
+    done
+    return 1
+}
+
 EXITED=$(docker ps -a --filter "status=exited" --format "{{.Names}} (exited {{.Status}})" 2>/dev/null)
 if [ -n "$EXITED" ]; then
     while IFS= read -r CONTAINER; do
-        ALERTS="${ALERTS}\n🟡 Container: ${CONTAINER}"
         NAME=$(echo "$CONTAINER" | awk '{print $1}')
+        is_excluded_container "$NAME" && continue
+        ALERTS="${ALERTS}\n🟡 Container: ${CONTAINER}"
         [ -n "$NAME" ] && ACTIONS+=("restart-container:${NAME}" "logs-container:${NAME}")
     done <<< "$EXITED"
 fi
@@ -67,6 +78,7 @@ fi
 UNHEALTHY=$(docker ps --filter "health=unhealthy" --format "{{.Names}}" 2>/dev/null)
 if [ -n "$UNHEALTHY" ]; then
     while IFS= read -r CONTAINER; do
+        is_excluded_container "$CONTAINER" && continue
         ALERTS="${ALERTS}\n🔴 Unhealthy container: <b>${CONTAINER}</b>"
         [ -n "$CONTAINER" ] && ACTIONS+=("restart-container:${CONTAINER}" "logs-container:${CONTAINER}")
     done <<< "$UNHEALTHY"
