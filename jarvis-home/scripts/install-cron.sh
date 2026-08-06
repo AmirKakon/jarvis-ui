@@ -32,7 +32,7 @@ cat >> /tmp/jarvis-cron-clean << EOF
 # jarvis-monitor: Samba share health (every 15 min)
 */15 * * * * $SCRIPTS_DIR/samba-monitor.sh
 
-# jarvis-monitor: Bus 608 commute ETA → HA + Alexa/phone (every minute; no-ops outside windows)
+# jarvis-monitor: Bus 616/65 commute ETA → HA + Alexa/phone (every minute; no-ops outside windows)
 * * * * * $SCRIPTS_DIR/bus-monitor.sh
 
 # jarvis-monitor: Home Assistant liveness (every 2 min)
@@ -62,7 +62,7 @@ rm -f /tmp/jarvis-cron-clean
 
 echo "  Cron jobs installed:"
 echo ""
-echo "    Every 1 min   — bus-monitor.sh      (Bus 608 ETA + announce)"
+echo "    Every 1 min   — bus-monitor.sh      (Bus 616/65 ETA + announce)"
 echo "    Every 2 min   — ha-monitor.sh       (Home Assistant liveness)"
 echo "    Every 15 min  — service-monitor.sh  (Docker + systemd health)"
 echo "    Every 15 min  — samba-monitor.sh   (Samba share health)"

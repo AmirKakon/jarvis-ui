@@ -127,7 +127,7 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 2. qBittorrent agent — search/add torrents, monitor downloads, auto-organize completed media (already has `/download` command, extend with NL control)
 3. multi-room audio / music control — control speakers via HA from Telegram
 4. HA energy dashboard via Telegram — daily/weekly consumption, cost estimates, peak hours
-5. personal app integrations — ✅ _shipped via the generic MCP client (see Done)._ **QRganize** (home inventory) and **RecipeRack** (recipes & meal planning) are live over MCP, with cross-provider orchestration. Adding more self-hosted apps is now a `~/jarvis/mcp.json` entry (HTTP `url` or local stdio `command`/`args`) — no code. _Next candidates:_ **openbus** MCP (see #14); scan [Skills IL skills catalog](https://agentskills.co.il/he/skills) for more keepers (see “Skills IL catalog” below).
+5. personal app integrations — ✅ _shipped via the generic MCP client (see Done)._ **QRganize** (home inventory) and **RecipeRack** (recipes & meal planning) are live over MCP, with cross-provider orchestration. Adding more self-hosted apps is now a `~/jarvis/mcp.json` entry (HTTP `url` or local stdio `command`/`args`) — no code. _Next candidates:_ **openbus** / **routes-israel** MCP for chat (see #14; ambient buses already use curlbus HTTP); scan [Skills IL skills catalog](https://agentskills.co.il/he/skills) for more keepers (see “Skills IL catalog” below).
 
 #### New service integrations
 6. calendar integration (Google Calendar / CalDAV — "what's on my schedule today?", "add meeting tomorrow at 3pm") — _partial: reminders now write to GCal (see Done); still TODO: NL "add meeting" events + Phase 2 GCal-trigger nudges for events created outside JARVIS_
@@ -138,29 +138,25 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 11. Spotify / music — playback control, playlist management, listening stats, music recommendations
 12. GitHub integration — repo status, PR notifications, issue management, commit summaries
 13. note-taking integration (Obsidian / Notion API — "save this to my notes", "find my notes about X")
-14. **Israel buses (Open Bus / Stride) — live times, near-stop alerts, NL Q&A** — split by surface so ambient UI stays cheap and chat stays flexible:
-    - **Data:** [Open Bus Stride API](https://open-bus-stride-api.hasadna.org.il/docs) (Hasadna; GTFS + SIRI; no API key). Consumer MCP: [`@skills-il/openbus-mcp`](https://agentskills.co.il/he/mcp/openbus) (`npx -y @skills-il/openbus-mcp`) — catalog: [agentskills.co.il/he/mcp/openbus](https://agentskills.co.il/he/mcp/openbus).
-    - **HA dashboard:** poller (REST sensors / AppDaemon / small cron — **not** the LLM) for a few favorite stops/lines → `sensor.bus_*` entities; Lovelace card with next arrivals / delay.
-    - **HA announcements:** automation when ETA crosses a threshold (e.g. 5→3 min) or SIRI vehicle nears the stop → Alexa (`notify.alexa_media`) and/or phone; debounce to avoid spam.
-    - **JARVIS + MCP:** add `openbus` to `~/jarvis/mcp.json` (stdio). Ad-hoc questions via existing `{"mcp": true}` — “מתי האוטובוס הבא בתחנה …?”, “איפה קו 601?”, stops in a city, punctuality. Do **not** put the LLM in the dashboard poll loop.
-    - **Phase 1 (implemented in repo):** `jarvis-home/scripts/bus-monitor.mjs` (+ `bus-monitor.sh` cron wrapper) polls Stride for lines **608** + **65**, writes `sensor.bus_{608,65}_{eta,status,leg}`, announces at ≤10 min via `notify.alexa_media_alines_echo_dot` + `notify.mobile_app_amir_phone`. Install cron via `scripts/install-cron.sh`. Lovelace snippet: `homeassistant/lovelace-bus-608.yaml`. MCP: add `openbus` from `mcp.json.example` to `~/jarvis/mcp.json` and restart bot.
-    - **Later (product):** leave-home “leave by …” window; missed-bus → next ride; daily punctuality digest in briefing; nearest stop from phone GPS; optional Israel Rail MCP for bus+train; porch light when bus imminent after dark.
-    - **Note:** Stride vehicle locations are MOT SIRI GPS (good when fresh); `/stop_arrivals` is weak as a Moovit-style board. We intentionally ignore pings older than ~12 min (no stale ETAs). Moovit uses richer stop-arrival predictions — not the same signal. Buses further up the route still work when GPS is fresh (haversine ETA from board stop); being already near the stop is not required.
-    - **Strengthen `bus-monitor` (review later — pick in order):**
-      1. **Approach filter** _(easy, high value)_ — keep a vehicle only if its last 2–3 pings show distance to the board stop shrinking (drop already-passed / opposite-way ghosts).
-      2. **Trajectory speed** _(easy)_ — derive speed from recent GPS deltas instead of SIRI `velocity` + corridor defaults; less jumpy ETA.
-      3. **GTFS schedule fallback** _(medium)_ — when no fresh GPS, show next scheduled departure at the board stop, clearly labeled vs live ETA (avoids empty cards during Extra GPS gaps).
-      4. **Route-aware distance** _(medium)_ — ETA along GTFS shape / remaining stops instead of straight-line haversine (helps winding local lines like 65).
-      5. **MOT SIRI StopMonitoring** _(harder, strongest)_ — real stop-arrival predictions (Moovit-class). Stride alone isn’t enough; needs a different MOT feed/key/path.
-    - **Amir’s commute — verified on Stride 2026-08-05:**
+14. **Israel buses — live times, near-stop alerts, NL Q&A** — split by surface so ambient UI stays cheap and chat stays flexible:
+    - **Ambient data (preferred):** **[curlbus](https://curlbus.app)** JSON stop board — `GET https://curlbus.app/<stop_code>` with `Accept: application/json`. Public wrapper over MOT **SIRI-SM** (stop arrivals), same class of signal Moovit uses. No API key. Source: [elad661/curlbus](https://github.com/elad661/curlbus).
+    - **Also available:** [Open Bus Stride](https://open-bus-stride-api.hasadna.org.il/docs) (Hasadna; GTFS + SIRI vehicle locations). Good for research/vehicle GPS; weaker for stop boards (`/stop_arrivals` is poor; vehicle-location ETAs break when the VM feed lags or today’s GTFS date isn’t published yet).
+    - **HA dashboard / alerts (implemented):** `jarvis-home/scripts/bus-monitor.mjs` (+ `bus-monitor.sh` cron) polls **curlbus** for lines **616** + **65** at board stops, filters by `line_name` + destination regex (direction), writes `sensor.bus_{616,65}_{eta,status,leg}`, announces at ≤10 min via Echo Dot + Amir phone. Cron: `scripts/install-cron.sh`. Lovelace: `homeassistant/lovelace-bus-608.yaml`.
+    - **JARVIS + MCP (chat, not the poll loop):**
+      - **openbus** — [`@skills-il/openbus-mcp`](https://agentskills.co.il/he/mcp/openbus) → Stride. Example in `mcp.json.example`. Not wired live yet.
+      - **routes-israel** — [agentskills.co.il/he/mcp/routes-israel](https://agentskills.co.il/he/mcp/routes-israel) ([yoni-j/routes-mcp-israel](https://github.com/yoni-j/routes-mcp-israel)): Google Routes/Places + GTFS match + **curlbus** arrivals. Needs `GOOGLE_API_KEY`; clone + `uv`. Best for NL “how do I get from A to B?” — **do not** put in the every-minute HA poller (heavy; needs Google key). For ambient ETA, call curlbus HTTP directly (what we do).
+    - **Later (product):** leave-home “leave by …” window; missed-bus → next ride; daily punctuality digest; nearest stop from phone GPS; Israel Rail MCP; porch light when bus imminent after dark; wire openbus and/or routes-israel into `~/jarvis/mcp.json` for chat.
+    - **Lessons (2026-08-06):** Stride GPS alone showed `no live vehicle` while curlbus had live stop ETAs. Prefer curlbus for commute cards. Commute line is **616** (not 608).
+    - **Optional later tighteners** (less critical after curlbus): approach filter / trajectory if we ever fall back to Stride GPS; self-host curlbus with a MOT SIRI-SM key if the public instance is rate-limited.
+    - **Amir’s commute:**
       | Line | Leg | From (code) | To (code) | Days / window |
       |------|-----|-------------|-----------|---------------|
-      | **608** Metropoline | Home → work | מרכז דוד/דרך דגניה **39360** | סינמה סיטי/כביש 2 **26966** | Sun/Mon/Wed **08:00–09:00** |
-      | **608** | Work → home | סינמה סיטי/כביש 2 **26749** | האוניברסיטה/דרך דגניה **39525** | Sun/Mon/Wed **17:00–18:00** |
+      | **616** Metropoline | Home → work | מרכז דוד/דרך דגניה **39360** | סינמה סיטי/כביש 2 **26966** | Sun/Mon/Wed **08:00–09:00** |
+      | **616** | Work → home | סינמה סיטי/כביש 2 **26749** | האוניברסיטה/דרך דגניה **39525** | Sun/Mon/Wed **17:00–18:00** |
       | **65** Extra (נתניה) | Home → train | דרך דגניה/קלאוזנר **39358** | האורזים/העמל **39427** | Sun/Mon/Wed/Thu **08:00–09:00** |
       | **65** | Train → home | האורזים/העמל **33004** | מרכז דוד/דרך דגניה **39360** | Sun/Mon/Wed/Thu **17:00–18:00** |
-      **Alerts:** Echo Dot **and** Amir phone; announce at **≤10 min** ETA. Line 65 filters agency אקסטרה + נתניה (many nationwide “65”s).
-15. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?") — complements #14 for driving; buses are the Open Bus track above.
+      **Alerts:** Echo Dot **and** Amir phone; ≤10 min ETA. _(TEMP testing: Thu on 616 + full-day windows in `bus-monitor.mjs` — revert after.)_ Confirm 616 board stop **39360** — curlbus often shows 616 at **26749** (return) more clearly than at home.
+15. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?") — complements #14 for driving; buses are the Open Bus / curlbus track above.
 16. food delivery / restaurant (Wolt / 10bis API — "order lunch", "what's nearby?")
 
 ### MCP servers (reference)
@@ -169,11 +165,12 @@ _Connecting a new provider = add an entry to `~/jarvis/mcp.json` (see `jarvis-ho
 
 - **QRganize** (home inventory) — `https://us-central1-qrganize-f651b.cloudfunctions.net/app/api/mcp` (Bearer token). Local inspector: `cd QRganize/mcp; $env:QRGANIZE_UUID="…"; npx @modelcontextprotocol/inspector node index.js`.
 - **RecipeRack** (recipes & meal planning) — `https://us-central1-recipe-rack-ighp8.cloudfunctions.net/app/mcp` (no auth). Local inspector: `cd recipe-rack/mcp-server; npx @modelcontextprotocol/inspector node index.js`.
-- **openbus** (Israel buses) — stdio: `npx -y @skills-il/openbus-mcp` ([Skills IL](https://agentskills.co.il/he/mcp/openbus); wraps [Stride API](https://open-bus-stride-api.hasadna.org.il/docs)). No API key. Example entry in `mcp.json.example`. Ambient commute alerts: `scripts/bus-monitor.mjs` (see Integrations #14).
+- **openbus** (Israel buses / Stride) — stdio: `npx -y @skills-il/openbus-mcp` ([catalog](https://agentskills.co.il/he/mcp/openbus)). No API key. Example in `mcp.json.example`. Ambient commute uses **curlbus HTTP**, not this MCP (see Integrations #14).
+- **routes-israel** (trip planning + curlbus) — [catalog](https://agentskills.co.il/he/mcp/routes-israel); clone [yoni-j/routes-mcp-israel](https://github.com/yoni-j/routes-mcp-israel), needs `GOOGLE_API_KEY`. Chat / A→B routing only — not for cron poller.
 
 ### Skills IL catalog — review later
 
-Browse [agentskills.co.il/he/skills](https://agentskills.co.il/he/skills) (Hebrew catalog of agent skills / MCP-related tooling for Israel & general use) and pick nice additions for JARVIS — e.g. new `~/jarvis/mcp.json` servers, Claude skills under `jarvis-home/`, or cron helpers. Related: [MCP catalog](https://agentskills.co.il/he/mcp) (includes [openbus](https://agentskills.co.il/he/mcp/openbus)). _TODO:_ walk the list and note keepers here.
+Browse [agentskills.co.il/he/skills](https://agentskills.co.il/he/skills) (Hebrew catalog of agent skills / MCP-related tooling for Israel & general use) and pick nice additions for JARVIS — e.g. new `~/jarvis/mcp.json` servers, Claude skills under `jarvis-home/`, or cron helpers. Related: [MCP catalog](https://agentskills.co.il/he/mcp) (includes [openbus](https://agentskills.co.il/he/mcp/openbus), [routes-israel](https://agentskills.co.il/he/mcp/routes-israel)). _TODO:_ walk the list and note keepers here.
 
 ### Personal Assistant
 

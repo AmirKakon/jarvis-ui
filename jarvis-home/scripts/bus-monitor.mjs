@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 /**
- * Commute bus monitor — Open Bus Stride → Home Assistant sensors + alerts.
+ * Commute bus monitor — curlbus (MOT SIRI-SM stop board) → HA sensors + alerts.
+ *
+ * Data: GET https://curlbus.app/<stop_code>  Accept: application/json
+ *   (public wrapper; same stop-arrival class as Moovit — not Stride GPS)
  *
  * Routes (Asia/Jerusalem):
  *   TEMP full-day test — before noon = outbound, noon–midnight = return.
- *   Revert windows to 08–09 / 17–18 and drop Thu from 608 when done.
- *   608 Metropoline  Sun/Mon/Wed/Thu
+ *   Revert windows to 08–09 / 17–18 and drop Thu from 616 when done.
+ *   616 Metropoline  Sun/Mon/Wed/Thu
  *     00:00–12:00  home → work   (board 39360)
  *     12:00–24:00  work → home   (board 26749)
  *   65  Extra        Sun/Mon/Wed/Thu
@@ -26,20 +29,20 @@ const HOME = process.env.HOME || homedir();
 const ENV_PATH = join(HOME, 'jarvis/.env');
 const STATE_PATH = join(HOME, 'jarvis/state/bus-monitor.json');
 const LOG_PATH = join(HOME, 'jarvis/logs/bus-monitor.log');
-const STRIDE = 'https://open-bus-stride-api.hasadna.org.il';
+const CURLBUS = 'https://curlbus.app';
 
 const ETA_ANNOUNCE_MIN = 10;
+const MAX_ETA_MIN = 120;
 
 /** @type {Array<{
- *  id: string, shortName: string, agencyRe: RegExp, longNameRe?: RegExp,
+ *  id: string, shortName: string,
  *  days: string[], morning: [number, number], evening: [number, number],
  *  legs: Record<string, object>
  * }>} */
 const ROUTES = [
   {
-    id: '608',
-    shortName: '608',
-    agencyRe: /מטרופולין/,
+    id: '616',
+    shortName: '616',
     days: ['Sun', 'Mon', 'Wed', 'Thu'], // TEMP: Thu for testing — drop Thu after
     morning: [0, 12 * 60], // TEMP full-day test
     evening: [12 * 60, 24 * 60], // TEMP full-day test
@@ -50,8 +53,7 @@ const ROUTES = [
         boardName: 'מרכז דוד/דרך דגניה',
         alightCode: 26966,
         alightName: 'סינמה סיטי/כביש 2',
-        direction: '1',
-        stop: { lat: 32.308448, lon: 34.874746 },
+        destRe: /תל אביב|סינמה|הרצליה|יפו|קומה 6|פתח תקווה|קריית אריה|קרית אריה/,
       },
       from_work: {
         label: 'work → home',
@@ -59,16 +61,13 @@ const ROUTES = [
         boardName: 'סינמה סיטי/כביש 2',
         alightCode: 39525,
         alightName: 'האוניברסיטה/דרך דגניה',
-        direction: '2',
-        stop: { lat: 32.148067, lon: 34.803856 },
+        destRe: /נתניה|דגניה|אוניברסיט|רכבת נתניה/,
       },
     },
   },
   {
     id: '65',
     shortName: '65',
-    agencyRe: /אקסטרה/,
-    longNameRe: /נתניה/,
     days: ['Sun', 'Mon', 'Wed', 'Thu'],
     morning: [0, 12 * 60], // TEMP full-day test
     evening: [12 * 60, 24 * 60], // TEMP full-day test
@@ -79,9 +78,7 @@ const ROUTES = [
         boardName: 'דרך דגניה/פרופסור יוסף קלאוזנר',
         alightCode: 39427,
         alightName: 'האורזים/העמל',
-        // Extra 65 dir 2: south → north (home → station / עין התכלת)
-        direction: '2',
-        stop: { lat: 32.307437, lon: 34.874793 },
+        destRe: /עין התכלת|אורזים|העמל|הארוזים/,
       },
       from_train: {
         label: 'train → home',
@@ -89,9 +86,7 @@ const ROUTES = [
         boardName: 'האורזים/העמל',
         alightCode: 39360,
         alightName: 'מרכז דוד/דרך דגניה',
-        // Extra 65 dir 1: north → south (station → home / פולג)
-        direction: '1',
-        stop: { lat: 32.319489, lon: 34.871658 },
+        destRe: /פולג|דגניה|מרכז דוד|קלאוזנר/,
       },
     },
   },
@@ -129,7 +124,7 @@ function jerusalemNow() {
     hour: '2-digit', minute: '2-digit', hour12: false,
   });
   const parts = Object.fromEntries(fmt.formatToParts(new Date()).map(p => [p.type, p.value]));
-  const weekday = parts.weekday; // Sun, Mon, …
+  const weekday = parts.weekday;
   const hour = parseInt(parts.hour, 10);
   const minute = parseInt(parts.minute, 10);
   const date = `${parts.year}-${parts.month}-${parts.day}`;
@@ -151,104 +146,83 @@ function activeLeg(route, now) {
   return null;
 }
 
-async function strideGet(path, params = {}) {
-  const url = new URL(STRIDE + path);
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === '') continue;
-    url.searchParams.set(k, String(v));
-  }
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`Stride ${path} ${res.status}`);
+function destLabel(visit) {
+  const name = visit?.static_info?.route?.destination?.name;
+  if (!name) return '';
+  if (typeof name === 'string') return name;
+  return [name.HE, name.EN, name.AR].filter(Boolean).join(' ');
+}
+
+function etaMinutesFrom(etaStr) {
+  if (!etaStr) return null;
+  // "2026-08-06 09:52:00+03:00"
+  const d = new Date(String(etaStr).replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.round((d.getTime() - Date.now()) / 60000);
+}
+
+async function curlbusStop(stopCode) {
+  const res = await fetch(`${CURLBUS}/${stopCode}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`curlbus ${stopCode} ${res.status}`);
   return res.json();
 }
 
-function haversineKm(a, b) {
-  const R = 6371;
-  const toRad = d => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-/** Shift a YYYY-MM-DD string by delta days (UTC calendar). */
-function addDays(dateStr, delta) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + delta);
-  return dt.toISOString().slice(0, 10);
-}
-
 /**
- * Resolve GTFS line_refs for short name + direction.
- * Stride often lags publishing today's GTFS date — walk back up to 7 days.
+ * Next arrival for shortName at board stop, optionally filtered by destination regex.
  */
-async function resolveLineRefs(route, date, direction) {
-  for (let back = 0; back <= 7; back++) {
-    const day = addDays(date, -back);
-    const routes = await strideGet('/gtfs_routes/list', {
-      route_short_name: route.shortName,
-      date_from: day,
-      date_to: day,
-      limit: 100,
-    });
-    const matches = (routes || []).filter(r => {
-      if (String(r.route_direction) !== String(direction)) return false;
-      if (route.agencyRe && !route.agencyRe.test(r.agency_name || '')) return false;
-      if (route.longNameRe && !route.longNameRe.test(r.route_long_name || '')) return false;
-      return true;
-    });
-    if (!matches.length) continue;
-    const refs = [...new Set(matches.map(r => r.line_ref).filter(Boolean))];
-    return { refs, agency: matches[0]?.agency_name || '', gtfsDate: day };
-  }
-  return { refs: [], agency: '', gtfsDate: null };
-}
-
-async function nearestEta(lineRefs, stop) {
-  if (!lineRefs.length) return null;
-  const to = new Date();
-  const from = new Date(to.getTime() - 12 * 60 * 1000);
-  const iso = d => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
-
+async function nextArrival(shortName, leg) {
+  const data = await curlbusStop(leg.boardCode);
+  const visits = data?.visits?.[String(leg.boardCode)] || data?.visits?.[leg.boardCode] || [];
   let best = null;
-  for (const lineRef of lineRefs) {
-    const locs = await strideGet('/siri_vehicle_locations/list', {
-      siri_routes__line_ref: lineRef,
-      recorded_at_time_from: iso(from),
-      recorded_at_time_to: iso(to),
-      order_by: 'recorded_at_time desc',
-      limit: 40,
-    });
-    const byVehicle = new Map();
-    for (const loc of locs || []) {
-      const v = loc.siri_ride__vehicle_ref || loc.id;
-      if (!byVehicle.has(v)) byVehicle.set(v, loc);
-    }
-    for (const loc of byVehicle.values()) {
-      if (loc.lat == null || loc.lon == null) continue;
-      const dist = haversineKm({ lat: loc.lat, lon: loc.lon }, stop);
-      if (dist > 45) continue;
-      let speedKmh = Number(loc.velocity) || 0;
-      if (speedKmh > 0 && speedKmh < 3) speedKmh *= 3.6;
-      if (speedKmh < 12) speedKmh = 28;
-      if (speedKmh > 90) speedKmh = 50;
-      const etaMin = Math.max(1, Math.round((dist / speedKmh) * 60));
+
+  for (const v of visits) {
+    if (String(v.line_name) !== String(shortName)) continue;
+    const dest = destLabel(v);
+    if (leg.destRe && dest && !leg.destRe.test(dest)) continue;
+
+    const etaMin = etaMinutesFrom(v.eta);
+    if (etaMin == null || etaMin < 0 || etaMin > MAX_ETA_MIN) continue;
+
+    const candidate = {
+      etaMin,
+      vehicle: v.vehicle_ref || '',
+      destination: dest || String(v.destination_id || ''),
+      etaAt: v.eta,
+      recordedAt: v.timestamp || data.timestamp || null,
+      lineId: v.line_id || v.route_id || null,
+      lat: v.location?.lat != null ? Number(v.location.lat) : null,
+      lon: v.location?.lon != null ? Number(v.location.lon) : null,
+      producer: v.producer || null,
+    };
+    if (!best || candidate.etaMin < best.etaMin) best = candidate;
+  }
+
+  // If dest filter wiped everything, retry line-only (better than empty; log it)
+  if (!best && leg.destRe) {
+    for (const v of visits) {
+      if (String(v.line_name) !== String(shortName)) continue;
+      const etaMin = etaMinutesFrom(v.eta);
+      if (etaMin == null || etaMin < 0 || etaMin > MAX_ETA_MIN) continue;
+      const dest = destLabel(v);
       const candidate = {
         etaMin,
-        distKm: Math.round(dist * 10) / 10,
-        vehicle: loc.siri_ride__vehicle_ref || String(loc.siri_ride__id || ''),
-        lineRef,
-        recordedAt: loc.recorded_at_time,
-        lat: loc.lat,
-        lon: loc.lon,
+        vehicle: v.vehicle_ref || '',
+        destination: dest || String(v.destination_id || ''),
+        etaAt: v.eta,
+        recordedAt: v.timestamp || data.timestamp || null,
+        lineId: v.line_id || v.route_id || null,
+        lat: v.location?.lat != null ? Number(v.location.lat) : null,
+        lon: v.location?.lon != null ? Number(v.location.lon) : null,
+        producer: v.producer || null,
+        destFilterSkipped: true,
       };
       if (!best || candidate.etaMin < best.etaMin) best = candidate;
     }
   }
-  return best;
+
+  return { best, visitCount: visits.length };
 }
 
 async function haCall(env, method, path, body) {
@@ -318,34 +292,33 @@ async function setIdle(env, route, now) {
     friendly_name: `Bus ${route.shortName} status`,
     icon: 'mdi:bus-clock',
     window: 'outside',
+    source: 'curlbus',
     jerusalem: `${now.weekday} ${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`,
   });
 }
 
 async function processRoute(env, route, leg, now, state) {
   const ids = sensorIds(route.id);
-  log(`[${route.shortName}] Active leg ${leg.key} (${leg.label})`);
+  log(`[${route.shortName}] Active leg ${leg.key} (${leg.label}) board=${leg.boardCode}`);
 
   let best = null;
-  let lineRefs = [];
   try {
-    const resolved = await resolveLineRefs(route, now.date, leg.direction);
-    lineRefs = resolved.refs;
-    const gtfsNote = resolved.gtfsDate && resolved.gtfsDate !== now.date
-      ? ` (gtfs ${resolved.gtfsDate}; today empty)`
-      : resolved.gtfsDate
-        ? ` (gtfs ${resolved.gtfsDate})`
-        : '';
-    log(`[${route.shortName}] line_refs dir=${leg.direction}: ${lineRefs.join(',') || '(none)'}${gtfsNote}`);
-    best = await nearestEta(lineRefs, leg.stop);
+    const { best: b, visitCount } = await nextArrival(route.shortName, leg);
+    best = b;
+    log(
+      `[${route.shortName}] curlbus stop ${leg.boardCode}: ${visitCount} visits` +
+        (best
+          ? ` → ETA ${best.etaMin}m dest=${best.destination}${best.destFilterSkipped ? ' (dest filter skipped)' : ''}`
+          : ' → no matching line'),
+    );
   } catch (e) {
-    log(`[${route.shortName}] Stride error: ${e.message}`);
+    log(`[${route.shortName}] curlbus error: ${e.message}`);
   }
 
   const eta = best?.etaMin ?? null;
   const status = best
-    ? `ETA ${eta} min · ${best.distKm} km · veh ${best.vehicle}`
-    : 'no live vehicle';
+    ? `ETA ${eta} min · ${best.destination || '—'} · veh ${best.vehicle || '?'}`
+    : 'no live arrival';
 
   try {
     await setSensor(env, ids.eta, eta ?? 'unknown', {
@@ -353,18 +326,21 @@ async function processRoute(env, route, leg, now, state) {
       unit_of_measurement: 'min',
       icon: 'mdi:bus-clock',
       device_class: 'duration',
+      source: 'curlbus',
       leg: leg.key,
       leg_label: leg.label,
       board_stop: `${leg.boardName} (${leg.boardCode})`,
       alight_stop: `${leg.alightName} (${leg.alightCode})`,
       vehicle: best?.vehicle || null,
-      distance_km: best?.distKm ?? null,
-      line_refs: lineRefs.join(','),
+      destination: best?.destination || null,
+      eta_at: best?.etaAt || null,
       recorded_at: best?.recordedAt || null,
+      line_id: best?.lineId || null,
     });
     await setSensor(env, ids.status, status, {
       friendly_name: `Bus ${route.shortName} status`,
       icon: 'mdi:bus',
+      source: 'curlbus',
       leg: leg.key,
       board_stop_code: leg.boardCode,
     });
@@ -381,7 +357,7 @@ async function processRoute(env, route, leg, now, state) {
   log(`[${route.shortName}] ${status}`);
 
   if (eta != null && eta <= ETA_ANNOUNCE_MIN) {
-    const dedupeKey = `${now.date}:${route.id}:${leg.key}:${best.vehicle || 'unknown'}`;
+    const dedupeKey = `${now.date}:${route.id}:${leg.key}:${best.vehicle || best.etaAt || 'unknown'}`;
     if (!state.announced[dedupeKey]) {
       const title = `🚌 קו ${route.shortName}`;
       const message = `קו ${route.shortName} בעוד כ־${eta} דקות מ${leg.boardName}. יעד: ${leg.alightName}.`;

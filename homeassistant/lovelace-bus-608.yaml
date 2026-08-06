@@ -4,13 +4,13 @@
 type: vertical-stack
 cards:
   - type: entities
-    title: קו 608 (בית ↔ עבודה)
+    title: קו 616 (בית ↔ עבודה)
     entities:
-      - entity: sensor.bus_608_eta
+      - entity: sensor.bus_616_eta
         name: דקות להגעה
-      - entity: sensor.bus_608_status
+      - entity: sensor.bus_616_status
         name: סטטוס
-      - entity: sensor.bus_608_leg
+      - entity: sensor.bus_616_leg
         name: כיוון פעיל
   - type: entities
     title: קו 65 (בית ↔ רכבת)
