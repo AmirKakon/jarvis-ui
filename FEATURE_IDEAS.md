@@ -127,7 +127,7 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 2. qBittorrent agent — search/add torrents, monitor downloads, auto-organize completed media (already has `/download` command, extend with NL control)
 3. multi-room audio / music control — control speakers via HA from Telegram
 4. HA energy dashboard via Telegram — daily/weekly consumption, cost estimates, peak hours
-5. personal app integrations — ✅ _shipped via the generic MCP client (see Done)._ **QRganize** (home inventory) and **RecipeRack** (recipes & meal planning) are live over MCP, with cross-provider orchestration. Adding more self-hosted apps is now a `~/jarvis/mcp.json` entry (HTTP `url` or local stdio `command`/`args`) — no code. _Next candidates:_ **openbus** MCP (see #14), any other self-hosted / Skills IL MCP server.
+5. personal app integrations — ✅ _shipped via the generic MCP client (see Done)._ **QRganize** (home inventory) and **RecipeRack** (recipes & meal planning) are live over MCP, with cross-provider orchestration. Adding more self-hosted apps is now a `~/jarvis/mcp.json` entry (HTTP `url` or local stdio `command`/`args`) — no code. _Next candidates:_ **openbus** MCP (see #14); scan [Skills IL skills catalog](https://agentskills.co.il/he/skills) for more keepers (see “Skills IL catalog” below).
 
 #### New service integrations
 6. calendar integration (Google Calendar / CalDAV — "what's on my schedule today?", "add meeting tomorrow at 3pm") — _partial: reminders now write to GCal (see Done); still TODO: NL "add meeting" events + Phase 2 GCal-trigger nudges for events created outside JARVIS_
@@ -144,8 +144,14 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
     - **HA announcements:** automation when ETA crosses a threshold (e.g. 5→3 min) or SIRI vehicle nears the stop → Alexa (`notify.alexa_media`) and/or phone; debounce to avoid spam.
     - **JARVIS + MCP:** add `openbus` to `~/jarvis/mcp.json` (stdio). Ad-hoc questions via existing `{"mcp": true}` — “מתי האוטובוס הבא בתחנה …?”, “איפה קו 601?”, stops in a city, punctuality. Do **not** put the LLM in the dashboard poll loop.
     - **Phase 1 (implemented in repo):** `jarvis-home/scripts/bus-monitor.mjs` (+ `bus-monitor.sh` cron wrapper) polls Stride for lines **608** + **65**, writes `sensor.bus_{608,65}_{eta,status,leg}`, announces at ≤10 min via `notify.alexa_media_alines_echo_dot` + `notify.mobile_app_amir_phone`. Install cron via `scripts/install-cron.sh`. Lovelace snippet: `homeassistant/lovelace-bus-608.yaml`. MCP: add `openbus` from `mcp.json.example` to `~/jarvis/mcp.json` and restart bot.
-    - **Later:** leave-home “leave by …” window; direction-aware favorites (home↔work `line_ref`s); missed-bus → next ride; daily punctuality digest in briefing; nearest stop from phone GPS; optional Israel Rail MCP for bus+train; porch light when bus imminent after dark.
-    - **Note:** Stride `/stop_arrivals` is weak as a Moovit-style board; prefer MCP tools + composed GTFS/SIRI. True stop-boards may later need MOT SIRI StopMonitoring if MCP isn’t enough.
+    - **Later (product):** leave-home “leave by …” window; missed-bus → next ride; daily punctuality digest in briefing; nearest stop from phone GPS; optional Israel Rail MCP for bus+train; porch light when bus imminent after dark.
+    - **Note:** Stride vehicle locations are MOT SIRI GPS (good when fresh); `/stop_arrivals` is weak as a Moovit-style board. We intentionally ignore pings older than ~12 min (no stale ETAs). Moovit uses richer stop-arrival predictions — not the same signal. Buses further up the route still work when GPS is fresh (haversine ETA from board stop); being already near the stop is not required.
+    - **Strengthen `bus-monitor` (review later — pick in order):**
+      1. **Approach filter** _(easy, high value)_ — keep a vehicle only if its last 2–3 pings show distance to the board stop shrinking (drop already-passed / opposite-way ghosts).
+      2. **Trajectory speed** _(easy)_ — derive speed from recent GPS deltas instead of SIRI `velocity` + corridor defaults; less jumpy ETA.
+      3. **GTFS schedule fallback** _(medium)_ — when no fresh GPS, show next scheduled departure at the board stop, clearly labeled vs live ETA (avoids empty cards during Extra GPS gaps).
+      4. **Route-aware distance** _(medium)_ — ETA along GTFS shape / remaining stops instead of straight-line haversine (helps winding local lines like 65).
+      5. **MOT SIRI StopMonitoring** _(harder, strongest)_ — real stop-arrival predictions (Moovit-class). Stride alone isn’t enough; needs a different MOT feed/key/path.
     - **Amir’s commute — verified on Stride 2026-08-05:**
       | Line | Leg | From (code) | To (code) | Days / window |
       |------|-----|-------------|-----------|---------------|
@@ -164,6 +170,10 @@ _Connecting a new provider = add an entry to `~/jarvis/mcp.json` (see `jarvis-ho
 - **QRganize** (home inventory) — `https://us-central1-qrganize-f651b.cloudfunctions.net/app/api/mcp` (Bearer token). Local inspector: `cd QRganize/mcp; $env:QRGANIZE_UUID="…"; npx @modelcontextprotocol/inspector node index.js`.
 - **RecipeRack** (recipes & meal planning) — `https://us-central1-recipe-rack-ighp8.cloudfunctions.net/app/mcp` (no auth). Local inspector: `cd recipe-rack/mcp-server; npx @modelcontextprotocol/inspector node index.js`.
 - **openbus** (Israel buses) — stdio: `npx -y @skills-il/openbus-mcp` ([Skills IL](https://agentskills.co.il/he/mcp/openbus); wraps [Stride API](https://open-bus-stride-api.hasadna.org.il/docs)). No API key. Example entry in `mcp.json.example`. Ambient commute alerts: `scripts/bus-monitor.mjs` (see Integrations #14).
+
+### Skills IL catalog — review later
+
+Browse [agentskills.co.il/he/skills](https://agentskills.co.il/he/skills) (Hebrew catalog of agent skills / MCP-related tooling for Israel & general use) and pick nice additions for JARVIS — e.g. new `~/jarvis/mcp.json` servers, Claude skills under `jarvis-home/`, or cron helpers. Related: [MCP catalog](https://agentskills.co.il/he/mcp) (includes [openbus](https://agentskills.co.il/he/mcp/openbus)). _TODO:_ walk the list and note keepers here.
 
 ### Personal Assistant
 

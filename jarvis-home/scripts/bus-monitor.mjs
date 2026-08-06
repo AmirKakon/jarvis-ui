@@ -3,7 +3,7 @@
  * Commute bus monitor — Open Bus Stride → Home Assistant sensors + alerts.
  *
  * Routes (Asia/Jerusalem):
- *   608 Metropoline  Sun/Mon/Wed
+ *   608 Metropoline  Sun/Mon/Wed/Thu  # TEMP: Thu for testing; drop Thu after
  *     08:00–09:00  home → work   (board 39360)
  *     17:00–18:00  work → home   (board 26749)
  *   65  Extra        Sun/Mon/Wed/Thu
@@ -38,7 +38,7 @@ const ROUTES = [
     id: '608',
     shortName: '608',
     agencyRe: /מטרופולין/,
-    days: ['Sun', 'Mon', 'Wed'],
+    days: ['Sun', 'Mon', 'Wed', 'Thu'], // TEMP: Thu for testing — drop Thu after
     morning: [8 * 60, 9 * 60],
     evening: [17 * 60, 18 * 60],
     legs: {
