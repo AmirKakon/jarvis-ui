@@ -18,6 +18,7 @@ import { runMcpAgent } from './agents/mcp.js';
 import { mcpServerSummaries } from './services/mcp-client.js';
 import { runWeatherQuery } from './agents/weather.js';
 import { runJellyfinQuery } from './agents/jellyfin.js';
+import { runBusQuery } from './agents/bus.js';
 import { runSelfDev } from './agents/selfdev.js';
 import { startClaudeJob, startAsyncJob } from './agents/jobs.js';
 import { frontModel, haikuModel, sonnetModel, opusModel } from './models.js';
@@ -140,7 +141,10 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 10. Media library (Jellyfin — search the movie/TV library, what's recently added, continue watching / next up, "what should I watch tonight" recommendations, what's playing now, or trigger a library scan):
 {"jellyfin": true, "query": "the user's full request", "acknowledge": "brief message to user"}
 
-11. Self-development — modify your OWN source code / behaviour. Your source lives in the jarvis-ui repository and includes: your monitoring scripts (scripts/*.sh — e.g. samba-monitor.sh, disk-watchdog.sh), your Telegram bot code (telegram-bot/src/**), your prompts, and your .claude config. ANY request to add/edit/comment/rename/refactor those files, add a feature or command to yourself, fix a bug in your own code, or make one of your checks self-healing → selfdev. This edits the codebase, syntax-checks, commits, and offers a deploy:
+11. Commute buses (next bus / ETA for lines 616 or 65, leaving home or returning, train shuttle — reads Home Assistant sensors from the bus monitor):
+{"bus": true, "question": "the user's bus question", "acknowledge": "brief message to user"}
+
+12. Self-development — modify your OWN source code / behaviour. Your source lives in the jarvis-ui repository and includes: your monitoring scripts (scripts/*.sh — e.g. samba-monitor.sh, disk-watchdog.sh), your Telegram bot code (telegram-bot/src/**), your prompts, and your .claude config. ANY request to add/edit/comment/rename/refactor those files, add a feature or command to yourself, fix a bug in your own code, or make one of your checks self-healing → selfdev. This edits the codebase, syntax-checks, commits, and offers a deploy:
 {"selfdev": true, "task": "a clear, complete description of the code change to make, with all context", "acknowledge": "brief message to user"}
 
 MULTIPLE ACTIONS:
@@ -174,6 +178,9 @@ EXAMPLES:
 - User: "do we have the movie Dune on jellyfin" → {"jellyfin": true, "query": "Is the movie Dune in the library?", "acknowledge": "Checking the library, Sir."}
 - User: "what's been added to jellyfin recently" → {"jellyfin": true, "query": "recently added", "acknowledge": "Checking what's new, Sir."}
 - User: "what am I in the middle of watching" → {"jellyfin": true, "query": "continue watching", "acknowledge": "Let me check, Sir."}
+- User: "when's the next bus" → {"bus": true, "question": "when's the next bus", "acknowledge": "Checking the buses, Sir."}
+- User: "when is the next 65 to the train" → {"bus": true, "question": "next 65 leaving to the train", "acknowledge": "Checking line 65, Sir."}
+- User: "616 ETA coming home" → {"bus": true, "question": "616 returning home", "acknowledge": "Checking the 616, Sir."}
 - User: "add a comment at the top of scripts/samba-monitor.sh noting it self-heals mounts" → {"selfdev": true, "task": "Add a comment near the top of scripts/samba-monitor.sh (right after the shebang) explaining that the script self-heals mounts before alerting", "acknowledge": "Adding that note to my code, Sir."}
 - User: "add a self-healing retry to your disk watchdog script" → {"selfdev": true, "task": "In the disk-watchdog monitoring script, add self-healing: if the disk check fails, attempt cleanup/remount and retry up to 3 times before alerting", "acknowledge": "Let me update my own code for that, Sir."}
 - User: "make your morning briefing also include the weather for tomorrow" → {"selfdev": true, "task": "Modify the morning briefing so it also includes tomorrow's weather forecast, not just today's", "acknowledge": "I'll amend my briefing code, Sir."}
@@ -195,6 +202,7 @@ RULES:
 - Current info, news, prices, live data (a single quick lookup) → search
 - Multi-step research: comparing options, cross-referencing several sources, reading multiple pages, or search combined with calculations/charts → research
 - Movies / TV / media library: "what should I watch", search titles, recently added, continue watching, now playing, library scan → jellyfin
+- Next bus / bus ETA / line 616 / line 65 / train shuttle commute times → bus (NOT search, NOT ha device control)
 - Read/summarise a public web page or PDF → fetch
 - Stremio / local stream URLs (http://127.0.0.1:11470/HASH/…), magnet links, or bare 40-char torrent info hashes → do NOT fetch. On Telegram the download handler catches these; if asked in chat, tell the user to send the link (optionally with movie/tv) and it will be added to qBittorrent.
 - Math, conversions, data analysis, generate charts → compute (NO internet — cannot make HTTP requests)
@@ -305,7 +313,7 @@ async function runFrontModel(systemPrompt, userMessage) {
 
 // --- Action metadata + parsing ---
 
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research', 'mcp', 'jellyfin', 'selfdev'];
+const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research', 'mcp', 'jellyfin', 'bus', 'selfdev'];
 
 // Per-action presentation metadata (status emoji, default ack, error label)
 export const ACTION_META = {
@@ -320,6 +328,7 @@ export const ACTION_META = {
   research: { emoji: '🔬', ack: 'Researching that for you, Sir...', label: 'Research' },
   mcp:      { emoji: '🧰', ack: 'Checking that for you, Sir...', label: 'Tools' },
   jellyfin: { emoji: '🎬', ack: 'Checking the media library, Sir...', label: 'Jellyfin' },
+  bus:      { emoji: '🚌', ack: 'Checking the buses, Sir...', label: 'Buses' },
   selfdev:  { emoji: '🛠️', ack: 'Editing my own code, Sir — this may take a few minutes...', label: 'Self-update' },
 };
 
@@ -491,6 +500,8 @@ async function runOne(action, sctx) {
     }
     case 'jellyfin':
       return { key, action, res: await runJellyfinQuery(action.query || sctx.prompt) };
+    case 'bus':
+      return { key, action, res: await runBusQuery(action.question || sctx.prompt) };
     case 'ha':
       return { key, action, res: await resolveAndExecute(action.command) };
     case 'remind':

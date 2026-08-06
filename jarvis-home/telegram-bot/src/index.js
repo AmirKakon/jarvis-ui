@@ -20,6 +20,7 @@ import { memoryCommand } from './commands/memory.js';
 import { securityCommand, securityRefresh } from './commands/security.js';
 import { searchCommand } from './commands/search.js';
 import { weatherCommand } from './commands/weather.js';
+import { busCommand } from './commands/bus.js';
 import { jellyfinCommand } from './commands/jellyfin.js';
 import { jobsCommand } from './commands/jobs.js';
 import { eventCommand, agendaCommand } from './commands/calendar.js';
@@ -108,6 +109,7 @@ const HELP_TEXT = [
   '/security  — security dashboard',
   '/search    — web search (AI-summarized)',
   '/weather   — local weather &amp; forecast',
+  '/bus       — commute bus ETAs (616 / 65)',
   '/jellyfin  — media library (search, what to watch)',
   '/event     — add a calendar event (NL)',
   '/agenda    — show your schedule',
@@ -148,6 +150,7 @@ bot.command('download', downloadCommand);
 bot.command('security', securityCommand);
 bot.command('search', searchCommand);
 bot.command('weather', weatherCommand);
+bot.command('bus', busCommand);
 bot.command('jellyfin', jellyfinCommand);
 bot.command('jobs', jobsCommand);
 bot.command('event', eventCommand);
@@ -368,6 +371,7 @@ async function launchWithRetry(attempt = 1) {
       { command: 'security', description: 'Security dashboard' },
       { command: 'search', description: 'Web search (AI-summarized)' },
       { command: 'weather', description: 'Local weather & forecast' },
+      { command: 'bus', description: 'Commute bus ETAs (616 / 65)' },
       { command: 'jellyfin', description: 'Media library (search, what to watch)' },
       { command: 'event', description: 'Add a calendar event (natural language)' },
       { command: 'agenda', description: 'Show your calendar schedule' },
