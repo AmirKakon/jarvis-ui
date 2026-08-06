@@ -1,23 +1,55 @@
-# Paste into a Lovelace dashboard (Manual card → vertical stack / entities).
-# Sensors are created by jarvis-home/scripts/bus-monitor.mjs on the mini-pc.
+# Bus commute dashboard helpers.
+# Sensors from jarvis-home/scripts/bus-monitor.mjs (both directions, Sun–Thu).
+#
+# Optional: create Helpers → Toggle `input_boolean.bus_leaving_home`
+#   ON  = leaving home (outbound)
+#   OFF = on my way home (returning)
+# Then use the conditional cards below, or show all four ETAs always.
+
+# --- Toggle (create once in HA UI, or paste into configuration.yaml) ---
+# input_boolean:
+#   bus_leaving_home:
+#     name: Leaving home
+#     icon: mdi:home-export-outline
 
 type: vertical-stack
 cards:
   - type: entities
-    title: Line 616 (home ↔ work)
+    title: Direction
     entities:
-      - entity: sensor.bus_616_eta
-        name: Minutes
-      - entity: sensor.bus_616_status
-        name: Status
-      - entity: sensor.bus_616_leg
-        name: Active leg
-  - type: entities
-    title: Line 65 (home ↔ train)
-    entities:
-      - entity: sensor.bus_65_eta
-        name: Minutes
-      - entity: sensor.bus_65_status
-        name: Status
-      - entity: sensor.bus_65_leg
-        name: Active leg
+      - entity: input_boolean.bus_leaving_home
+        name: Leaving home (off = returning home)
+
+  - type: conditional
+    conditions:
+      - entity: input_boolean.bus_leaving_home
+        state: 'on'
+    card:
+      type: entities
+      title: Leaving home
+      entities:
+        - entity: sensor.bus_616_leaving_eta
+          name: 616 minutes
+        - entity: sensor.bus_616_leaving_status
+          name: 616 status
+        - entity: sensor.bus_65_leaving_eta
+          name: 65 minutes
+        - entity: sensor.bus_65_leaving_status
+          name: 65 status
+
+  - type: conditional
+    conditions:
+      - entity: input_boolean.bus_leaving_home
+        state: 'off'
+    card:
+      type: entities
+      title: Returning home
+      entities:
+        - entity: sensor.bus_616_returning_eta
+          name: 616 minutes
+        - entity: sensor.bus_616_returning_status
+          name: 616 status
+        - entity: sensor.bus_65_returning_eta
+          name: 65 minutes
+        - entity: sensor.bus_65_returning_status
+          name: 65 status

@@ -141,21 +141,19 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 14. **Israel buses — live times, near-stop alerts, NL Q&A** — split by surface so ambient UI stays cheap and chat stays flexible:
     - **Ambient data (preferred):** **[curlbus](https://curlbus.app)** JSON stop board — `GET https://curlbus.app/<stop_code>` with `Accept: application/json`. Public wrapper over MOT **SIRI-SM** (stop arrivals), same class of signal Moovit uses. No API key. Source: [elad661/curlbus](https://github.com/elad661/curlbus).
     - **Also available:** [Open Bus Stride](https://open-bus-stride-api.hasadna.org.il/docs) (Hasadna; GTFS + SIRI vehicle locations). Good for research/vehicle GPS; weaker for stop boards (`/stop_arrivals` is poor; vehicle-location ETAs break when the VM feed lags or today’s GTFS date isn’t published yet).
-    - **HA dashboard / alerts (implemented):** `jarvis-home/scripts/bus-monitor.mjs` (+ `bus-monitor.sh` cron) polls **curlbus** for lines **616** + **65** at board stops, filters by agency + destination regex (direction), writes `sensor.bus_{616,65}_{eta,status,leg}` (status = ETA-only English), announces in **English** at ≤10 min via Echo Dot + Amir phone. Cron: `scripts/install-cron.sh`. Lovelace: `homeassistant/lovelace-bus-608.yaml`.
+    - **HA dashboard (implemented):** `jarvis-home/scripts/bus-monitor.mjs` polls **curlbus** every minute on **Sun–Thu all day**, both directions for **616** + **65**, writes `sensor.bus_{616,65}_{leaving,returning}_{eta,status}` (ETA-only English status). **No Alexa/phone alerts** (dashboard-only). Lovelace toggle sketch: `homeassistant/lovelace-bus-608.yaml` (`input_boolean.bus_leaving_home`).
     - **JARVIS + MCP (chat, not the poll loop):**
       - **openbus** — [`@skills-il/openbus-mcp`](https://agentskills.co.il/he/mcp/openbus) → Stride. Example in `mcp.json.example`. Not wired live yet.
-      - **routes-israel** — [agentskills.co.il/he/mcp/routes-israel](https://agentskills.co.il/he/mcp/routes-israel) ([yoni-j/routes-mcp-israel](https://github.com/yoni-j/routes-mcp-israel)): Google Routes/Places + GTFS match + **curlbus** arrivals. Needs `GOOGLE_API_KEY`; clone + `uv`. Best for NL “how do I get from A to B?” — **do not** put in the every-minute HA poller (heavy; needs Google key). For ambient ETA, call curlbus HTTP directly (what we do).
-    - **Later (product):** leave-home “leave by …” window; missed-bus → next ride; daily punctuality digest; nearest stop from phone GPS; Israel Rail MCP; porch light when bus imminent after dark; wire openbus and/or routes-israel into `~/jarvis/mcp.json` for chat.
-    - **Lessons (2026-08-06):** Stride GPS alone showed `no live vehicle` while curlbus had live stop ETAs. Prefer curlbus for commute cards. HA status is ETA-only (destination is not the bus’s current stop).
-    - **Optional later tighteners** (less critical after curlbus): approach filter / trajectory if we ever fall back to Stride GPS; self-host curlbus with a MOT SIRI-SM key if the public instance is rate-limited; confirm 616 return board stop at Kiryat Aryeh (currently still **26749**).
-    - **Amir’s commute:**
-      | Line | Leg | From (code) | To (code) | Days / window |
-      |------|-----|-------------|-----------|---------------|
-      | **616** Metropoline | Home → work | מרכז דוד/דרך דגניה **39360** | קריית אריה / חנה וסע | Sun/Mon/Wed **08:00–09:00** |
-      | **616** | Work → home | board **26749** _(confirm)_ | מרכז דוד/דרך דגניה **39360** | Sun/Mon/Wed **17:00–18:00** |
-      | **65** Extra (נתניה) | Home → train | דרך דגניה/קלאוזנר **39358** | האורזים/העמל **39427** | Sun/Mon/Wed/Thu **08:00–09:00** |
-      | **65** | Train → home | האורזים/העמל **33004** | מרכז דוד/דרך דגניה **39360** | Sun/Mon/Wed/Thu **17:00–18:00** |
-      **Alerts:** Echo Dot **and** Amir phone; English announce; ≤10 min ETA. _(TEMP testing: Thu on 616 + full-day windows — revert after.)_
+      - **routes-israel** — [agentskills.co.il/he/mcp/routes-israel](https://agentskills.co.il/he/mcp/routes-israel) ([yoni-j/routes-mcp-israel](https://github.com/yoni-j/routes-mcp-israel)): Google Routes/Places + GTFS match + **curlbus** arrivals. Needs `GOOGLE_API_KEY`; clone + `uv`. Best for NL “how do I get from A to B?” — **do not** put in the every-minute HA poller.
+    - **Later (product):** re-enable announce at ≤10 min (English); leave-home “leave by …” window; missed-bus → next ride; daily punctuality digest; confirm 616 return board at Kiryat Aryeh; wire openbus / routes-israel for chat.
+    - **Lessons (2026-08-06):** Prefer curlbus stop boards over Stride GPS. HA status = ETA only (not bus position / headsign dump).
+    - **Amir’s commute (sensors always both ways on weekdays):**
+      | Line | Direction | Board (code) | Toward |
+      |------|-----------|--------------|--------|
+      | **616** | leaving | **39360** Deganya | Kiryat Aryeh |
+      | **616** | returning | **26749** _(confirm)_ | Deganya / Netanya |
+      | **65** | leaving | **39358** | Train (HaOrezim) |
+      | **65** | returning | **33004** | Deganya |
 15. transportation / navigation (Google Maps / Waze API — "how long to get to work?", "is there traffic?") — complements #14 for driving; buses are the Open Bus / curlbus track above.
 16. food delivery / restaurant (Wolt / 10bis API — "order lunch", "what's nearby?")
 
