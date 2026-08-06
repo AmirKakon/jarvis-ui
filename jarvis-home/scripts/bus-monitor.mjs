@@ -8,7 +8,7 @@
  * Routes (Asia/Jerusalem):
  *   TEMP full-day test — before noon = outbound, noon–midnight = return.
  *   Revert windows to 08–09 / 17–18 and drop Thu from 616 when done.
- *   616 Metropoline  Sun/Mon/Wed/Thu
+ *   616 Metropoline  Sun/Mon/Wed/Thu  (Deganya ↔ Kiryat Aryeh)
  *     00:00–12:00  home → work   (board 39360)
  *     12:00–24:00  work → home   (board 26749)
  *   65  Extra        Sun/Mon/Wed/Thu
@@ -43,6 +43,7 @@ const ROUTES = [
   {
     id: '616',
     shortName: '616',
+    agencyRe: /מטרופולין|Metropoline/i,
     days: ['Sun', 'Mon', 'Wed', 'Thu'], // TEMP: Thu for testing — drop Thu after
     morning: [0, 12 * 60], // TEMP full-day test
     evening: [12 * 60, 24 * 60], // TEMP full-day test
@@ -51,23 +52,29 @@ const ROUTES = [
         label: 'home → work',
         boardCode: 39360,
         boardName: 'מרכז דוד/דרך דגניה',
-        alightCode: 26966,
-        alightName: 'סינמה סיטי/כביש 2',
-        destRe: /תל אביב|סינמה|הרצליה|יפו|קומה 6|פתח תקווה|קריית אריה|קרית אריה/,
+        boardNameEn: 'Merkaz David / Degania Road',
+        alightCode: null,
+        alightName: 'רכבת קריית אריה/חנה וסע',
+        alightNameEn: 'Kiryat Aryeh Rail / Park and Ride',
+        destRe: /קריית אריה|קרית אריה|פתח תקווה|חנה וסע|Kiryat Arye|Petah Tikva|Park & Ride|Park and Ride/i,
       },
       from_work: {
         label: 'work → home',
+        // Return board: confirm if you board at a Kiryat Aryeh stop instead
         boardCode: 26749,
         boardName: 'סינמה סיטי/כביש 2',
-        alightCode: 39525,
-        alightName: 'האוניברסיטה/דרך דגניה',
-        destRe: /נתניה|דגניה|אוניברסיט|רכבת נתניה/,
+        boardNameEn: 'Cinema City / Highway 2',
+        alightCode: 39360,
+        alightName: 'מרכז דוד/דרך דגניה',
+        alightNameEn: 'Merkaz David / Degania Road',
+        destRe: /נתניה|דגניה|רכבת נתניה|Netanya|Degania/i,
       },
     },
   },
   {
     id: '65',
     shortName: '65',
+    agencyRe: /אקסטרה|Extra/i,
     days: ['Sun', 'Mon', 'Wed', 'Thu'],
     morning: [0, 12 * 60], // TEMP full-day test
     evening: [12 * 60, 24 * 60], // TEMP full-day test
@@ -76,17 +83,21 @@ const ROUTES = [
         label: 'home → train',
         boardCode: 39358,
         boardName: 'דרך דגניה/פרופסור יוסף קלאוזנר',
+        boardNameEn: 'Degania Road / Professor Klausner',
         alightCode: 39427,
         alightName: 'האורזים/העמל',
-        destRe: /עין התכלת|אורזים|העמל|הארוזים/,
+        alightNameEn: 'HaOrezim / HaAmal (train)',
+        destRe: /עין התכלת|אורזים|העמל|הארוזים|Tkhelet|Orezim|Amal/i,
       },
       from_train: {
         label: 'train → home',
         boardCode: 33004,
         boardName: 'האורזים/העמל',
+        boardNameEn: 'HaOrezim / HaAmal (train)',
         alightCode: 39360,
         alightName: 'מרכז דוד/דרך דגניה',
-        destRe: /פולג|דגניה|מרכז דוד|קלאוזנר/,
+        alightNameEn: 'Merkaz David / Degania Road',
+        destRe: /פולג|דגניה|מרכז דוד|קלאוזנר|Poleg|Degania|Klausner/i,
       },
     },
   },
@@ -150,7 +161,22 @@ function destLabel(visit) {
   const name = visit?.static_info?.route?.destination?.name;
   if (!name) return '';
   if (typeof name === 'string') return name;
+  // Prefer English for HA/Alexa; fall back to Hebrew only for destRe matching
+  return name.EN || name.HE || name.AR || '';
+}
+
+function destLabelAll(visit) {
+  const name = visit?.static_info?.route?.destination?.name;
+  if (!name) return '';
+  if (typeof name === 'string') return name;
   return [name.HE, name.EN, name.AR].filter(Boolean).join(' ');
+}
+
+function agencyLabel(visit) {
+  const a = visit?.static_info?.route?.agency?.name;
+  if (!a) return '';
+  if (typeof a === 'string') return a;
+  return [a.HE, a.EN].filter(Boolean).join(' ');
 }
 
 function etaMinutesFrom(etaStr) {
@@ -170,17 +196,22 @@ async function curlbusStop(stopCode) {
 }
 
 /**
- * Next arrival for shortName at board stop, optionally filtered by destination regex.
+ * Next arrival for shortName at board stop, filtered by agency + destination regex.
+ * No line-only fallback — agency + destination filters must match.
  */
-async function nextArrival(shortName, leg) {
+async function nextArrival(route, leg) {
   const data = await curlbusStop(leg.boardCode);
   const visits = data?.visits?.[String(leg.boardCode)] || data?.visits?.[leg.boardCode] || [];
   let best = null;
 
   for (const v of visits) {
-    if (String(v.line_name) !== String(shortName)) continue;
-    const dest = destLabel(v);
-    if (leg.destRe && dest && !leg.destRe.test(dest)) continue;
+    if (String(v.line_name) !== String(route.shortName)) continue;
+    const agency = agencyLabel(v);
+    if (route.agencyRe && agency && !route.agencyRe.test(agency)) continue;
+
+    const destAll = destLabelAll(v);
+    const destEn = destLabel(v);
+    if (leg.destRe && destAll && !leg.destRe.test(destAll)) continue;
 
     const etaMin = etaMinutesFrom(v.eta);
     if (etaMin == null || etaMin < 0 || etaMin > MAX_ETA_MIN) continue;
@@ -188,38 +219,16 @@ async function nextArrival(shortName, leg) {
     const candidate = {
       etaMin,
       vehicle: v.vehicle_ref || '',
-      destination: dest || String(v.destination_id || ''),
+      destination: destEn || String(v.destination_id || ''),
       etaAt: v.eta,
       recordedAt: v.timestamp || data.timestamp || null,
       lineId: v.line_id || v.route_id || null,
+      agency,
       lat: v.location?.lat != null ? Number(v.location.lat) : null,
       lon: v.location?.lon != null ? Number(v.location.lon) : null,
       producer: v.producer || null,
     };
     if (!best || candidate.etaMin < best.etaMin) best = candidate;
-  }
-
-  // If dest filter wiped everything, retry line-only (better than empty; log it)
-  if (!best && leg.destRe) {
-    for (const v of visits) {
-      if (String(v.line_name) !== String(shortName)) continue;
-      const etaMin = etaMinutesFrom(v.eta);
-      if (etaMin == null || etaMin < 0 || etaMin > MAX_ETA_MIN) continue;
-      const dest = destLabel(v);
-      const candidate = {
-        etaMin,
-        vehicle: v.vehicle_ref || '',
-        destination: dest || String(v.destination_id || ''),
-        etaAt: v.eta,
-        recordedAt: v.timestamp || data.timestamp || null,
-        lineId: v.line_id || v.route_id || null,
-        lat: v.location?.lat != null ? Number(v.location.lat) : null,
-        lon: v.location?.lon != null ? Number(v.location.lon) : null,
-        producer: v.producer || null,
-        destFilterSkipped: true,
-      };
-      if (!best || candidate.etaMin < best.etaMin) best = candidate;
-    }
   }
 
   return { best, visitCount: visits.length };
@@ -303,22 +312,19 @@ async function processRoute(env, route, leg, now, state) {
 
   let best = null;
   try {
-    const { best: b, visitCount } = await nextArrival(route.shortName, leg);
+    const { best: b, visitCount } = await nextArrival(route, leg);
     best = b;
     log(
       `[${route.shortName}] curlbus stop ${leg.boardCode}: ${visitCount} visits` +
-        (best
-          ? ` → ETA ${best.etaMin}m dest=${best.destination}${best.destFilterSkipped ? ' (dest filter skipped)' : ''}`
-          : ' → no matching line'),
+        (best ? ` → ETA ${best.etaMin} min` : ' → no matching line'),
     );
   } catch (e) {
     log(`[${route.shortName}] curlbus error: ${e.message}`);
   }
 
   const eta = best?.etaMin ?? null;
-  const status = best
-    ? `ETA ${eta} min · ${best.destination || '—'} · veh ${best.vehicle || '?'}`
-    : 'no live arrival';
+  // Status is ETA-only (English) — destination kept in attributes for debug
+  const status = best ? `ETA ${eta} min` : 'no live arrival';
 
   try {
     await setSensor(env, ids.eta, eta ?? 'unknown', {
@@ -329,8 +335,10 @@ async function processRoute(env, route, leg, now, state) {
       source: 'curlbus',
       leg: leg.key,
       leg_label: leg.label,
-      board_stop: `${leg.boardName} (${leg.boardCode})`,
-      alight_stop: `${leg.alightName} (${leg.alightCode})`,
+      board_stop: `${leg.boardNameEn || leg.boardName} (${leg.boardCode})`,
+      alight_stop: leg.alightCode
+        ? `${leg.alightNameEn || leg.alightName} (${leg.alightCode})`
+        : (leg.alightNameEn || leg.alightName || null),
       vehicle: best?.vehicle || null,
       destination: best?.destination || null,
       eta_at: best?.etaAt || null,
@@ -359,8 +367,10 @@ async function processRoute(env, route, leg, now, state) {
   if (eta != null && eta <= ETA_ANNOUNCE_MIN) {
     const dedupeKey = `${now.date}:${route.id}:${leg.key}:${best.vehicle || best.etaAt || 'unknown'}`;
     if (!state.announced[dedupeKey]) {
-      const title = `🚌 קו ${route.shortName}`;
-      const message = `קו ${route.shortName} בעוד כ־${eta} דקות מ${leg.boardName}. יעד: ${leg.alightName}.`;
+      const from = leg.boardNameEn || leg.boardName;
+      const to = leg.alightNameEn || leg.alightName;
+      const title = `Bus ${route.shortName}`;
+      const message = `Bus ${route.shortName} arrives in about ${eta} minutes at ${from}. Destination: ${to}.`;
       try {
         await notifyAll(env, title, message);
         state.announced[dedupeKey] = new Date().toISOString();
