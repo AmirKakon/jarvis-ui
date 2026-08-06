@@ -3,12 +3,14 @@
  * Commute bus monitor — Open Bus Stride → Home Assistant sensors + alerts.
  *
  * Routes (Asia/Jerusalem):
- *   608 Metropoline  Sun/Mon/Wed/Thu  # TEMP: Thu for testing; drop Thu after
- *     08:00–09:00  home → work   (board 39360)
- *     17:00–18:00  work → home   (board 26749)
+ *   TEMP full-day test — before noon = outbound, noon–midnight = return.
+ *   Revert windows to 08–09 / 17–18 and drop Thu from 608 when done.
+ *   608 Metropoline  Sun/Mon/Wed/Thu
+ *     00:00–12:00  home → work   (board 39360)
+ *     12:00–24:00  work → home   (board 26749)
  *   65  Extra        Sun/Mon/Wed/Thu
- *     08:00–09:00  home → train  (board 39358)
- *     17:00–18:00  train → home  (board 33004)
+ *     00:00–12:00  home → train  (board 39358)
+ *     12:00–24:00  train → home  (board 33004)
  *
  * Updates HA sensors; when ETA ≤ 10 min announces on Echo Dot + Amir's phone
  * (debounced per line/vehicle/window).
@@ -39,8 +41,8 @@ const ROUTES = [
     shortName: '608',
     agencyRe: /מטרופולין/,
     days: ['Sun', 'Mon', 'Wed', 'Thu'], // TEMP: Thu for testing — drop Thu after
-    morning: [8 * 60, 9 * 60],
-    evening: [17 * 60, 18 * 60],
+    morning: [0, 12 * 60], // TEMP full-day test
+    evening: [12 * 60, 24 * 60], // TEMP full-day test
     legs: {
       to_work: {
         label: 'home → work',
@@ -68,8 +70,8 @@ const ROUTES = [
     agencyRe: /אקסטרה/,
     longNameRe: /נתניה/,
     days: ['Sun', 'Mon', 'Wed', 'Thu'],
-    morning: [8 * 60, 9 * 60],
-    evening: [17 * 60, 18 * 60],
+    morning: [0, 12 * 60], // TEMP full-day test
+    evening: [12 * 60, 24 * 60], // TEMP full-day test
     legs: {
       to_train: {
         label: 'home → train',
