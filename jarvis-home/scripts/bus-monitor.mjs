@@ -171,21 +171,38 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+/** Shift a YYYY-MM-DD string by delta days (UTC calendar). */
+function addDays(dateStr, delta) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Resolve GTFS line_refs for short name + direction.
+ * Stride often lags publishing today's GTFS date — walk back up to 7 days.
+ */
 async function resolveLineRefs(route, date, direction) {
-  const routes = await strideGet('/gtfs_routes/list', {
-    route_short_name: route.shortName,
-    date_from: date,
-    date_to: date,
-    limit: 100,
-  });
-  const matches = (routes || []).filter(r => {
-    if (String(r.route_direction) !== String(direction)) return false;
-    if (route.agencyRe && !route.agencyRe.test(r.agency_name || '')) return false;
-    if (route.longNameRe && !route.longNameRe.test(r.route_long_name || '')) return false;
-    return true;
-  });
-  const refs = [...new Set(matches.map(r => r.line_ref).filter(Boolean))];
-  return { refs, agency: matches[0]?.agency_name || '' };
+  for (let back = 0; back <= 7; back++) {
+    const day = addDays(date, -back);
+    const routes = await strideGet('/gtfs_routes/list', {
+      route_short_name: route.shortName,
+      date_from: day,
+      date_to: day,
+      limit: 100,
+    });
+    const matches = (routes || []).filter(r => {
+      if (String(r.route_direction) !== String(direction)) return false;
+      if (route.agencyRe && !route.agencyRe.test(r.agency_name || '')) return false;
+      if (route.longNameRe && !route.longNameRe.test(r.route_long_name || '')) return false;
+      return true;
+    });
+    if (!matches.length) continue;
+    const refs = [...new Set(matches.map(r => r.line_ref).filter(Boolean))];
+    return { refs, agency: matches[0]?.agency_name || '', gtfsDate: day };
+  }
+  return { refs: [], agency: '', gtfsDate: null };
 }
 
 async function nearestEta(lineRefs, stop) {
@@ -312,7 +329,12 @@ async function processRoute(env, route, leg, now, state) {
   try {
     const resolved = await resolveLineRefs(route, now.date, leg.direction);
     lineRefs = resolved.refs;
-    log(`[${route.shortName}] line_refs dir=${leg.direction}: ${lineRefs.join(',') || '(none)'}`);
+    const gtfsNote = resolved.gtfsDate && resolved.gtfsDate !== now.date
+      ? ` (gtfs ${resolved.gtfsDate}; today empty)`
+      : resolved.gtfsDate
+        ? ` (gtfs ${resolved.gtfsDate})`
+        : '';
+    log(`[${route.shortName}] line_refs dir=${leg.direction}: ${lineRefs.join(',') || '(none)'}${gtfsNote}`);
     best = await nearestEta(lineRefs, leg.stop);
   } catch (e) {
     log(`[${route.shortName}] Stride error: ${e.message}`);
