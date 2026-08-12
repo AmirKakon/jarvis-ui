@@ -6,7 +6,8 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$HOME/jarvis/logs"
 LOG_FILE="$LOG_DIR/backup-checker.log"
-HA_BACKUP_DIR="$HOME/shared-storage-2/ha-backups"
+# Off-box copies (Samba 1TB). Not shared-storage-2 — that tree stopped at Jul 20.
+HA_BACKUP_DIR="$HOME/shared-storage/ha-backups"
 MAX_AGE_DAYS=7
 
 mkdir -p "$LOG_DIR"
