@@ -6,12 +6,11 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=%h/jarvis
-# Wait for the USB camera to enumerate (up to 30s) before starting.
-ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -e /dev/video0 ] && exit 0; sleep 1; done; echo "no /dev/video0" >&2; exit 1'
-# --persistent rides over this cheap Jieli (JLDV/AC54) cam's frame drops and the
-# "select() Inappropriate ioctl" reopen loop that wedged go2rtc/ffmpeg.
-# Bound to all interfaces on :20011 so the HA VM and the bot container can reach it.
-ExecStart=/usr/bin/ustreamer --device=/dev/video0 --format=MJPEG --resolution=640x480 --desired-fps=15 --persistent --drop-same-frames=30 --host=0.0.0.0 --port=20011
+# Wait for the stable capture symlink to appear (up to 30s) before starting.
+# /dev/jarvis-cam is created by 99-jarvis-webcam.rules (index-0 capture node);
+# it falls back to /dev/video0 if the udev rule has not been installed yet.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -e /dev/jarvis-cam ] || [ -e /dev/video0 ] && exit 0; sleep 1; done; echo "no camera node" >&2; exit 1'
+ExecStart=/bin/sh -c 'DEV=/dev/jarvis-cam; [ -e "$DEV" ] || DEV=/dev/video0; exec /usr/bin/ustreamer --device="$DEV" --format=MJPEG --resolution=640x480 --desired-fps=15 --persistent --drop-same-frames=30 --host=0.0.0.0 --port=20011'
 Restart=always
 RestartSec=5
 TimeoutStopSec=10

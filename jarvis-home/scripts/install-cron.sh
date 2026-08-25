@@ -38,6 +38,9 @@ cat >> /tmp/jarvis-cron-clean << EOF
 # jarvis-monitor: Home Assistant liveness (every 2 min)
 */2 * * * * $SCRIPTS_DIR/ha-monitor.sh
 
+# jarvis-monitor: USB webcam self-heal (every minute)
+* * * * * $SCRIPTS_DIR/webcam-watchdog.sh
+
 # jarvis-monitor: network device scanner (every hour)
 0 */1 * * * $SCRIPTS_DIR/network-scanner.sh
 
@@ -63,6 +66,7 @@ rm -f /tmp/jarvis-cron-clean
 echo "  Cron jobs installed:"
 echo ""
 echo "    Every 1 min   — bus-monitor.sh      (Bus 616/65 both directions)"
+echo "    Every 1 min   — webcam-watchdog.sh  (USB webcam self-heal)"
 echo "    Every 2 min   — ha-monitor.sh       (Home Assistant liveness)"
 echo "    Every 15 min  — service-monitor.sh  (Docker + systemd health)"
 echo "    Every 15 min  — samba-monitor.sh   (Samba share health)"
