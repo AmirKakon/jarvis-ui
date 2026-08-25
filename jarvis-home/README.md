@@ -80,7 +80,7 @@ The bot provides mobile access with three tiers:
 - `/n8n` — workflow management
 - `/download` — torrent downloads (add, list, status)
 - `/security` — security dashboard (network, SSH, Docker, SSL, firewall)
-- `/cam` — still from the mini-PC USB webcam (go2rtc)
+- `/cam` — still from the mini-PC USB webcam (ustreamer)
 - `/memory` — memory stats (fact count, summaries, topics)
 - `/recall <query>` — search past conversations and facts
 
@@ -293,8 +293,8 @@ All monitoring runs via cron with Telegram alerts — zero AI cost:
 ├── scripts/                     # Monitoring cron scripts
 ├── logs/                        # Monitoring logs
 ├── downloads/pending/           # Download organize queue (JSON metadata)
-├── docker-compose.yml           # qBittorrent + go2rtc webcam
-├── go2rtc.yaml                  # USB webcam stream (MJPEG 640x480)
+├── docker-compose.yml           # qBittorrent
+├── jarvis-ustreamer.service     # USB webcam streamer (MJPEG 640x480, host systemd)
 ├── webcam/                      # recent stills from webcam-snapshot.sh
 ├── qbittorrent-config/          # qBittorrent persistent config
 ├── telegram-bot/                # Telegram bot (Node.js)

@@ -7,7 +7,7 @@
 // Endpoints:
 //   GET  /health                 — liveness (unauthenticated)
 //   POST /ask                    — JARVIS-native { text, sessionKey?, source? }
-//   POST /cam/snapshot           — grab go2rtc still, send to Telegram (same bearer token)
+//   POST /cam/snapshot           — grab ustreamer still, send to Telegram (same bearer token)
 //   GET  /v1/models              — OpenAI-compatible model list (for HA setup)
 //   POST /v1/chat/completions    — OpenAI-compatible chat (HA OpenAI Conversation)
 //

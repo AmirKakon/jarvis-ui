@@ -1,5 +1,5 @@
 #!/bin/bash
-# Grab a still from go2rtc and send it to Telegram.
+# Grab a still from ustreamer and send it to Telegram.
 # Usage: webcam-snapshot.sh [caption]
 # Does NOT use notify.sh (that script has a 1-hour identical-message cooldown).
 
@@ -7,7 +7,7 @@ set -euo pipefail
 
 JARVIS_ENV="${HOME}/jarvis/.env"
 SNAP_DIR="${HOME}/jarvis/webcam"
-GO2RTC_URL="${GO2RTC_URL:-http://127.0.0.1:20011/api/frame.jpeg?src=webcam}"
+WEBCAM_SNAPSHOT_URL="${WEBCAM_SNAPSHOT_URL:-${GO2RTC_URL:-http://127.0.0.1:20011/snapshot}}"
 CAPTION="${1:-Mini-PC webcam}"
 
 if [ ! -f "$JARVIS_ENV" ]; then
@@ -26,8 +26,8 @@ mkdir -p "$SNAP_DIR"
 STAMP=$(date +%Y%m%d-%H%M%S)
 FILE="${SNAP_DIR}/webcam-${STAMP}.jpg"
 
-if ! curl -sf --max-time 8 -o "$FILE" "$GO2RTC_URL"; then
-  echo "Error: failed to fetch snapshot from $GO2RTC_URL" >&2
+if ! curl -sf --max-time 8 -o "$FILE" "$WEBCAM_SNAPSHOT_URL"; then
+  echo "Error: failed to fetch snapshot from $WEBCAM_SNAPSHOT_URL" >&2
   exit 1
 fi
 

@@ -152,19 +152,24 @@ echo -e "${GREEN}[13/17]${NC} Setting up Docker Compose for media services..."
 if [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
     cp "$SCRIPT_DIR/docker-compose.yml" "$JARVIS_DIR/docker-compose.yml"
     mkdir -p "$JARVIS_DIR/qbittorrent-config" "$JARVIS_DIR/qbittorrent-init" "$JARVIS_DIR/webcam"
-    if [ -f "$SCRIPT_DIR/go2rtc.yaml" ]; then
-        cp "$SCRIPT_DIR/go2rtc.yaml" "$JARVIS_DIR/go2rtc.yaml"
-    fi
     cp "$SCRIPT_DIR"/qbittorrent-init/*.sh "$JARVIS_DIR/qbittorrent-init/" 2>/dev/null
     chmod +x "$JARVIS_DIR"/qbittorrent-init/*.sh 2>/dev/null
     if command -v docker &>/dev/null; then
         (cd "$JARVIS_DIR" && docker compose up -d --quiet-pull 2>&1 | tail -1)
-        echo "  Done. qBittorrent + go2rtc containers are running."
+        echo "  Done. qBittorrent container is running."
     else
         echo "  Done. Install Docker and run 'cd ~/jarvis && docker compose up -d'."
     fi
 else
     echo "  No docker-compose.yml found — skipping."
+fi
+
+# Host ustreamer (USB webcam). Docker ffmpeg/go2rtc wedged this Jieli camera.
+echo -e "${GREEN}[13b]${NC} Installing host ustreamer webcam..."
+if [ -f "$SCRIPT_DIR/scripts/install-ustreamer.sh" ]; then
+    bash "$SCRIPT_DIR/scripts/install-ustreamer.sh"
+else
+    echo "  install-ustreamer.sh missing — skipping."
 fi
 
 # --- Step 14: Memory maintenance cron (weekly) ---
@@ -192,7 +197,7 @@ fi
 # --- Step 16: Seed monitoring allowlists ---
 echo -e "${GREEN}[16/17]${NC} Seeding monitoring allowlists..."
 ALLOWLIST="$JARVIS_DIR/logs/docker-security-allowlist.txt"
-for CONTAINER in qbittorrent pgvector jarvis-frontend jarvis-backend go2rtc; do
+for CONTAINER in qbittorrent pgvector jarvis-frontend jarvis-backend; do
     if ! grep -qxF "$CONTAINER" "$ALLOWLIST" 2>/dev/null; then
         echo "$CONTAINER" >> "$ALLOWLIST"
     fi
@@ -258,7 +263,7 @@ echo "    ~/jarvis/.claude/settings.json     (permissions)"
 echo "    ~/jarvis/scripts/                  (monitoring: disk, SMART, services, backups, samba, network, SSH, Docker, SSL, firewall)"
 echo "    ~/jarvis/logs/                     (monitoring logs)"
 echo "    ~/jarvis/telegram-bot/             (Telegram bot for mobile access)"
-echo "    ~/jarvis/docker-compose.yml        (qBittorrent + go2rtc webcam)"
+echo "    ~/jarvis/docker-compose.yml        (qBittorrent)"
     echo "    ~/jarvis/downloads/pending/        (download organize queue)"
     echo "    ~/jarvis/telegram-media/           (media from Telegram messages)"
     echo "    ~/jarvis/known-devices-labels.conf (network device labels)"

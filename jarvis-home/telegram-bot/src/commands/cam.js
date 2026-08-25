@@ -1,16 +1,16 @@
 import { escapeHtml } from '../utils.js';
 
-const DEFAULT_GO2RTC = 'http://127.0.0.1:20011/api/frame.jpeg?src=webcam';
+const DEFAULT_WEBCAM_SNAPSHOT = 'http://127.0.0.1:20011/snapshot';
 
-export function go2rtcSnapshotUrl() {
-  return process.env.GO2RTC_URL || DEFAULT_GO2RTC;
+export function webcamSnapshotUrl() {
+  return process.env.WEBCAM_SNAPSHOT_URL || process.env.GO2RTC_URL || DEFAULT_WEBCAM_SNAPSHOT;
 }
 
 export async function grabWebcamJpeg() {
-  const url = go2rtcSnapshotUrl();
+  const url = webcamSnapshotUrl();
   const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
   if (!res.ok) {
-    throw new Error(`go2rtc ${res.status} from ${url}`);
+    throw new Error(`ustreamer ${res.status} from ${url}`);
   }
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length < 100) throw new Error('snapshot too small');
@@ -55,7 +55,7 @@ export async function camCommand(ctx) {
   } catch (err) {
     console.error('[cam]', err.message);
     await ctx.replyWithHTML(
-      `🔴 Could not grab a frame. Is go2rtc up?\n<pre>${escapeHtml(err.message)}</pre>`
+      `🔴 Could not grab a frame. Is ustreamer up?\n<pre>${escapeHtml(err.message)}</pre>`
     );
   }
 }

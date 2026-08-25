@@ -13,15 +13,17 @@
 - 20006: Jarvis frontend (legacy React/nginx)
 - 20008: qBittorrent WebUI
 - 20010: JARVIS HTTP brain (`/ask`, Assist shim, `/cam/snapshot`)
-- 20011: go2rtc webcam (MJPEG / stills for Home Assistant). Bound to localhost + `192.168.68.124` only.
+- 20011: ustreamer webcam (MJPEG stream / stills for Home Assistant). Listens on all interfaces.
 
-## Webcam (go2rtc)
+## Webcam (ustreamer)
 - USB camera stays on the **host** (`/dev/video0`). Do not USB-passthrough it into the HA VM.
-- Config: `~/jarvis/go2rtc.yaml` (MJPEG 640x480 — YUY2 720p drops this Jieli cam).
-- HA still: `http://192.168.68.124:20011/api/frame.jpeg?src=webcam`
-- HA live: `http://192.168.68.124:20011/api/stream.mjpeg?src=webcam`
+- **apt package + systemd user unit** (`jarvis-ustreamer.service`), not Docker/go2rtc — ffmpeg/go2rtc could not keep this cheap Jieli (JLDV/AC54) cam streaming; `ustreamer --persistent` rides over its corrupt first buffers, frame drops, and `select() Inappropriate ioctl` reopen loop.
+- Flags: `--format=MJPEG --resolution=640x480 --desired-fps=15 --persistent --drop-same-frames=30 --host=0.0.0.0 --port=20011`.
+- HA still: `http://192.168.68.124:20011/snapshot`
+- HA live: `http://192.168.68.124:20011/stream` (MJPEG IP Camera)
 - Snapshot helper: `~/jarvis/scripts/webcam-snapshot.sh` (sends Telegram). `/cam` in Telegram.
-- After unplug/replug, `docker restart go2rtc` if the stream dies.
+- Device access survives reboot via the `video` group + a `99-jarvis-webcam.rules` udev ACL (installed by `scripts/install-ustreamer.sh`).
+- After unplug/replug: `systemctl --user restart jarvis-ustreamer`.
 
 ## External Drives
 - `~/shared-storage` — 1TB WD USB (exfat), movies, tv-shows, music, gopro, camera, programming

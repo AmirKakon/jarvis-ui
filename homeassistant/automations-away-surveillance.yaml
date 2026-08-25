@@ -4,8 +4,8 @@
 # Before this works:
 # 1. Helpers → Create toggle named "Away mode" (entity_id must be input_boolean.away_mode)
 # 2. Add MJPEG camera "Mini PC Webcam" → camera.mini_pc_webcam
-#      still:  http://192.168.68.124:20011/api/frame.jpeg?src=webcam
-#      mjpeg:  http://192.168.68.124:20011/api/stream.mjpeg?src=webcam
+#      still:  http://192.168.68.124:20011/snapshot
+#      mjpeg:  http://192.168.68.124:20011/stream
 # 3. Optional Telegram stills: rest_command.webcam_telegram_snapshot (see configuration-webcam.yaml)
 #    and ASK_HTTP_BIND=0.0.0.0 on the mini-PC. Phone alerts work without this.
 
