@@ -1,0 +1,12 @@
+# USB webcam on the mini-PC host. Home Assistant (VM at 192.168.68.113) consumes
+# this over the LAN. Do not expose port 20011 beyond the LAN / Tailscale.
+#
+# MJPEG 640x480 is the proven-stable mode for this Jieli UVC cam.
+# Raw YUY2 at 1280x720 drops the USB device.
+
+streams:
+  webcam:
+    - ffmpeg:device?video=/dev/video0&input_format=mjpeg&video_size=640x480
+
+log:
+  level: info

@@ -7,6 +7,7 @@
 // Endpoints:
 //   GET  /health                 — liveness (unauthenticated)
 //   POST /ask                    — JARVIS-native { text, sessionKey?, source? }
+//   POST /cam/snapshot           — grab go2rtc still, send to Telegram (same bearer token)
 //   GET  /v1/models              — OpenAI-compatible model list (for HA setup)
 //   POST /v1/chat/completions    — OpenAI-compatible chat (HA OpenAI Conversation)
 //
@@ -26,9 +27,12 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { askCore } from './brain.js';
+import { pushWebcamToTelegram } from './commands/cam.js';
 
 const MAX_BODY = 32 * 1024; // 32 KB — plenty for a text prompt
 const MODEL_ID = 'jarvis';
+const CAM_COOLDOWN_MS = 15_000;
+let lastCamSnapshotAt = 0;
 
 let server = null;
 
@@ -243,6 +247,37 @@ function handleModels(req, res, token) {
   });
 }
 
+async function handleCamSnapshot(req, res, token) {
+  if (!authorized(req, token)) return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+
+  const now = Date.now();
+  if (now - lastCamSnapshotAt < CAM_COOLDOWN_MS) {
+    return sendJson(res, 429, { ok: false, error: 'cooldown' });
+  }
+
+  let caption = 'Motion while away';
+  try {
+    const raw = await readBody(req, MAX_BODY);
+    if (raw) {
+      const body = JSON.parse(raw);
+      if (typeof body.caption === 'string' && body.caption.trim()) {
+        caption = body.caption.trim().slice(0, 200);
+      }
+    }
+  } catch {
+    // empty or invalid body is fine — use the default caption
+  }
+
+  try {
+    const bytes = await pushWebcamToTelegram(caption);
+    lastCamSnapshotAt = Date.now();
+    return sendJson(res, 200, { ok: true, bytes });
+  } catch (err) {
+    console.error('[ask-http] /cam/snapshot:', err.message);
+    return sendJson(res, 502, { ok: false, error: err.message });
+  }
+}
+
 async function handleRequest(req, res, token) {
   try {
     const path = (req.url || '').split('?')[0];
@@ -262,6 +297,10 @@ async function handleRequest(req, res, token) {
 
     if (req.method === 'POST' && path === '/v1/chat/completions') {
       return handleChatCompletions(req, res, token);
+    }
+
+    if (req.method === 'POST' && path === '/cam/snapshot') {
+      return handleCamSnapshot(req, res, token);
     }
 
     return sendJson(res, 404, { ok: false, error: 'not found' });
@@ -290,7 +329,7 @@ export function startAskServer() {
   server = http.createServer((req, res) => handleRequest(req, res, token));
   server.on('error', (err) => console.error('[ask-http] server error:', err.message));
   server.listen(port, bind, () => {
-    console.log(`[ask-http] Listening on http://${bind}:${port} (POST /ask, POST /v1/chat/completions, GET /v1/models, GET /health)`);
+    console.log(`[ask-http] Listening on http://${bind}:${port} (POST /ask, POST /v1/chat/completions, POST /cam/snapshot, GET /v1/models, GET /health)`);
   });
   return server;
 }

@@ -11,6 +11,17 @@
 - 20004: PostgreSQL
 - 20005: Jarvis backend (legacy FastAPI)
 - 20006: Jarvis frontend (legacy React/nginx)
+- 20008: qBittorrent WebUI
+- 20010: JARVIS HTTP brain (`/ask`, Assist shim, `/cam/snapshot`)
+- 20011: go2rtc webcam (MJPEG / stills for Home Assistant). Bound to localhost + `192.168.68.124` only.
+
+## Webcam (go2rtc)
+- USB camera stays on the **host** (`/dev/video0`). Do not USB-passthrough it into the HA VM.
+- Config: `~/jarvis/go2rtc.yaml` (MJPEG 640x480 — YUY2 720p drops this Jieli cam).
+- HA still: `http://192.168.68.124:20011/api/frame.jpeg?src=webcam`
+- HA live: `http://192.168.68.124:20011/api/stream.mjpeg?src=webcam`
+- Snapshot helper: `~/jarvis/scripts/webcam-snapshot.sh` (sends Telegram). `/cam` in Telegram.
+- After unplug/replug, `docker restart go2rtc` if the stream dies.
 
 ## External Drives
 - `~/shared-storage` — 1TB WD USB (exfat), movies, tv-shows, music, gopro, camera, programming

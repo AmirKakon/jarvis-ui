@@ -23,6 +23,7 @@ import { weatherCommand } from './commands/weather.js';
 import { busCommand } from './commands/bus.js';
 import { jellyfinCommand } from './commands/jellyfin.js';
 import { jobsCommand } from './commands/jobs.js';
+import { camCommand } from './commands/cam.js';
 import { eventCommand, agendaCommand } from './commands/calendar.js';
 import { cronRerun } from './commands/cron-rerun.js';
 import { troubleshootCallback } from './commands/troubleshoot.js';
@@ -116,6 +117,7 @@ const HELP_TEXT = [
   '/reminders — list active reminders',
   '/briefing  — daily briefing (weather, system, home, reminders)',
   '/jobs      — background tasks (delegated ops) status',
+  '/cam       — snapshot from the mini-PC webcam',
   '/help      — this message',
   '',
   '<b>Memory (persistent across sessions):</b>',
@@ -153,6 +155,7 @@ bot.command('weather', weatherCommand);
 bot.command('bus', busCommand);
 bot.command('jellyfin', jellyfinCommand);
 bot.command('jobs', jobsCommand);
+bot.command('cam', camCommand);
 bot.command('event', eventCommand);
 bot.command('agenda', agendaCommand);
 bot.command('reminders', async (ctx) => {
@@ -378,6 +381,7 @@ async function launchWithRetry(attempt = 1) {
       { command: 'reminders', description: 'List active reminders' },
       { command: 'briefing', description: 'Daily briefing (weather, system, home)' },
       { command: 'jobs', description: 'Background tasks (delegated ops) status' },
+      { command: 'cam', description: 'Snapshot from the mini-PC webcam' },
       { command: 'remember', description: 'Store a permanent fact' },
       { command: 'recall', description: 'Search past conversations' },
       { command: 'memory', description: 'Memory stats' },

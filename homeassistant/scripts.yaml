@@ -1,0 +1,314 @@
+bathroom_lights_mode:
+  alias: Lights Night Mode
+  sequence:
+  - choose:
+    - conditions:
+      - condition: time
+        after: sensor.sun_next_setting
+        before: sensor.sun_next_midnight
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          kelvin: 2000
+          brightness_pct: 100
+        target:
+          entity_id: '{{ light }}'
+    - conditions:
+      - condition: time
+        after: sensor.sun_next_midnight
+        before: sensor.sun_next_dawn
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          kelvin: 2000
+          brightness_pct: 15
+        target:
+          entity_id: '{{ light }}'
+    default:
+    - action: light.turn_on
+      metadata: {}
+      data:
+        kelvin: 6500
+        brightness_pct: 100
+      target:
+        entity_id: '{{ light }}'
+  description: ''
+  icon: mdi:lightbulb
+delay_turn_off_light:
+  alias: Delay Turn Off Lights
+  description: ''
+  icon: mdi:timer
+  fields:
+    delay_minutes:
+      description: Number of minutes to delay
+      example: 10
+    lights:
+      description: List of light entity_ids to turn off
+      example: '[light.kitchen, light.bedroom]'
+  sequence:
+  - delay:
+      minutes: '{{ delay_minutes }}'
+  - target:
+      entity_id: '{{ lights }}'
+    action: light.turn_off
+  mode: parallel
+red_alert_voice_loop:
+  alias: "\U0001F534 Red Alert Voice Loop"
+  sequence:
+  - data:
+      target:
+      - media_player.alines_echo_dot
+      message: Alert in your area
+    action: notify.alexa_media
+  - repeat:
+      until:
+      - condition: numeric_state
+        entity_id: sensor.oref_alert_time_to_shelter
+        below: 0
+      - condition: state
+        entity_id: binary_sensor.oref_alert
+        state: 'off'
+      sequence:
+      - delay:
+          seconds: 5
+      - data:
+          target:
+          - media_player.alines_echo_dot
+          message: 'You have {{ states(''sensor.oref_alert_time_to_shelter'') }} seconds
+            to get to a shelter
+
+            '
+        action: notify.alexa_media
+  mode: single
+  description: ''
+red_alert_voice_loop_2:
+  alias: "\U0001F534 Red Alert Announcement"
+  sequence:
+  - device_id: 687050c565e3d5459bad0a7b56d708ea
+    domain: mobile_app
+    type: notify
+    message: Alert in your area! Take shelter immediately.
+    title: "\U0001F6A8 Red Alert"
+  - data:
+      target:
+      - media_player.alines_echo_dot
+      message: Alert in your area
+    action: notify.alexa_media
+  - repeat:
+      until:
+      - or:
+        - condition: numeric_state
+          entity_id: sensor.oref_alert_time_to_shelter
+          below: 0
+        - condition: template
+          value_template: '{{ states(''sensor.oref_alert_time_to_shelter'') | lower
+            == ''unknown'' }}'
+      sequence:
+      - data:
+          target:
+          - media_player.alines_echo_dot
+          message: 'You have {{ states(''sensor.oref_alert_time_to_shelter'') }} seconds
+            to get to a shelter
+
+            '
+        action: notify.alexa_media
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+  mode: single
+  description: ''
+red_alert_preemptive_alert_announcement:
+  alias: "\U0001F534 Red Alert - Preemptive Alert Announcement"
+  description: 'Handles preemptive alert: phone notification, Alexa warning loop (max
+    10 min), then cleans up lights.'
+  mode: single
+  sequence:
+  - device_id: 687050c565e3d5459bad0a7b56d708ea
+    domain: mobile_app
+    type: notify
+    title: "\U0001F6A8 Red Alert - Preemptive"
+    message: 'Warning: an alert may sound soon in your area. Get to a shelter.'
+  - variables:
+      loop_start: '{{ now().timestamp() }}'
+  - repeat:
+      while:
+      - condition: state
+        entity_id: sensor.oref_alert
+        state:
+        - pre_alert
+      - condition: template
+        value_template: '{{ (now().timestamp() - loop_start | float) < 600 }}'
+      sequence:
+      - action: notify.alexa_media
+        data:
+          target:
+          - media_player.alines_echo_dot
+          message: Warning! An alert may sound soon in your area. Get to a shelter
+            in the next few minutes.
+      - delay:
+          hours: 0
+          minutes: 1
+          seconds: 0
+          milliseconds: 0
+  - choose:
+    - conditions:
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: sensor.oref_alert
+          state:
+          - alert
+      - condition: state
+        entity_id: binary_sensor.jewish_calendar_issur_melacha_in_effect
+        state: 'off'
+      sequence:
+      - action: script.delay_turn_off_light
+        data:
+          delay_minutes: 5
+          lights:
+          - light.door_entrance_light
+          - light.main_entrance_light
+turn_on_lights_for_red_alert:
+  alias: "\U0001F534 Turn On Lights for Red Alert"
+  description: Turns on entrance lights during an alert.
+  mode: single
+  sequence:
+  - action: light.turn_on
+    data: {}
+    target:
+      entity_id:
+      - light.main_entrance_light
+      - light.door_entrance_light
+turn_off_lights_after_red_alert:
+  alias: "\U0001F534 Turn off Lights after Red Alert"
+  description: Waits for active alert to end, then turns off entrance lights after
+    5 min (skips on Shabbat/Hag).
+  mode: single
+  sequence:
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.oref_alert
+      to:
+      - 'off'
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.jewish_calendar_issur_melacha_in_effect
+        state: 'off'
+      sequence:
+      - action: script.delay_turn_off_light
+        data:
+          delay_minutes: 5
+          lights:
+          - light.door_entrance_light
+          - light.main_entrance_light
+send_sfirat_haomer_notification:
+  mode: single
+  alias: Send Sfirat HaOmer Notification
+  description: Manually send the Omer count notification
+  sequence:
+  - action: notify.mobile_app_amir_phone
+    data:
+      title: "\U0001F33E Sfirat HaOmer Reminder"
+      message: Hayom {{ states('sensor.jewish_calendar_day_of_the_omer') }} yom la-Omer
+      data:
+        actions:
+        - action: OMER_OK_ACTION
+          title: ✓ Counted
+        - action: OMER_SNOOZE_ACTION
+          title: ⏰ Snooze 5m
+livingroom_ac_cool:
+  alias: Living Room AC - Cool
+  icon: mdi:snowflake
+  mode: single
+  sequence:
+    - action: scene.turn_on
+      target: { entity_id: scene.turn_on_livingroom_ac }
+    - action: input_select.select_option
+      target: { entity_id: input_select.livingroom_ac_mode }
+      data: { option: cool }
+
+livingroom_ac_heat:
+  alias: Living Room AC - Heat
+  icon: mdi:fire
+  mode: single
+  sequence:
+    - action: scene.turn_on
+      target: { entity_id: scene.turn_on_livingroom_ac_heat }
+    - action: input_select.select_option
+      target: { entity_id: input_select.livingroom_ac_mode }
+      data: { option: heat }
+
+livingroom_ac_off:
+  alias: Living Room AC - Off
+  icon: mdi:power
+  mode: single
+  sequence:
+    - action: scene.turn_on
+      target: { entity_id: scene.turn_off_livingroom_ac }
+    - action: input_select.select_option
+      target: { entity_id: input_select.livingroom_ac_mode }
+      data: { option: "off" }
+
+# Watch / quick-action helpers (GarminHomeAssistant taps these)
+open_home_gate:
+  alias: Open home gate
+  icon: mdi:gate
+  mode: single
+  sequence:
+    - action: cover.open_cover
+      target:
+        entity_id: cover.4g600204039
+
+leave_house_all_off:
+  alias: Leave house - all off
+  description: Safe leave-home bundle for watch / phone. AC off + all lights off + arm Away.
+    Add specific switches here later — do NOT use switch.turn_off all (fridge/network risk).
+  icon: mdi:home-export-outline
+  mode: single
+  sequence:
+    - action: script.livingroom_ac_off
+    - action: light.turn_off
+      target:
+        entity_id: all
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.away_mode
+
+arrive_home_disarm:
+  alias: Arrive home - disarm
+  description: Turns Away mode off. Does not turn lights or AC on.
+  icon: mdi:home-import-outline
+  mode: single
+  sequence:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.away_mode
+livingroom_ac_smart_toggle:
+  alias: Living Room AC - Smart Toggle
+  icon: mdi:air-conditioner
+  mode: single
+  sequence:
+    - if:
+        - condition: state
+          entity_id: input_select.livingroom_ac_mode
+          state: "off"
+      then:
+        # Currently off → turn on, pick mode by outdoor temperature
+        - if:
+            - condition: numeric_state
+              entity_id: weather.forecast_home_2
+              attribute: temperature
+              below: 22
+          then:
+            - action: script.livingroom_ac_heat
+          else:
+            - action: script.livingroom_ac_cool
+      else:
+        # Currently cool or heat → turn off
+        - action: script.livingroom_ac_off

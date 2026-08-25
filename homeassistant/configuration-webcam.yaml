@@ -1,0 +1,17 @@
+# Optional. Merge into configuration.yaml (or a package).
+#
+# In secrets.yaml:
+#   ask_http_token: <same value as ASK_HTTP_TOKEN on the mini-PC>
+#
+# Mini-PC must have ASK_HTTP_BIND=0.0.0.0 so the HA VM can reach :20010.
+# Create input_boolean.away_mode in Helpers (do not also declare it here).
+
+rest_command:
+  webcam_telegram_snapshot:
+    url: http://192.168.68.124:20010/cam/snapshot
+    method: POST
+    headers:
+      Authorization: Bearer !secret ask_http_token
+      Content-Type: application/json
+    payload: '{"caption": "{{ caption | default("Motion while away") }}"}'
+    timeout: 30

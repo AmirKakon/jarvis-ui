@@ -1,0 +1,20 @@
+# Camera + Away toggle. Paste as a card on House User / House Tablet.
+# Camera entity_id after adding the MJPEG integration: camera.mini_pc_webcam
+
+type: vertical-stack
+cards:
+  - type: entities
+    title: House watch
+    entities:
+      - entity: input_boolean.away_mode
+        name: Away / armed
+      - entity: binary_sensor.entrance_motion_sensor_motion
+        name: Entrance motion
+      - entity: cover.4g600204039
+        name: Gate
+
+  - type: picture-entity
+    entity: camera.mini_pc_webcam
+    name: Mini-PC webcam
+    camera_view: live
+    show_state: false

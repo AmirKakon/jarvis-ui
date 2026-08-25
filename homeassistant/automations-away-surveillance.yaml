@@ -1,0 +1,76 @@
+# Away-mode house watch: entrance PIR + mini-PC webcam.
+# Paste into automations.yaml (or Settings → Automations → ⋮ → Edit in YAML).
+#
+# Before this works:
+# 1. Helpers → Create toggle named "Away mode" (entity_id must be input_boolean.away_mode)
+# 2. Add MJPEG camera "Mini PC Webcam" → camera.mini_pc_webcam
+#      still:  http://192.168.68.124:20011/api/frame.jpeg?src=webcam
+#      mjpeg:  http://192.168.68.124:20011/api/stream.mjpeg?src=webcam
+# 3. Optional Telegram stills: rest_command.webcam_telegram_snapshot (see configuration-webcam.yaml)
+#    and ASK_HTTP_BIND=0.0.0.0 on the mini-PC. Phone alerts work without this.
+
+- id: away_entrance_motion_alert
+  alias: Away - entrance motion snapshot
+  description: While Away is on, entrance PIR sends a high-priority phone alert plus a camera still. 60s cooldown.
+  mode: single
+  max_exceeded: silent
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.entrance_motion_sensor_motion
+      to: "on"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.away_mode
+      state: "on"
+  actions:
+    - action: camera.snapshot
+      continue_on_error: true
+      target:
+        entity_id: camera.mini_pc_webcam
+      data:
+        filename: /config/www/webcam_latest.jpg
+    - action: notify.mobile_app_amir_phone
+      data:
+        title: Motion while away
+        message: Entrance motion. Open the camera card for the live feed.
+        data:
+          ttl: 0
+          priority: high
+          channel: alarm_stream
+          image: /local/webcam_latest.jpg
+          clickAction: /lovelace/home
+    # Uncomment after adding rest_command.webcam_telegram_snapshot (configuration-webcam.yaml)
+    # and ASK_HTTP_BIND=0.0.0.0 on the mini-PC:
+    # - action: rest_command.webcam_telegram_snapshot
+    #   continue_on_error: true
+    #   data:
+    #     caption: Entrance motion while away
+    - delay:
+        seconds: 60
+
+- id: away_gate_opened_alert
+  alias: Away - gate opened
+  description: Palgate opened while Away is on.
+  mode: single
+  max_exceeded: silent
+  triggers:
+    - trigger: state
+      entity_id: cover.4g600204039
+      to: open
+  conditions:
+    - condition: state
+      entity_id: input_boolean.away_mode
+      state: "on"
+  actions:
+    - action: notify.mobile_app_amir_phone
+      data:
+        title: Gate opened while away
+        message: Palgate is open.
+        data:
+          ttl: 0
+          priority: high
+          channel: alarm_stream
+    # - action: rest_command.webcam_telegram_snapshot
+    #   continue_on_error: true
+    #   data:
+    #     caption: Gate opened while away
