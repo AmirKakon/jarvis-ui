@@ -268,7 +268,7 @@ All monitoring runs via cron with Telegram alerts — zero AI cost:
 | Script | Schedule | Purpose |
 |--------|----------|---------|
 | `service-monitor.sh` | Every 15m | Docker + systemd + port checks |
-| `samba-monitor.sh` | Every 15m | Samba service + share mount checks |
+| `samba-monitor.sh` | _disabled_ | Samba service + share mount checks (cron entry commented out) |
 | `disk-watchdog.sh` | Every 6h | Alerts if any disk > 90% |
 | `network-scanner.sh` | Every hour | Unknown device detection |
 | `ssh-monitor.sh` | Every hour | SSH intrusion detection |

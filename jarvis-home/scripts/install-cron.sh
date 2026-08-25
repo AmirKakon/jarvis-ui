@@ -29,8 +29,8 @@ cat >> /tmp/jarvis-cron-clean << EOF
 # jarvis-monitor: backup freshness check (daily at 08:00)
 0 8 * * * $SCRIPTS_DIR/backup-checker.sh
 
-# jarvis-monitor: Samba share health (every 15 min)
-*/15 * * * * $SCRIPTS_DIR/samba-monitor.sh
+# jarvis-monitor: Samba share health (every 15 min) — disabled
+#*/15 * * * * $SCRIPTS_DIR/samba-monitor.sh
 
 # jarvis-monitor: Bus 616/65 ETA → HA sensors both directions (every minute; Sun–Thu)
 * * * * * $SCRIPTS_DIR/bus-monitor.sh
@@ -69,7 +69,6 @@ echo "    Every 1 min   — bus-monitor.sh      (Bus 616/65 both directions)"
 echo "    Every 1 min   — webcam-watchdog.sh  (USB webcam self-heal)"
 echo "    Every 2 min   — ha-monitor.sh       (Home Assistant liveness)"
 echo "    Every 15 min  — service-monitor.sh  (Docker + systemd health)"
-echo "    Every 15 min  — samba-monitor.sh   (Samba share health)"
 echo "    Every 6 hours — disk-watchdog.sh    (filesystem usage)"
 echo "    Every hour    — network-scanner.sh  (unknown device detection)"
 echo "    Every hour    — ssh-monitor.sh      (SSH intrusion detection)"
