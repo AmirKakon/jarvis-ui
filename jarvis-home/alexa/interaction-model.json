@@ -1,0 +1,77 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "jarvis",
+      "modelConfiguration": {
+        "fallbackIntentSensitivity": {
+          "level": "LOW"
+        }
+      },
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AskJarvisIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "for {query}",
+            "about {query}",
+            "to {query}",
+            "if {query}",
+            "tell me {query}",
+            "tell me about {query}",
+            "give me {query}",
+            "check {query}",
+            "add {query}",
+            "what {query}",
+            "what is {query}",
+            "what's {query}",
+            "when {query}",
+            "when is {query}",
+            "where {query}",
+            "where is {query}",
+            "how {query}",
+            "how many {query}",
+            "how much {query}",
+            "who {query}",
+            "why {query}",
+            "is {query}",
+            "are {query}",
+            "do {query}",
+            "does {query}",
+            "can you {query}",
+            "could you {query}",
+            "please {query}",
+            "turn {query}",
+            "set {query}",
+            "show me {query}"
+          ]
+        }
+      ],
+      "types": []
+    }
+  }
+}

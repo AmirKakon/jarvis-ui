@@ -10,6 +10,9 @@
 //   POST /cam/snapshot           — grab ustreamer still, send to Telegram (same bearer token)
 //   GET  /v1/models              — OpenAI-compatible model list (for HA setup)
 //   POST /v1/chat/completions    — OpenAI-compatible chat (HA OpenAI Conversation)
+//   POST /alexa                  — Alexa custom-skill endpoint (see alexa.js).
+//                                  Auth is the Alexa request signature, NOT the
+//                                  bearer token — Alexa cannot send one.
 //
 // The /v1 shim is chat-only (no tools). HA Assist points here; JARVIS owns all
 // routing and device control via askCore. Long delegate/complex-MCP jobs are
@@ -28,6 +31,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { askCore } from './brain.js';
 import { pushWebcamToTelegram } from './commands/cam.js';
+import { handleAlexaRequest } from './alexa.js';
 
 const MAX_BODY = 32 * 1024; // 32 KB — plenty for a text prompt
 const MODEL_ID = 'jarvis';
@@ -49,6 +53,7 @@ function sendJson(res, status, obj) {
 
 // Constant-time bearer-token comparison (avoids timing side-channels).
 function authorized(req, token) {
+  if (!token) return false; // server may run for /alexa only, with no bearer token set
   const header = req.headers.authorization || '';
   const m = /^Bearer\s+(.+)$/i.exec(header);
   if (!m) return false;
@@ -278,6 +283,26 @@ async function handleCamSnapshot(req, res, token) {
   }
 }
 
+// Alexa custom-skill endpoint. Authentication is the Alexa request signature
+// (verified inside handleAlexaRequest), so this route intentionally does NOT
+// require the bearer token — an Echo cannot send one.
+async function handleAlexa(req, res) {
+  let raw;
+  try {
+    raw = await readBody(req, MAX_BODY);
+  } catch {
+    return sendJson(res, 413, { error: 'payload too large' });
+  }
+
+  try {
+    const { status, body } = await handleAlexaRequest(raw, req.headers);
+    return sendJson(res, status, body);
+  } catch (err) {
+    console.error('[ask-http] /alexa:', err.message);
+    return sendJson(res, 500, { error: 'internal error' });
+  }
+}
+
 async function handleRequest(req, res, token) {
   try {
     const path = (req.url || '').split('?')[0];
@@ -285,6 +310,10 @@ async function handleRequest(req, res, token) {
     // Liveness check (unauthenticated — no data exposed).
     if (req.method === 'GET' && path === '/health') {
       return sendJson(res, 200, { ok: true });
+    }
+
+    if (req.method === 'POST' && path === '/alexa') {
+      return handleAlexa(req, res);
     }
 
     if (req.method === 'POST' && path === '/ask') {
@@ -312,14 +341,17 @@ async function handleRequest(req, res, token) {
 
 // --- Lifecycle ---
 
-// Start the /ask HTTP server. No-op (returns null) if ASK_HTTP_TOKEN is unset,
-// so the endpoint is opt-in and never runs unauthenticated.
+// Start the HTTP server. No-op (returns null) unless at least one surface is
+// enabled: ASK_HTTP_TOKEN (bearer-protected /ask + /v1 shim) or ALEXA_SKILL_ID
+// (signature-authenticated /alexa). Token-protected routes 401 when no token is
+// set, so running Alexa-only never exposes /ask unauthenticated.
 export function startAskServer() {
   if (server) return server; // idempotent — never double-listen
 
   const token = process.env.ASK_HTTP_TOKEN;
-  if (!token) {
-    console.log('[ask-http] ASK_HTTP_TOKEN not set — HTTP /ask endpoint disabled.');
+  const alexaEnabled = !!process.env.ALEXA_SKILL_ID;
+  if (!token && !alexaEnabled) {
+    console.log('[ask-http] neither ASK_HTTP_TOKEN nor ALEXA_SKILL_ID set — HTTP endpoint disabled.');
     return null;
   }
 
@@ -329,7 +361,10 @@ export function startAskServer() {
   server = http.createServer((req, res) => handleRequest(req, res, token));
   server.on('error', (err) => console.error('[ask-http] server error:', err.message));
   server.listen(port, bind, () => {
-    console.log(`[ask-http] Listening on http://${bind}:${port} (POST /ask, POST /v1/chat/completions, POST /cam/snapshot, GET /v1/models, GET /health)`);
+    const routes = ['GET /health'];
+    if (token) routes.push('POST /ask', 'POST /v1/chat/completions', 'POST /cam/snapshot', 'GET /v1/models');
+    if (alexaEnabled) routes.push('POST /alexa');
+    console.log(`[ask-http] Listening on http://${bind}:${port} (${routes.join(', ')})`);
   });
   return server;
 }
