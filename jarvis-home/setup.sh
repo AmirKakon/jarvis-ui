@@ -165,9 +165,16 @@ else
 fi
 
 # Host ustreamer (USB webcam). Docker ffmpeg/go2rtc wedged this Jieli camera.
+# Opt-out: set WEBCAM_ENABLED=false in ~/jarvis/.env to skip. The install is also
+# non-fatal (|| true), so a flaky/absent camera never aborts the rest of setup
+# (this script runs under `set -e`).
 echo -e "${GREEN}[13b]${NC} Installing host ustreamer webcam..."
-if [ -f "$SCRIPT_DIR/scripts/install-ustreamer.sh" ]; then
-    bash "$SCRIPT_DIR/scripts/install-ustreamer.sh"
+WEBCAM_ENABLED="$(grep -E '^[[:space:]]*WEBCAM_ENABLED=' "$JARVIS_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+if [ "$WEBCAM_ENABLED" = "false" ]; then
+    echo -e "  ${YELLOW}WEBCAM_ENABLED=false — skipping webcam setup.${NC}"
+elif [ -f "$SCRIPT_DIR/scripts/install-ustreamer.sh" ]; then
+    bash "$SCRIPT_DIR/scripts/install-ustreamer.sh" \
+        || echo -e "  ${YELLOW}Webcam setup failed — continuing (set WEBCAM_ENABLED=false in ~/jarvis/.env to skip).${NC}"
 else
     echo "  install-ustreamer.sh missing — skipping."
 fi
