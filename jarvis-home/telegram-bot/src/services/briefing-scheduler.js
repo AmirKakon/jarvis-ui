@@ -21,7 +21,7 @@ function jerusalemParts() {
 async function maybeSendBriefing(bot, chatId) {
   if (process.env.BRIEFING_ENABLED === 'false') return;
 
-  const target = (process.env.BRIEFING_TIME || '07:00').trim();
+  const target = (process.env.BRIEFING_TIME || '06:00').trim();
   const { date, hm } = jerusalemParts();
 
   if (hm !== target || lastSentDate === date) return;
@@ -39,7 +39,7 @@ async function maybeSendBriefing(bot, chatId) {
 export function startBriefingScheduler(bot, chatId) {
   if (intervalId) return;
   intervalId = setInterval(() => maybeSendBriefing(bot, chatId), CHECK_INTERVAL);
-  const target = (process.env.BRIEFING_TIME || '07:00').trim();
+  const target = (process.env.BRIEFING_TIME || '06:00').trim();
   const enabled = process.env.BRIEFING_ENABLED !== 'false';
   console.log(`[briefing] Scheduler started (${enabled ? `daily at ${target} ${TZ}` : 'disabled'})`);
 }
