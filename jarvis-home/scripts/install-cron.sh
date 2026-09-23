@@ -38,8 +38,8 @@ cat >> /tmp/jarvis-cron-clean << EOF
 # jarvis-monitor: Home Assistant liveness (every 2 min)
 */2 * * * * $SCRIPTS_DIR/ha-monitor.sh
 
-# jarvis-monitor: DuckDNS → current home IP (every 5 min)
-*/5 * * * * $SCRIPTS_DIR/duckdns-update.sh
+# jarvis-monitor: DuckDNS → current home IP (every 5 min) — disabled
+#*/5 * * * * $SCRIPTS_DIR/duckdns-update.sh
 
 # jarvis-monitor: USB webcam self-heal (every minute)
 * * * * * $SCRIPTS_DIR/webcam-watchdog.sh
@@ -71,7 +71,6 @@ echo ""
 echo "    Every 1 min   — bus-monitor.sh      (Bus 616/65 both directions)"
 echo "    Every 1 min   — webcam-watchdog.sh  (USB webcam self-heal)"
 echo "    Every 2 min   — ha-monitor.sh       (Home Assistant liveness)"
-echo "    Every 5 min   — duckdns-update.sh   (DuckDNS → current home IP)"
 echo "    Every 15 min  — service-monitor.sh  (Docker + systemd health)"
 echo "    Every 6 hours — disk-watchdog.sh    (filesystem usage)"
 echo "    Every hour    — network-scanner.sh  (unknown device detection)"

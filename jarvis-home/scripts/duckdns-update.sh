@@ -11,7 +11,7 @@
 #   DUCKDNS_TOKEN    required — token shown on the duckdns.org dashboard
 #   DUCKDNS_DOMAINS  optional — comma-separated subdomains (default: kakischer)
 #
-# Cron: every 5 minutes
+# Cron: disabled (entry commented out in install-cron.sh) — run manually or via /cron
 
 set -uo pipefail
 
