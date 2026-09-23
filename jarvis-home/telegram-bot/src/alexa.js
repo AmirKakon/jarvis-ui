@@ -30,7 +30,8 @@
 //   ALEXA_NOTIFY_TARGET     optional CSV of media_player targets (for the generic
 //                           notify.alexa_media service)
 //   ALEXA_INLINE_BUDGET_MS  how long to wait for an inline answer before falling
-//                           back to announce (default 6000; keep < Alexa's ~8s)
+//                           back to announce (default 6000; keep < Alexa's ~8s).
+//                           Also the ceiling for /ask's announceIfSlow budgetMs.
 //   ALEXA_VERIFY_SIGNATURE  set to "false" ONLY for local curl testing (default true)
 
 import crypto from 'node:crypto';
@@ -120,13 +121,20 @@ function hasBackgroundJob(result) {
 
 // --- Core answer flow: race an inline reply against Alexa's ~8s window ---
 
-async function answer(query, event) {
-  const sessionKey = sessionKeyFor(event);
+const DEFERRED_ACK = "Right away, Sir — I'll speak the answer in just a moment.";
+
+// Answer within a voice assistant's reply window, or acknowledge now and speak
+// the finished answer on the Echo via Home Assistant. Shared by POST /alexa and
+// by POST /ask when the Alexa Lambda sets announceIfSlow. `budgetMs` can only
+// shorten the window (callers with network overhead need a tighter budget).
+// Returns { text, deferred } — deferred means the real answer will be announced.
+export async function answerForVoice(query, sessionKey, { budgetMs, source = 'alexa' } = {}) {
+  const budget = Math.max(1000, Math.min(Number(budgetMs) || inlineBudgetMs(), inlineBudgetMs()));
   let announced = false; // guard against double delivery
 
   const askPromise = askCore(query, {
     sessionKey,
-    source: 'alexa',
+    source,
     // Slow/complex actions (cross-provider MCP, delegate) run in the background
     // and finish after we've already replied — speak the result on the Echo.
     onBackground: async ({ res }) => {
@@ -139,34 +147,43 @@ async function answer(query, event) {
     },
   });
 
-  const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(TIMEOUT), inlineBudgetMs()));
+  let timer;
+  const timeoutPromise = new Promise((resolve) => { timer = setTimeout(() => resolve(TIMEOUT), budget); });
   const outcome = await Promise.race([
     askPromise.then((r) => r, (err) => ({ __err: err })),
     timeoutPromise,
   ]);
+  clearTimeout(timer);
 
   if (outcome === TIMEOUT) {
     // We couldn't answer within the voice window. Deliver the eventual answer
     // via announce when it's ready — unless a background job already owns it.
     askPromise.then((r) => {
-      if (r && !r.__err && !hasBackgroundJob(r) && !announced) {
+      if (r && !hasBackgroundJob(r) && !announced) {
         announce(r.text || 'Done, Sir.').catch(() => {});
       }
     }, () => {
       announce('Something went wrong with that, Sir.').catch(() => {});
     });
-    return speak("Right away, Sir — I'll speak the answer in just a moment.", { keepOpen: true });
+    return { text: DEFERRED_ACK, deferred: true };
   }
 
   if (outcome?.__err) {
     console.error('[alexa] askCore error:', outcome.__err?.message);
-    return speak('Something went wrong, Sir.', { keepOpen: true });
+    return { text: 'Something went wrong, Sir.', deferred: false };
   }
 
   // Got a result in time. If a background job was kicked off, outcome.text is the
   // acknowledgement ("Checking that for you, Sir.") — onBackground will speak the
   // real answer shortly. Otherwise it's the full answer.
-  return speak(outcome.text || 'Done, Sir.', { keepOpen: true });
+  return { text: outcome.text || 'Done, Sir.', deferred: hasBackgroundJob(outcome) };
+}
+
+// A deferred answer ends the Alexa session so the Echo is idle (not listening)
+// when the Home Assistant announcement arrives.
+async function answer(query, event) {
+  const { text, deferred } = await answerForVoice(query, sessionKeyFor(event));
+  return speak(text, { keepOpen: !deferred });
 }
 
 // --- Request routing ---

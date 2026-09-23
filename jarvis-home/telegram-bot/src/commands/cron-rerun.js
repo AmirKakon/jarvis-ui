@@ -15,6 +15,7 @@ const ALLOWED_SCRIPTS = new Set([
   'docker-security',
   'ssl-monitor',
   'firewall-audit',
+  'duckdns-update',
 ]);
 
 export async function cronRerun(ctx) {

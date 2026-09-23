@@ -7,6 +7,9 @@
 // Endpoints:
 //   GET  /health                 — liveness (unauthenticated)
 //   POST /ask                    — JARVIS-native { text, sessionKey?, source? }
+//                                  + { announceIfSlow: true, budgetMs? } for voice
+//                                  callers: kind "deferred" means the reply is an
+//                                  ack and the Echo will speak the answer via HA.
 //   POST /cam/snapshot           — grab ustreamer still, send to Telegram (same bearer token)
 //   GET  /v1/models              — OpenAI-compatible model list (for HA setup)
 //   POST /v1/chat/completions    — OpenAI-compatible chat (HA OpenAI Conversation)
@@ -31,7 +34,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { askCore } from './brain.js';
 import { pushWebcamToTelegram } from './commands/cam.js';
-import { handleAlexaRequest } from './alexa.js';
+import { handleAlexaRequest, answerForVoice } from './alexa.js';
 
 const MAX_BODY = 32 * 1024; // 32 KB — plenty for a text prompt
 const MODEL_ID = 'jarvis';
@@ -174,6 +177,13 @@ async function handleAsk(req, res, token) {
 
   const sessionKey = typeof body.sessionKey === 'string' && body.sessionKey ? body.sessionKey : 'api:default';
   const source = typeof body.source === 'string' && body.source ? body.source : 'api';
+
+  // Voice callers (the Alexa Lambda) can't wait for slow answers: reply within
+  // budgetMs, or acknowledge and have the Echo speak the answer later via HA.
+  if (body.announceIfSlow === true) {
+    const { text: reply, deferred } = await answerForVoice(text, sessionKey, { budgetMs: body.budgetMs, source });
+    return sendJson(res, 200, { ok: true, kind: deferred ? 'deferred' : 'voice', reply, actions: [] });
+  }
 
   // Headless surface: no Telegram chatId, so reminders/calendar-create degrade
   // gracefully inside askCore (they report they're Telegram-only for now).
