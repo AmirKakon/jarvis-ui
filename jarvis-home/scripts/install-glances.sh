@@ -32,6 +32,18 @@ echo -e "${GREEN}Setting up systemd service...${NC}"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 mkdir -p "$SYSTEMD_USER_DIR"
 
+GLANCES_CONF_DIR="$HOME/.config/glances"
+mkdir -p "$GLANCES_CONF_DIR"
+# USB disks sometimes omit time_since_update; glances_api then crashes the whole HA
+# coordinator. Hide removable disk I/O (keep sda) and ephemeral docker veths.
+cat > "$GLANCES_CONF_DIR/glances.conf" << 'GLCONF'
+[diskio]
+hide=sd[b-z].*
+
+[network]
+hide=lo,docker0,veth.*,br-.*,br_.*
+GLCONF
+
 cat > "$SYSTEMD_USER_DIR/glances.service" << EOF
 [Unit]
 Description=Glances system monitor (web API)
@@ -39,7 +51,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$GLANCES_PATH -w --port $GLANCES_PORT --disable-webui
+ExecStart=$GLANCES_PATH -w --port $GLANCES_PORT --disable-webui --config $GLANCES_CONF_DIR/glances.conf
 Restart=on-failure
 RestartSec=10
 
@@ -68,6 +80,6 @@ fi
 
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo ""
-echo "  API endpoint: http://${LOCAL_IP:-localhost}:$GLANCES_PORT/api/3"
+echo "  API endpoint: http://${LOCAL_IP:-localhost}:$GLANCES_PORT/api/4"
 echo "  Add Glances integration in HA: Settings > Integrations > Glances"
 echo "  Host: ${LOCAL_IP:-<this-machine-ip>}  Port: $GLANCES_PORT"
