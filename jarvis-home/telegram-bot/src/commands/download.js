@@ -338,7 +338,7 @@ async function handleOrganizeConfirm(ctx, shortHash) {
   let src = meta.source_file;
 
   // Re-resolve if the path went stale (qBT content_path often lags / differs).
-  if (!existsSync(src) && meta.hash) {
+  if (!existsSync(src) && meta.hash && !meta.orphan) {
     const { ok, output } = await qbtApi(`torrents/info?hashes=${meta.hash}`);
     if (ok) {
       try {
@@ -355,7 +355,8 @@ async function handleOrganizeConfirm(ctx, shortHash) {
     }
   }
   if (!existsSync(src)) {
-    const hint = findUnderDownloads(meta.title || basename(src));
+    const hint = findUnderDownloads(meta.title || basename(src))
+      || findLibraryCopy(meta);
     if (hint) {
       src = hint;
       meta.source_file = src;
@@ -363,25 +364,18 @@ async function handleOrganizeConfirm(ctx, shortHash) {
     }
   }
 
-  // Already organized (e.g. previous move, Radarr, or manual) — treat as success.
-  if (!existsSync(src) && pathExists(dest)) {
+  // Already at the requested destination.
+  if (pathExists(dest) && (!existsSync(src) || sameInodeOrName(src, dest) || src === dest)) {
     return finishOrganize(ctx, pendingFile, meta, dest, { alreadyThere: true });
   }
 
   if (!existsSync(src)) {
-    const maybe = findAlreadyOrganized(meta);
-    if (maybe) {
-      return finishOrganize(ctx, pendingFile, meta, maybe, { alreadyThere: true });
-    }
     return ctx.replyWithHTML(
-      `🔴 Move failed — source not found:\n${pre(src)}\n\n` +
-      `<i>If it’s already under movies/tv-shows, you’re done — tap Skip on leftover prompts ` +
-      `and remove the torrent from qBittorrent if it’s still listed.</i>`
+      `🔴 Move failed — source not found:\n${pre(src || meta.source_file || '(unknown)')}\n\n` +
+      `<i>Check qBittorrent → torrent → Content path. During download it should be under ` +
+      `<code>shared-storage-2/downloads</code>. If it’s already under movies/tv-shows, Edit the ` +
+      `destination to match or Skip and delete the torrent.</i>`
     );
-  }
-
-  if (pathExists(dest) && sameInodeOrName(src, dest)) {
-    return finishOrganize(ctx, pendingFile, meta, dest, { alreadyThere: true });
   }
 
   const isDir = meta.is_dir === true || meta.is_dir === 'true' || statSync(src).isDirectory();
@@ -434,9 +428,12 @@ async function handleOrganizeEdit(ctx, shortHash) {
   pendingEdits.set(chatId, { shortHash, timestamp: Date.now() });
 
   await ctx.replyWithHTML(
-    `Current destination:\n<code>${escapeHtml(meta.destination)}</code>\n\n` +
-    `Reply with the correct full path (under ~/shared-storage-2/), ` +
-    `or send the folder structure like:\n<code>tv-shows/Show Name/Season 1</code>`
+    `Current destination:\n<code>${escapeHtml(meta.destination || '')}</code>\n\n` +
+    `Reply with a path under shared-storage-2, e.g.:\n` +
+    `<code>tv-shows</code>\n` +
+    `<code>tv-shows/The Big Bang Theory</code>\n` +
+    `<code>movies/Buffaloed (2019)</code>\n\n` +
+    `<i>Tip: send <code>tv-shows</code> not <code>/tv-shows</code> — a leading slash alone is treated as a library root shortcut now.</i>`
   );
 }
 
@@ -450,21 +447,13 @@ async function handleOrganizeApplyEdit(ctx, shortHash, newPath) {
     return;
   }
 
-  let dest = newPath.trim();
-  // If relative path, resolve under shared-storage-2
-  if (!dest.startsWith('/')) {
-    dest = `${HOME}/shared-storage-2/${dest}`;
-  }
-  // Append the content name if the user provided a directory path
-  const contentName = basename(meta.source_file);
-  if (!dest.endsWith(contentName)) {
-    dest = dest.replace(/\/+$/, '') + '/' + contentName;
-  }
-
+  const dest = resolveEditDestination(newPath, meta);
   meta.destination = dest;
+  if (dest.startsWith(TV_HOST)) meta.type = 'tv';
+  else if (dest.startsWith(MOVIES_HOST)) meta.type = 'movie';
   writeFileSync(pendingFile, JSON.stringify(meta, null, 2));
 
-  const shortDest = dest.replace(/.*shared-storage-2\//, '');
+  const shortDest = shortSharedPath(dest);
   await ctx.replyWithHTML(
     `Updated destination:\n<code>${escapeHtml(shortDest)}</code>`,
     Markup.inlineKeyboard([[
@@ -473,6 +462,53 @@ async function handleOrganizeApplyEdit(ctx, shortHash, newPath) {
       Markup.button.callback('⏭ Skip', `dl:s:${shortHash}`),
     ]])
   );
+}
+
+/**
+ * Accept: tv-shows, /tv-shows, movies/Title, ~/shared-storage-2/..., absolute host paths.
+ * Never treat /tv-shows as filesystem root.
+ */
+function resolveEditDestination(raw, meta) {
+  let dest = String(raw || '').trim().replace(/\\/g, '/');
+  dest = dest.replace(/^~(?=\/|$)/, HOME);
+
+  const libRoots = ['tv-shows', 'movies', 'downloads'];
+  const asRelative = dest.replace(/^\/+/, '');
+  const firstSeg = asRelative.split('/')[0];
+
+  if (libRoots.includes(firstSeg)) {
+    dest = `${HOME}/shared-storage-2/${asRelative}`;
+  } else if (!dest.startsWith('/')) {
+    dest = `${HOME}/shared-storage-2/${dest}`;
+  }
+
+  dest = dest.replace(/\/+$/, '');
+
+  // Library root only → append clean title folder
+  if (dest === TV_HOST || dest === MOVIES_HOST || dest === DOWNLOADS_HOST) {
+    const folder = (meta.type === 'movie' || dest === MOVIES_HOST) && meta.year
+      ? `${meta.title} (${meta.year})`
+      : (meta.title || basename(meta.source_file || 'media'));
+    dest = join(dest, folder);
+    return dest;
+  }
+
+  // User gave a parent dir — append content folder name if missing
+  const contentName = basename(meta.source_file || '');
+  const titleFolder = meta.year && dest.startsWith(MOVIES_HOST)
+    ? `${meta.title} (${meta.year})`
+    : meta.title;
+  if (titleFolder && (dest === join(TV_HOST, titleFolder) || dest === join(MOVIES_HOST, titleFolder))) {
+    return dest;
+  }
+  if (contentName && !dest.endsWith(contentName) && !(titleFolder && dest.endsWith(titleFolder))) {
+    // Prefer clean title under library roots over ugly torrent folder names
+    if ((dest === TV_HOST || dest.startsWith(TV_HOST + '/')) && titleFolder && !dest.includes(titleFolder)) {
+      if (dest === TV_HOST || dest === `${TV_HOST}`) return join(TV_HOST, titleFolder);
+    }
+    dest = `${dest}/${contentName}`;
+  }
+  return dest;
 }
 
 async function handleOrganizeSkip(ctx, shortHash) {
@@ -494,9 +530,13 @@ function titleCase(str) {
 
 function containerToHostPath(containerPath) {
   if (!containerPath) return '';
-  return String(containerPath)
-    .replace(/^\/downloads\/?/, `${DOWNLOADS_HOST}/`)
-    .replace(/\/+$/, '') || DOWNLOADS_HOST;
+  let p = String(containerPath);
+  // Container mounts → host paths (see docker-compose.yml)
+  p = p.replace(/^\/downloads\/?/, `${DOWNLOADS_HOST}/`);
+  p = p.replace(/^\/media\/movies\/?/, `${MOVIES_HOST}/`);
+  p = p.replace(/^\/media\/tv-shows\/?/, `${TV_HOST}/`);
+  p = p.replace(/\/+$/, '');
+  return p || DOWNLOADS_HOST;
 }
 
 /** Map qBT torrent fields → host path under shared-storage-2. */
@@ -509,8 +549,9 @@ function resolveHostSource(t) {
       return { path, isDir: statSync(path).isDirectory() };
     }
   }
-  // Last resort: look under downloads by torrent name / basename
-  const byName = findUnderDownloads(t.name) || findUnderDownloads(basename(t.content_path || ''));
+  const byName = findUnderDownloads(t.name)
+    || findUnderDownloads(basename(t.content_path || ''))
+    || findLibraryCopy({ title: t.name, type: t.category });
   if (byName) return { path: byName, isDir: statSync(byName).isDirectory() };
   return { path: candidates[0] || '', isDir: false };
 }
@@ -554,40 +595,36 @@ function findUnderDownloads(nameHint) {
   return null;
 }
 
-/** If source is gone, look for a matching folder under movies/tv by title. */
-function findAlreadyOrganized(meta) {
-  if (pathExists(meta.destination)) return meta.destination;
-  const title = meta.title;
+/** Find a library copy under movies and/or tv-shows (mis-filed shows often land in movies). */
+function findLibraryCopy(meta) {
+  if (pathExists(meta?.destination)) return meta.destination;
+  const title = meta?.title;
   if (!title) return null;
-  const roots = meta.type === 'tv' ? [TV_HOST] : meta.type === 'movie' ? [MOVIES_HOST] : [MOVIES_HOST, TV_HOST];
   const needle = normalizeName(title);
+  if (!needle) return null;
+  const roots = [MOVIES_HOST, TV_HOST];
+  const yearHits = [];
+  const titleHits = [];
   for (const root of roots) {
     if (!existsSync(root)) continue;
     try {
       for (const name of readdirSync(root)) {
         const n = normalizeName(name);
-        if (n.includes(needle) || needle.includes(n)) {
-          const full = join(root, name);
-          if (meta.year && !name.includes(String(meta.year)) && !n.includes(String(meta.year))) {
-            // year mismatch — keep looking unless it's the only hit later
-            continue;
-          }
-          return full;
+        if (!(n.includes(needle) || needle.includes(n))) continue;
+        const full = join(root, name);
+        if (meta.year && (name.includes(String(meta.year)) || n.includes(String(meta.year)))) {
+          yearHits.push(full);
+        } else {
+          titleHits.push(full);
         }
       }
     } catch { /* ignore */ }
   }
-  // Year-less fallback: first title match
-  for (const root of roots) {
-    if (!existsSync(root)) continue;
-    try {
-      for (const name of readdirSync(root)) {
-        const n = normalizeName(name);
-        if (n.includes(needle) || needle.includes(n)) return join(root, name);
-      }
-    } catch { /* ignore */ }
-  }
-  return null;
+  return yearHits[0] || titleHits[0] || null;
+}
+
+function findAlreadyOrganized(meta) {
+  return findLibraryCopy(meta);
 }
 
 function normalizeName(s) {
@@ -602,8 +639,15 @@ function normalizeName(s) {
 /** Move file/dir with rename; fall back to copy+rm across devices. */
 function movePath(src, dest, isDir) {
   try {
+    if (!src || !dest) return { ok: false, output: 'missing source or destination' };
+    if (src === dest) return { ok: true, output: '' };
     mkdirSync(dirname(dest), { recursive: true });
     if (existsSync(dest)) {
+      // Same content already at dest — treat as done and remove leftover source
+      if (sameInodeOrName(src, dest)) {
+        try { rmSync(src, { recursive: !!isDir, force: true }); } catch { /* ignore */ }
+        return { ok: true, output: '' };
+      }
       return { ok: false, output: `destination already exists: ${dest}` };
     }
     try {
@@ -623,11 +667,16 @@ function movePath(src, dest, isDir) {
 function parseTorrentName(name, containerContentPath, category = '') {
   const hostPath = containerToHostPath(containerContentPath);
   const isDir = existsSync(hostPath) && statSync(hostPath).isDirectory();
-  const contentName = basename(hostPath);
+  const contentName = basename(hostPath || name);
 
   const qualityMatch = name.match(/\d{3,4}p/i);
   const quality = qualityMatch ? qualityMatch[0] : 'unknown';
   const cleanName = name.replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Explicit category wins over filename heuristics
+  if (category === 'tv' || category === 'movie') {
+    // still refine with regex below when possible; category used as fallback at end
+  }
 
   // TV show: match SxxExx pattern (single episode)
   const tvMatch = name.match(/[.\s_-][Ss](\d{1,2})[Ee](\d{1,2})/);
@@ -639,6 +688,21 @@ function parseTorrentName(name, containerContentPath, category = '') {
     return { type: 'tv', title: show, season, episode, quality, is_dir: isDir, source_file: hostPath, destination: dest };
   }
 
+  // Multi-season pack: S01-S06 / Season 1-6
+  const multiSeason = name.match(/[.\s_-][Ss](\d{1,2})\s*[-–]\s*[Ss]?(\d{1,2})(?![Ee]\d)/)
+    || name.match(/Season(?:s)?\s*(\d{1,2})\s*[-–]\s*(\d{1,2})/i);
+  if (multiSeason) {
+    const show = titleCase(
+      name
+        .replace(/[.\s_-]*[Ss]\d{1,2}\s*[-–]\s*[Ss]?\d{1,2}.*/i, '')
+        .replace(/[.\s_-]*Season(?:s)?\s*\d+.*/i, '')
+        .replace(/[._]/g, ' ')
+        .trim()
+    );
+    const dest = `${TV_HOST}/${show}/${contentName}`;
+    return { type: 'tv', title: show, quality, is_dir: isDir, source_file: hostPath, destination: dest };
+  }
+
   // TV season pack: match Sxx without Exx (e.g. "The.Bear.S01.1080p")
   const seasonPackMatch = name.match(/[.\s_-][Ss](\d{1,2})(?:[.\s_-]|$)(?![Ee]\d)/);
   if (seasonPackMatch) {
@@ -648,18 +712,42 @@ function parseTorrentName(name, containerContentPath, category = '') {
     return { type: 'tv', title: show, season, quality, is_dir: isDir, source_file: hostPath, destination: dest };
   }
 
-  // Movie: match year pattern or use category hint
-  const movieMatch = name.match(/[.\s_(-]((?:19[2-9]|20[0-2])\d)[.\s_)-]/);
-  if (movieMatch) {
-    const title = titleCase(name.replace(/[\s._(-]*(?:19[2-9]|20[0-2])\d.*/i, '').replace(/[._]/g, ' ').trim());
-    const year = parseInt(movieMatch[1]);
-    const dest = isDir
-      ? `${MOVIES_HOST}/${title} (${year})`
-      : `${MOVIES_HOST}/${title} (${year})/${contentName}`;
-    return { type: 'movie', title, year, quality, is_dir: isDir, source_file: hostPath, destination: dest };
+  // Full series packs: "COMPLETE.SERIES", "COMPLETE SERIES", etc. — NOT movies (even with a year)
+  if (/\bCOMPLETE[.\s_-]*SERIES\b/i.test(name) || /\bFULL[.\s_-]*SERIES\b/i.test(name)) {
+    const title = titleCase(
+      name
+        .replace(/[\s._(-]*(?:19[2-9]|20[0-2])\d.*/i, '')
+        .replace(/[.\s_-]*COMPLETE.*/i, '')
+        .replace(/[._]/g, ' ')
+        .trim()
+    );
+    const yearMatch = name.match(/(?:19[2-9]|20[0-2])\d/);
+    const dest = `${TV_HOST}/${title}/${contentName}`;
+    return {
+      type: 'tv',
+      title,
+      year: yearMatch ? parseInt(yearMatch[0]) : undefined,
+      quality,
+      is_dir: isDir,
+      source_file: hostPath,
+      destination: dest,
+    };
   }
 
-  // No regex match but category was provided -- use it as a hint
+  // Movie: match year pattern (only after TV heuristics)
+  if (category !== 'tv') {
+    const movieMatch = name.match(/[.\s_(-]((?:19[2-9]|20[0-2])\d)[.\s_)-]/);
+    if (movieMatch) {
+      const title = titleCase(name.replace(/[\s._(-]*(?:19[2-9]|20[0-2])\d.*/i, '').replace(/[._]/g, ' ').trim());
+      const year = parseInt(movieMatch[1]);
+      const dest = isDir
+        ? `${MOVIES_HOST}/${title} (${year})`
+        : `${MOVIES_HOST}/${title} (${year})/${contentName}`;
+      return { type: 'movie', title, year, quality, is_dir: isDir, source_file: hostPath, destination: dest };
+    }
+  }
+
+  // Category hint fallback
   if (category === 'movie') {
     const title = titleCase(cleanName.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim());
     const dest = isDir
@@ -858,12 +946,18 @@ async function handleOrganize(ctx) {
 
     let meta = parseTorrentName(t.name, t.content_path, t.category);
     if (!meta) meta = await claudeParseFallback(t.name, t.content_path);
-    const hostPath = containerToHostPath(t.content_path);
+    const resolved = resolveHostSource(t);
+    const hostPath = resolved.path || containerToHostPath(t.content_path);
     meta = normalizeOrganizeMeta(meta, {
       name: t.name,
       path: hostPath || join(DOWNLOADS_HOST, t.name),
-      isDir: hostPath && existsSync(hostPath) ? statSync(hostPath).isDirectory() : false,
+      isDir: resolved.isDir,
     });
+    // If qBT already wrote into a library mount, keep that as source so Confirm can relocate.
+    if (resolved.path) {
+      meta.source_file = resolved.path;
+      meta.is_dir = resolved.isDir;
+    }
 
     meta.hash = t.hash;
 
@@ -876,12 +970,15 @@ async function handleOrganize(ctx) {
 
     const icon = meta.type === 'tv' ? '📺' : meta.type === 'movie' ? '🎬' : '❓';
     const shortDest = shortSharedPath(meta.destination);
+    const shortSrc = shortSharedPath(meta.source_file);
+    const srcMissing = !pathExists(meta.source_file);
 
     await ctx.replyWithHTML(
       [
         `<b>${icon} ${escapeHtml(meta.title)}</b>`,
         `Type: ${meta.type} | Quality: ${meta.quality || 'unknown'}`,
         '',
+        `<b>From:</b> <code>${escapeHtml(shortSrc || '(unknown)')}</code>${srcMissing ? ' <i>(missing)</i>' : ''}`,
         `<b>Move to:</b>`,
         `<code>${escapeHtml(shortDest)}</code>`,
       ].join('\n'),
