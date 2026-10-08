@@ -16,18 +16,18 @@
 - 20011: ustreamer webcam (MJPEG stream / stills for Home Assistant). Listens on all interfaces.
 
 ## Webcam (ustreamer)
-- Cheap **Jieli combo cam** `1224:2a25` ("USB PHY 2.0"). Stays on the **host**. Do not USB-passthrough into the HA VM.
-- **apt `ustreamer` + systemd user unit** (`jarvis-ustreamer.service`), not Docker/go2rtc — ffmpeg/go2rtc could not keep it streaming; `ustreamer --persistent` rides over its corrupt first buffers and `select() Inappropriate ioctl` reopen loop.
+- Camera: **Logitech C930e** (`046d:0843`), a reliable UVC cam. Stays on the **host**. Do not USB-passthrough into the HA VM. (Replaced a defective Jieli `1224:2a25` cam that constantly re-enumerated and only ever delivered one frame.)
+- **apt `ustreamer` + systemd user unit** (`jarvis-ustreamer.service`), not Docker/go2rtc — go2rtc/ffmpeg-in-Docker couldn't drive it reliably. `ustreamer --persistent` serves MJPEG stream + stills.
 - Flags: `--format=MJPEG --resolution=640x480 --desired-fps=15 --persistent --drop-same-frames=30 --host=0.0.0.0 --port=20011`. Targets **`/dev/jarvis-cam`** (falls back to `/dev/video0`).
 - HA still: `http://192.168.68.124:20011/snapshot` — HA live: `http://192.168.68.124:20011/stream` (MJPEG IP Camera).
+- Health signal: **`/state` → `result.source.online`**. The "NO SIGNAL" placeholder is a valid ~13.8KB JPEG, so snapshot byte-size is NOT a health check — use `online`.
 - Snapshot helper: `~/jarvis/scripts/webcam-snapshot.sh` (sends Telegram). `/cam` in Telegram.
-- **This cam re-enumerates on the USB bus constantly.** All mitigations live in `99-jarvis-webcam.rules` (written by `scripts/install-ustreamer.sh`):
+- `99-jarvis-webcam.rules` (written by `scripts/install-ustreamer.sh`, keyed to `WEBCAM_VID/PID`):
   - `video` group + setfacl ACL → headless `--user` session can open the device.
-  - `power/control=on` → no USB autosuspend (autosuspend blanked it to "no signal").
-  - `ATTR{index}=="0" SYMLINK+="jarvis-cam"` → stable capture node (it exposes a video node **and** a metadata node whose numbers can shuffle).
-  - unbind `snd-usb-audio` → its broken mic function was spamming `set freq 48000` / `set_interface -19` and triggering resets.
-- **Self-heal:** `scripts/webcam-watchdog.sh` (cron, every minute) restarts the service when `/snapshot` returns empty — ustreamer wedges on a stale handle after a re-enumeration and a bounce always recovers it. Log: `~/jarvis/logs/webcam-watchdog.log`.
-- Root cause is flaky USB firmware/power. If drops are frequent: rear USB 2.0 port, no extension cable, or a powered hub. `dmesg | grep -i 'usb 1-2'` shows the re-enumerations.
+  - `power/control=on` → no USB autosuspend.
+  - `ATTR{index}=="0" SYMLINK+="jarvis-cam"` → stable capture node (cam exposes video node + metadata node; numbers can shuffle).
+- **Self-heal:** `scripts/webcam-watchdog.sh` (cron, every minute) restarts the service when `/state` reports the source offline. Log: `~/jarvis/logs/webcam-watchdog.log`.
+- **To swap cameras:** change `WEBCAM_VID`/`WEBCAM_PID` in `scripts/install-ustreamer.sh` (find via `lsusb`), then `bash setup.sh`.
 - After unplug/replug: `systemctl --user restart jarvis-ustreamer`.
 
 ## External Drives
