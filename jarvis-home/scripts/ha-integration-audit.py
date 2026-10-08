@@ -29,6 +29,13 @@ CONTROL_DOMAINS = {
 DEAD = {"unavailable", "unknown"}
 
 
+def is_offline(e):
+    # Scenes/buttons/events sit at "unknown" until first triggered; that isn't offline.
+    if e["state"] == "unknown" and e["entity"].split(".")[0] in {"scene", "button", "event"}:
+        return False
+    return e["state"] in DEAD
+
+
 def load_config():
     url, token = os.environ.get("HA_URL"), os.environ.get("HA_TOKEN")
     env_file = os.path.expanduser("~/jarvis/.env")
@@ -193,7 +200,7 @@ def main():
         loaded = [e for e in d["entities"] if e["state"] != "not loaded"]
         if d["disabled"] or not loaded:
             d["verdict"] = "disabled"
-        elif all(e["state"] in DEAD for e in loaded):
+        elif all(is_offline(e) for e in loaded):
             d["verdict"] = "offline"
         elif d["used"] == 0 and not d["refs"]:
             d["verdict"] = "unused" if d["has_control"] else ("silent sensor" if d["reports"] == 0 else "sensor only")
