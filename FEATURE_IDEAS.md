@@ -74,6 +74,14 @@ Default bind is localhost; for HA on another host set `ASK_HTTP_BIND=0.0.0.0` an
 2. **Phase B** — unified `userId` + shared session/memory across surfaces; harden Companion as the daily phone surface.
 3. **Phase C** — wake-word-gated Realtime session with function-calling into existing agents; iOS Shortcut + Samsung/Android adapter.
 
+**Dedicated JARVIS web app + Android app (later, 2026-10-18).** A first-class client instead of only Telegram: real-time voice conversation (speech-to-speech, barge-in), rich cards (HA controls, camera, Shabbat checklist, charts, Garmin/sleep), streaming replies, history + memory management, actionable push. Overlaps with HA Companion Assist (already works for one-shot voice), so the value is mainly real-time back-and-forth and richer UI.
+- **Prerequisites:** (a) **one brain** — the app talks to the Node `askCore`, not the legacy Python FastAPI backend; retire that backend + its React UI (or rebuild the UI on the Node brain). (b) **unified `userId` + shared memory** (Phase B) so a conversation continues across Telegram / web / phone. (c) **remote access** — the `/ask` endpoint is LAN + one shared token, not safe to embed in an app. Prefer **Tailscale** (no public exposure, sidesteps the ISP port issues hit with Alexa); alternative is HTTPS via the duckdns nginx + per-device tokens.
+- **Phases:**
+  1. Node brain gains streaming + a WebSocket endpoint + `userId`; legacy Python backend retired.
+  2. **PWA** (installable on Android, also works on the PC): streaming chat, history, HA cards, web push; reached over Tailscale. ~80% of an "app" for a fraction of the work.
+  3. **Real-time voice in the PWA:** browser/phone connects over WebRTC to OpenAI Realtime / Gemini Live with a short-lived key minted by the mini-PC; the voice model calls existing agents (`ha`, `remind`, `research`, …) via function calling. Push-to-talk first — real-time audio costs noticeably more per minute than text.
+  4. **Native Android only for what a PWA can't do:** default digital assistant (long-press power), local wake word, background listening. A thin native shell around the PWA (TWA/Capacitor) + a small assistant service, not a second app.
+
 ### Home Assistant (config review & backlog)
 
 _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — its `automations.yaml`, `scripts.yaml`, and helpers. Actionable cleanup + improvement backlog for the smart-home side, kept here so JARVIS can reference/execute it later (it has HA access via `HA_TOKEN`)._
