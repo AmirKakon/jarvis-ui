@@ -81,6 +81,7 @@ The bot provides mobile access with three tiers:
 - `/download` — torrent downloads (add, list, status)
 - `/security` — security dashboard (network, SSH, Docker, SSL, firewall)
 - `/cam` — still from the mini-PC USB webcam (ustreamer)
+- `/shabbat` — pre-Shabbat / Chag checklist and plata timer (see below)
 - `/memory` — memory stats (fact count, summaries, topics)
 - `/recall <query>` — search past conversations and facts
 
@@ -105,7 +106,19 @@ The bot runs as a systemd user service (`jarvis-telegram-bot`) and auto-starts o
 systemctl --user status jarvis-telegram-bot
 systemctl --user restart jarvis-telegram-bot
 journalctl --user -u jarvis-telegram-bot -f
+cd ~/jarvis/telegram-bot && npm test   # unit tests (node --test)
 ```
+
+### Pre-Shabbat checklist
+
+One checklist with two front-ends, so you can use whichever you prefer:
+
+- **Home Assistant** (`homeassistant/packages/shabbat_checklist.yaml` + `lovelace-shabbat-checklist.yaml`) owns the data — a Local To-do list (`todo.shabbat_checklist`) and helpers for home/away, plata timer mode and times — and runs the plata timer itself, so the plata works even if the mini-PC is down. It can also send phone notifications with Yes/No and Night/Day/Both buttons.
+- **JARVIS** (`agents/shabbat.js`, `commands/shabbat.js`, `services/shabbat-scheduler.js`) shows the same list on Telegram with a button per item and plata mode, and edits the message in place when you tap.
+
+Flow on the day of candle lighting (Shabbat or Chag): 08:55 HA resets the list → 09:00 "home for Shabbat?" + early tasks (ice, vacuum) → candle −180 min main checklist → −45 min nudge with what's left → −15 min summary, then quiet. Answering "away" skips everything and keeps the plata off. Nothing fires while issur melacha is in effect, so a Chag running into Shabbat is asked once; at havdalah HA turns the plata off and resets the answers.
+
+`input_select.shabbat_checklist_channel` (both / telegram / ha) picks who sends the reminders; ticks sync either way. Plata modes: **night** = candle lighting − lead → night-off time, **day** = day-on → day-off, **both** = candle lighting − lead → day-off the next day; a 26 h safety cap and havdalah always turn it off. The plata item ticks itself once the plug is online and a mode is picked. Setup steps are at the top of the HA package.
 
 ## Smart Home (Phase 4)
 

@@ -33,6 +33,8 @@ import { closeMcp } from './services/mcp-client.js';
 import { startAskServer, stopAskServer } from './server.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
 import { startBriefingScheduler, stopBriefingScheduler } from './services/briefing-scheduler.js';
+import { startShabbatScheduler, stopShabbatScheduler } from './services/shabbat-scheduler.js';
+import { shabbatCommand, shabbatCallback } from './commands/shabbat.js';
 import { buildBriefing } from './services/briefing.js';
 
 // --- Load environment from ~/jarvis/.env ---
@@ -116,6 +118,7 @@ const HELP_TEXT = [
   '/agenda    — show your schedule',
   '/reminders — list active reminders',
   '/briefing  — daily briefing (weather, system, home, reminders)',
+  '/shabbat   — pre-Shabbat checklist &amp; plata timer',
   '/jobs      — background tasks (delegated ops) status',
   '/cam       — snapshot from the mini-PC webcam',
   '/help      — this message',
@@ -174,6 +177,7 @@ bot.command('briefing', async (ctx) => {
     await editOrReply(ctx, placeholder.message_id, `🔴 Failed to build briefing: ${escapeHtml(err.message)}`);
   }
 });
+bot.command('shabbat', shabbatCommand);
 bot.command('deep', askOpusDirect);
 bot.command('voice', (ctx) => {
   const chatId = String(ctx.chat?.id || 'default');
@@ -274,6 +278,9 @@ bot.action(/^j:(.+)$/, cronRerun);
 // --- Interactive troubleshooting callbacks (from cron alerts) ---
 bot.action(/^ts:(rs|ru|ls|lu|bi|bic|x):(.+)$/, troubleshootCallback);
 
+// --- Pre-Shabbat checklist callbacks ---
+bot.action(/^sc:(h|p|t|r)(?::(.+))?$/, shabbatCallback);
+
 // --- Self-development deploy gate callbacks ---
 bot.action(/^dep:(go|x):(.+)$/, deployCallback);
 
@@ -343,6 +350,7 @@ async function shutdown(signal) {
   console.log(`Received ${signal}, shutting down...`);
   stopScheduler();
   stopBriefingScheduler();
+  stopShabbatScheduler();
   try { bot.stop(signal); } catch {}
   await stopAskServer();
   await closePool();
@@ -362,6 +370,7 @@ async function launchWithRetry(attempt = 1) {
     await bot.launch({ dropPendingUpdates: true });
     startScheduler(bot, CHAT_ID);
     startBriefingScheduler(bot, CHAT_ID);
+    startShabbatScheduler(bot, CHAT_ID);
     bot.telegram.setMyCommands([
       { command: 'status', description: 'System health summary' },
       { command: 'docker', description: 'List / manage containers' },
@@ -380,6 +389,7 @@ async function launchWithRetry(attempt = 1) {
       { command: 'agenda', description: 'Show your calendar schedule' },
       { command: 'reminders', description: 'List active reminders' },
       { command: 'briefing', description: 'Daily briefing (weather, system, home)' },
+      { command: 'shabbat', description: 'Pre-Shabbat checklist & plata timer' },
       { command: 'jobs', description: 'Background tasks (delegated ops) status' },
       { command: 'cam', description: 'Snapshot from the mini-PC webcam' },
       { command: 'remember', description: 'Store a permanent fact' },
@@ -414,4 +424,5 @@ launchWithRetry();
 setTimeout(() => {
   startScheduler(bot, CHAT_ID);
   startBriefingScheduler(bot, CHAT_ID);
+  startShabbatScheduler(bot, CHAT_ID);
 }, 10_000);

@@ -1,0 +1,29 @@
+# Dashboard card for the Shabbat checklist (packages/shabbat_checklist.yaml).
+# Edit dashboard -> Add card -> Manual -> paste.
+type: vertical-stack
+cards:
+  - type: entities
+    title: Shabbat / Chag
+    entities:
+      - entity: sensor.shabbat_checklist_candle_lighting
+        name: Candle lighting
+        format: datetime
+      - entity: input_select.shabbat_home
+        name: Home for Shabbat
+      - entity: input_select.shabbat_plata
+        name: Plata timer
+      - entity: switch.ac_plug_socket_1
+        name: Plata plug
+      - type: divider
+      - entity: input_number.shabbat_plata_lead_minutes
+        name: Plata on before candle lighting
+      - entity: input_datetime.shabbat_plata_night_off
+        name: Night off
+      - entity: input_datetime.shabbat_plata_day_on
+        name: Day on
+      - entity: input_datetime.shabbat_plata_day_off
+        name: Day off
+      - entity: input_select.shabbat_checklist_channel
+        name: Reminders from
+  - type: todo-list
+    entity: todo.shabbat_checklist

@@ -121,8 +121,8 @@ _Findings from a review of the HA instance (`http://192.168.68.113:8123`) — it
 
 1. HA improvements recommendations (analyze entities and suggest automations)
 2. n8n automations recommendations
-3. pre-shabbat checklist
-4. shabbat timers setup (HA automations for candle lighting / havdalah times)
+3. **pre-shabbat checklist** — ✅ _built 2026-10-18, on trial._ One shared checklist with two front-ends to compare: HA (Local To-do `todo.shabbat_checklist` + phone notifications, `homeassistant/packages/shabbat_checklist.yaml`) and JARVIS Telegram (`/shabbat`, `agents/shabbat.js`, `services/shabbat-scheduler.js`). Asks "home for Shabbat/Chag?" at 09:00 on the candle-lighting day, then main list at −180 min, nudge at −45, summary at −15; `input_select.shabbat_checklist_channel` picks the sender. Items: ice, vacuum tank (early), plata (auto-ticks), urn, fridge Shabbat mode, bathroom / living-room + kitchen / bedroom lights, kitchen motion strips off, AC box timer check, Brita light, phone for Aline. _Next:_ pick a preferred front-end after a few weeks; consider a smart plug on the kitchen motion strips so that item becomes automatic; verify multi-day Chag+Shabbat blocks on the first one.
+4. **shabbat timers setup** — ✅ _plata part built with #3:_ HA runs the plata plug (`switch.ac_plug_socket_1`) as night / day / both from candle lighting and the times in Helpers, 26 h safety cap, always off at havdalah. House AC stays on the electric-box Shabbat timer (no internet dependency). _Remaining:_ lights schedules if more lights become smart.
 5. daily / weekly digest — system health trends, security events, disk growth, media additions
 6. proactive anomaly alerts — pattern detection beyond simple thresholds (disk growth rate, repeated SSH failures, container restart loops)
 

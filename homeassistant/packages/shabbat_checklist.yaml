@@ -1,0 +1,428 @@
+# Pre-Shabbat / Chag checklist + plata timer.
+#
+# One shared checklist with two front-ends: this package (phone notifications +
+# the HA to-do list) and JARVIS on Telegram (/shabbat, telegram-bot/src/agents/shabbat.js).
+# Both read and write the same entities below, so ticking in one shows in the other.
+# input_select.shabbat_checklist_channel picks who sends the reminders: both / telegram / ha.
+#
+# One-time setup:
+# 1. configuration.yaml:   homeassistant:
+#                            packages: !include_dir_named packages
+#    then copy this file to /config/packages/shabbat_checklist.yaml.
+# 2. Settings -> Devices & services -> Add integration -> "Local To-do" -> name it
+#    "Shabbat checklist" (entity must be todo.shabbat_checklist).
+# 3. Restart HA, then in Settings -> Helpers set the plata times (lead minutes,
+#    night off, day on, day off). They keep their values across restarts.
+# 4. Check the plata switch entity (switch.ac_plug_socket_1 = "Plata plug") and the
+#    phone notify service (notify.mobile_app_amir_phone in script.shabbat_checklist_notify).
+#
+# Schedule (keep in sync with SHABBAT_MORNING_TIME and STAGES in agents/shabbat.js):
+#   08:55            reset the list for the day of candle lighting
+#   09:00            "home for Shabbat?" + early tasks
+#   candle - 180 min main checklist
+#   candle - 45 min  nudge with what's left
+#   candle - 15 min  final summary, then quiet until havdalah
+# Nothing fires while issur melacha is in effect, so a Chag running into Shabbat
+# is asked once. At havdalah the plata turns off and the answers reset.
+
+input_select:
+  shabbat_home:
+    name: Home for Shabbat
+    icon: mdi:home-question
+    options: [unanswered, home, away]
+  shabbat_plata:
+    name: Plata timer
+    icon: mdi:pot-steam
+    options: ["off", night, day, both]
+  shabbat_checklist_channel:
+    name: Shabbat checklist reminders
+    icon: mdi:bell-ring
+    options: [both, telegram, ha]
+
+input_number:
+  shabbat_plata_lead_minutes:
+    name: Plata on before candle lighting
+    icon: mdi:timer-sand
+    min: 0
+    max: 180
+    step: 5
+    unit_of_measurement: min
+
+input_datetime:
+  shabbat_plata_night_off:
+    name: Plata night off
+    has_date: false
+    has_time: true
+  shabbat_plata_day_on:
+    name: Plata day on
+    has_date: false
+    has_time: true
+  shabbat_plata_day_off:
+    name: Plata day off
+    has_date: false
+    has_time: true
+
+template:
+  - sensor:
+      - name: Shabbat checklist candle lighting
+        unique_id: shabbat_checklist_candle_lighting
+        device_class: timestamp
+        availability: >
+          {{ as_datetime(states('sensor.jewish_calendar_upcoming_candle_lighting'), none) is not none
+             or as_datetime(states('sensor.jewish_calendar_upcoming_shabbat_candle_lighting'), none) is not none }}
+        state: >
+          {% set a = as_datetime(states('sensor.jewish_calendar_upcoming_candle_lighting'), none) %}
+          {% set b = as_datetime(states('sensor.jewish_calendar_upcoming_shabbat_candle_lighting'), none) %}
+          {{ (a if a is not none else b).isoformat() }}
+  - binary_sensor:
+      - name: Shabbat checklist day
+        unique_id: shabbat_checklist_day
+        icon: mdi:candle
+        state: >
+          {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+          {{ c is not none and as_local(c).date() == now().date()
+             and now() < c
+             and is_state('binary_sensor.jewish_calendar_issur_melacha_in_effect', 'off') }}
+
+script:
+  shabbat_checklist_notify:
+    alias: Shabbat checklist - notify phone
+    mode: queued
+    fields:
+      title: { description: Notification title }
+      message: { description: Notification body, or clear_notification }
+      actions: { description: "Optional list of buttons, each with action and title" }
+    sequence:
+      - action: notify.mobile_app_amir_phone
+        data:
+          title: "{{ title | default('') }}"
+          message: "{{ message }}"
+          data:
+            tag: shabbat_checklist
+            clickAction: /todo?entity_id=todo.shabbat_checklist
+            actions: "{{ actions | default([]) }}"
+
+  shabbat_checklist_reset:
+    alias: Shabbat checklist - reset list
+    mode: single
+    sequence:
+      - action: todo.get_items
+        target: { entity_id: todo.shabbat_checklist }
+        response_variable: existing
+      - if: "{{ existing['todo.shabbat_checklist']['items'] | count > 0 }}"
+        then:
+          - action: todo.remove_item
+            target: { entity_id: todo.shabbat_checklist }
+            data:
+              item: "{{ existing['todo.shabbat_checklist']['items'] | map(attribute='uid') | list }}"
+      # description is a tag: early = start in the morning, auto = ticks itself.
+      - repeat:
+          for_each:
+            - { summary: "Fill ice trays in the freezer", description: early }
+            - { summary: "Vacuum: fill the water tank and set it to run", description: early }
+            - { summary: "Plata: plug in and pick a timer", description: auto }
+            - { summary: "Hot water urn: fill and turn on", description: main }
+            - { summary: "Fridge: Shabbat mode", description: main }
+            - { summary: "Bathroom lights on", description: main }
+            - { summary: "Living room and kitchen lights on", description: main }
+            - { summary: "Kitchen motion light strips off", description: main }
+            - { summary: "AC: check the Shabbat timer in the electric box", description: main }
+            - { summary: "Bedroom lamp on", description: main }
+            - { summary: "Brita: take out the filter light", description: main }
+            - { summary: "Phone for Aline: headphones + TV show", description: main }
+          sequence:
+            - action: todo.add_item
+              target: { entity_id: todo.shabbat_checklist }
+              data:
+                item: "{{ repeat.item.summary }}"
+                description: "{{ repeat.item.description }}"
+      - action: input_select.select_option
+        target: { entity_id: input_select.shabbat_home }
+        data: { option: unanswered }
+      - action: input_select.select_option
+        target: { entity_id: input_select.shabbat_plata }
+        data: { option: "off" }
+
+  shabbat_checklist_remind:
+    alias: Shabbat checklist - send reminder
+    mode: queued
+    fields:
+      stage: { description: morning / main / nudge / lock }
+    sequence:
+      - action: todo.get_items
+        target: { entity_id: todo.shabbat_checklist }
+        data: { status: needs_action }
+        response_variable: open
+      - variables:
+          home: "{{ states('input_select.shabbat_home') }}"
+          left: "{{ open['todo.shabbat_checklist']['items'] | map(attribute='summary') | list }}"
+          early: >
+            {{ open['todo.shabbat_checklist']['items'] | selectattr('description', 'defined')
+               | selectattr('description', 'eq', 'early') | map(attribute='summary') | list }}
+          candle: "{{ as_timestamp(states('sensor.shabbat_checklist_candle_lighting'), 0) | timestamp_custom('%H:%M') }}"
+          label: >
+            {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+            {{ 'Shabbat' if c is not none and as_local(c).weekday() == 4 else 'Chag' }}
+          plata: "{{ states('input_select.shabbat_plata') }}"
+      - choose:
+          - conditions: "{{ home == 'unanswered' and stage != 'lock' }}"
+            sequence:
+              - action: script.shabbat_checklist_notify
+                data:
+                  title: "Home for {{ label }}?"
+                  message: "Candle lighting {{ candle }}. Answer to get the checklist and plata timer."
+                  actions:
+                    - { action: SHABBAT_HOME_YES, title: "Yes, home" }
+                    - { action: SHABBAT_HOME_NO, title: "No, away" }
+          - conditions: "{{ home == 'unanswered' and stage == 'lock' }}"
+            sequence:
+              - action: script.shabbat_checklist_notify
+                data:
+                  title: "{{ label }} checklist"
+                  message: "No answer, so nothing is scheduled and the plata timer is off."
+          - conditions: "{{ home == 'home' and stage == 'morning' and early | count > 0 }}"
+            sequence:
+              - action: script.shabbat_checklist_notify
+                data:
+                  title: "{{ label }} today, candle lighting {{ candle }}"
+                  message: "Start early: {{ early | join(', ') }}."
+          - conditions: "{{ home == 'home' and stage == 'main' }}"
+            sequence:
+              - action: script.shabbat_checklist_notify
+                data:
+                  title: "{{ label }} checklist: {{ left | count }} left"
+                  message: "Candle lighting {{ candle }}. Tap to open the list."
+          - conditions: "{{ home == 'home' and stage == 'nudge' and left | count > 0 }}"
+            sequence:
+              - action: script.shabbat_checklist_notify
+                data:
+                  title: "45 min to candle lighting, {{ left | count }} left"
+                  message: "{{ left | join(', ') }}"
+          - conditions: "{{ home == 'home' and stage == 'lock' }}"
+            sequence:
+              - action: script.shabbat_checklist_notify
+                data:
+                  title: "{{ 'Shabbat shalom' if label == 'Shabbat' else 'Chag sameach' }}"
+                  message: >
+                    Plata timer: {{ plata }}.
+                    {{ ('Not done: ' ~ (left | join(', ')) ~ '.') if left | count > 0 else 'Everything is done.' }}
+
+automation:
+  - id: shabbat_checklist_reset
+    alias: Shabbat checklist - reset in the morning
+    mode: single
+    triggers:
+      - trigger: time
+        at: "08:55:00"
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.shabbat_checklist_day
+        state: "on"
+    actions:
+      - action: script.shabbat_checklist_reset
+
+  - id: shabbat_checklist_reminders
+    alias: Shabbat checklist - reminders
+    mode: queued
+    triggers:
+      - trigger: time
+        at: "09:00:00"
+        id: morning
+      - trigger: template
+        value_template: >
+          {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+          {{ c is not none and now() >= c - timedelta(minutes=180) }}
+        id: main
+      - trigger: template
+        value_template: >
+          {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+          {{ c is not none and now() >= c - timedelta(minutes=45) }}
+        id: nudge
+      - trigger: template
+        value_template: >
+          {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+          {{ c is not none and now() >= c - timedelta(minutes=15) }}
+        id: lock
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.shabbat_checklist_day
+        state: "on"
+      - condition: state
+        entity_id: input_select.shabbat_checklist_channel
+        state: [both, ha]
+    actions:
+      - action: script.shabbat_checklist_remind
+        data:
+          stage: "{{ trigger.id }}"
+
+  - id: shabbat_checklist_notification_action
+    alias: Shabbat checklist - phone notification answers
+    mode: queued
+    triggers:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data: { action: SHABBAT_HOME_YES }
+        id: home
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data: { action: SHABBAT_HOME_NO }
+        id: away
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data: { action: SHABBAT_PLATA_NIGHT }
+        id: night
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data: { action: SHABBAT_PLATA_DAY }
+        id: day
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data: { action: SHABBAT_PLATA_BOTH }
+        id: both
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.jewish_calendar_issur_melacha_in_effect
+        state: "off"
+    actions:
+      - if: "{{ trigger.id in ['home', 'away'] }}"
+        then:
+          - action: input_select.select_option
+            target: { entity_id: input_select.shabbat_home }
+            data: { option: "{{ trigger.id }}" }
+        else:
+          - action: input_select.select_option
+            target: { entity_id: input_select.shabbat_plata }
+            data: { option: "{{ trigger.id }}" }
+
+  - id: shabbat_checklist_answered
+    alias: Shabbat checklist - after home/away answer
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: input_select.shabbat_home
+        to: [home, away]
+    actions:
+      - if: "{{ trigger.to_state.state == 'away' }}"
+        then:
+          - action: input_select.select_option
+            target: { entity_id: input_select.shabbat_plata }
+            data: { option: "off" }
+      - condition: state
+        entity_id: binary_sensor.shabbat_checklist_day
+        state: "on"
+      - condition: state
+        entity_id: input_select.shabbat_checklist_channel
+        state: [both, ha]
+      - if: "{{ trigger.to_state.state == 'away' }}"
+        then:
+          - action: script.shabbat_checklist_notify
+            data: { message: clear_notification }
+        else:
+          - variables:
+              on_at: >
+                {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+                {% set lead = states('input_number.shabbat_plata_lead_minutes') | int(30) %}
+                {{ as_timestamp(c - timedelta(minutes=lead)) | timestamp_custom('%H:%M') if c is not none else '?' }}
+              night_off: "{{ states('input_datetime.shabbat_plata_night_off')[:5] }}"
+              day_on: "{{ states('input_datetime.shabbat_plata_day_on')[:5] }}"
+              day_off: "{{ states('input_datetime.shabbat_plata_day_off')[:5] }}"
+          - action: script.shabbat_checklist_notify
+            data:
+              title: Plata timer?
+              message: >
+                Night {{ on_at }}-{{ night_off }}. Day {{ day_on }}-{{ day_off }}.
+                Both {{ on_at }} until {{ day_off }} next day.
+              actions:
+                - { action: SHABBAT_PLATA_NIGHT, title: Night }
+                - { action: SHABBAT_PLATA_DAY, title: Day }
+                - { action: SHABBAT_PLATA_BOTH, title: Both }
+
+  - id: shabbat_plata_autotick
+    alias: Shabbat checklist - tick plata item
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: input_select.shabbat_plata
+      - trigger: state
+        entity_id: switch.ac_plug_socket_1
+    conditions:
+      - condition: state
+        entity_id: input_select.shabbat_home
+        state: home
+    actions:
+      - action: todo.update_item
+        continue_on_error: true
+        target: { entity_id: todo.shabbat_checklist }
+        data:
+          item: "Plata: plug in and pick a timer"
+          status: >
+            {{ 'completed' if not is_state('input_select.shabbat_plata', 'off')
+               and states('switch.ac_plug_socket_1') not in ['unavailable', 'unknown']
+               else 'needs_action' }}
+
+  - id: shabbat_plata_schedule
+    alias: Shabbat checklist - plata timer
+    mode: queued
+    triggers:
+      - trigger: template
+        value_template: >
+          {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+          {% set lead = states('input_number.shabbat_plata_lead_minutes') | int(30) %}
+          {{ c is not none and now() >= c - timedelta(minutes=lead) }}
+        id: night_on
+      - trigger: time
+        at: input_datetime.shabbat_plata_night_off
+        id: night_off
+      - trigger: time
+        at: input_datetime.shabbat_plata_day_on
+        id: day_on
+      - trigger: time
+        at: input_datetime.shabbat_plata_day_off
+        id: day_off
+      - trigger: state
+        entity_id: switch.ac_plug_socket_1
+        to: "on"
+        for: "26:00:00"
+        id: safety_cap
+      - trigger: state
+        entity_id: binary_sensor.jewish_calendar_issur_melacha_in_effect
+        from: "on"
+        to: "off"
+        id: havdalah
+    actions:
+      - variables:
+          plata: "{{ states('input_select.shabbat_plata') }}"
+          home: "{{ is_state('input_select.shabbat_home', 'home') }}"
+          issur: "{{ is_state('binary_sensor.jewish_calendar_issur_melacha_in_effect', 'on') }}"
+      - choose:
+          - conditions: "{{ trigger.id == 'night_on' and home and plata in ['night', 'both'] }}"
+            sequence:
+              - action: switch.turn_on
+                target: { entity_id: switch.ac_plug_socket_1 }
+          - conditions: "{{ trigger.id == 'night_off' and issur and plata == 'night' }}"
+            sequence:
+              - action: switch.turn_off
+                target: { entity_id: switch.ac_plug_socket_1 }
+          - conditions: "{{ trigger.id == 'day_on' and issur and home and plata == 'day' }}"
+            sequence:
+              - action: switch.turn_on
+                target: { entity_id: switch.ac_plug_socket_1 }
+          - conditions: "{{ trigger.id == 'day_off' and issur and plata in ['day', 'both'] }}"
+            sequence:
+              - action: switch.turn_off
+                target: { entity_id: switch.ac_plug_socket_1 }
+          - conditions: "{{ trigger.id == 'safety_cap' }}"
+            sequence:
+              - action: switch.turn_off
+                target: { entity_id: switch.ac_plug_socket_1 }
+          - conditions: "{{ trigger.id == 'havdalah' }}"
+            sequence:
+              - action: switch.turn_off
+                continue_on_error: true
+                target: { entity_id: switch.ac_plug_socket_1 }
+              - action: input_select.select_option
+                target: { entity_id: input_select.shabbat_plata }
+                data: { option: "off" }
+              - action: input_select.select_option
+                target: { entity_id: input_select.shabbat_home }
+                data: { option: unanswered }
