@@ -89,8 +89,8 @@ script:
     alias: Shabbat checklist - notify phone
     mode: queued
     fields:
-      title: { description: Notification title }
-      message: { description: Notification body, or clear_notification }
+      title: { description: "Notification title" }
+      message: { description: "Notification body, or clear_notification" }
       actions: { description: "Optional list of buttons, each with action and title" }
     sequence:
       - action: notify.mobile_app_amir_phone
@@ -147,7 +147,7 @@ script:
     alias: Shabbat checklist - send reminder
     mode: queued
     fields:
-      stage: { description: morning / main / nudge / lock }
+      stage: { description: "morning / main / nudge / lock" }
     sequence:
       - action: todo.get_items
         target: { entity_id: todo.shabbat_checklist }
