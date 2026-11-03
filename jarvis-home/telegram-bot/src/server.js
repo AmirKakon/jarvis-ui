@@ -7,7 +7,7 @@
 // Endpoints:
 //   GET  /health                 — liveness (unauthenticated)
 //   POST /ask                    — JARVIS-native { text, sessionKey?, source? }
-//                                  + { announceIfSlow: true, budgetMs? } for voice
+//                                  + { announceIfSlow: true, budgetMs?, deviceId? } for voice
 //                                  callers: kind "deferred" means the reply is an
 //                                  ack and the Echo will speak the answer via HA.
 //   POST /cam/snapshot           — grab ustreamer still, send to Telegram (same bearer token)
@@ -181,7 +181,8 @@ async function handleAsk(req, res, token) {
   // Voice callers (the Alexa Lambda) can't wait for slow answers: reply within
   // budgetMs, or acknowledge and have the Echo speak the answer later via HA.
   if (body.announceIfSlow === true) {
-    const { text: reply, deferred } = await answerForVoice(text, sessionKey, { budgetMs: body.budgetMs, source });
+    const deviceId = typeof body.deviceId === 'string' && body.deviceId.length <= 200 ? body.deviceId : null;
+    const { text: reply, deferred } = await answerForVoice(text, sessionKey, { budgetMs: body.budgetMs, source, deviceId });
     return sendJson(res, 200, { ok: true, kind: deferred ? 'deferred' : 'voice', reply, actions: [] });
   }
 

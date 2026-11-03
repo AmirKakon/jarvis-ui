@@ -24,8 +24,12 @@
 //
 // Config (~/jarvis/.env):
 //   ALEXA_SKILL_ID          required — your skill's applicationId (amzn1.ask.skill.…)
-//   ALEXA_NOTIFY_SERVICE    HA notify service for delayed answers
-//                           (default alexa_media_alines_echo_dot)
+//   ALEXA_DEVICE_MAP        optional CSV of <Alexa deviceId>=<media_player> so a delayed
+//                           answer plays on the Echo you spoke to. Unmapped devices use
+//                           Alexa Media Player's "last called" Echo; device ids are logged
+//                           on every announce so the map is easy to fill in.
+//   ALEXA_NOTIFY_SERVICE    HA notify service for delayed answers when neither the map
+//                           nor "last called" finds the Echo (default alexa_media_alines_echo_dot)
 //   ALEXA_NOTIFY_TYPE       alexa_media data.type: tts | announce | push (default tts)
 //   ALEXA_NOTIFY_TARGET     optional CSV of media_player targets (for the generic
 //                           notify.alexa_media service)
@@ -86,12 +90,39 @@ function speak(text, { keepOpen = true, reprompt } = {}) {
 
 // --- Home Assistant announce (delayed / out-of-band answers) ---
 
-async function announce(text) {
-  const service = process.env.ALEXA_NOTIFY_SERVICE || 'alexa_media_alines_echo_dot';
+const csv = (raw) => (raw || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+function parseDeviceMap(raw) {
+  return Object.fromEntries(csv(raw).map((pair) => pair.split('=').map((s) => s.trim())).filter(([id, player]) => id && player));
+}
+
+function lastCalledPlayer(states) {
+  const hit = (states || []).find((s) => s.entity_id?.startsWith('media_player.') && s.attributes?.last_called === true);
+  return hit?.entity_id || null;
+}
+
+async function resolvePlayer(deviceId) {
+  const mapped = deviceId && parseDeviceMap(process.env.ALEXA_DEVICE_MAP)[deviceId];
+  if (mapped) return { player: mapped, how: 'map' };
+  await fetchHA('services/alexa_media/update_last_called', 'POST', {});
+  const r = await fetchHA('states');
+  const player = r.ok ? lastCalledPlayer(r.data) : null;
+  return { player, how: player ? 'last called' : 'default' };
+}
+
+async function announce(text, deviceId) {
   const type = process.env.ALEXA_NOTIFY_TYPE || 'tts';
   const body = { message: cleanForSpeech(text) || 'Done, Sir.', data: { type } };
-  const target = process.env.ALEXA_NOTIFY_TARGET;
-  if (target) body.target = target.split(',').map((s) => s.trim()).filter(Boolean);
+  const { player, how } = await resolvePlayer(deviceId);
+  let service = 'alexa_media';
+  if (player) {
+    body.target = [player];
+  } else {
+    service = process.env.ALEXA_NOTIFY_SERVICE || 'alexa_media_alines_echo_dot';
+    const target = csv(process.env.ALEXA_NOTIFY_TARGET);
+    if (target.length) body.target = target;
+  }
+  console.log(`[alexa] announce on ${player || `notify.${service}`} (${how}; device ${deviceId || 'unknown'})`);
 
   const r = await fetchHA(`services/notify/${service}`, 'POST', body);
   if (!r.ok) console.error('[alexa] announce via HA failed:', r.output);
@@ -108,6 +139,10 @@ function sessionKeyFor(event) {
   // account+skill, so this yields a stable per-user conversation thread.
   const h = crypto.createHash('sha256').update(uid).digest('hex').slice(0, 16);
   return `alexa:${h}`;
+}
+
+function deviceIdOf(event) {
+  return event?.context?.System?.device?.deviceId || null;
 }
 
 function applicationIdOf(event) {
@@ -127,8 +162,9 @@ const DEFERRED_ACK = "Right away, Sir — I'll speak the answer in just a moment
 // the finished answer on the Echo via Home Assistant. Shared by POST /alexa and
 // by POST /ask when the Alexa Lambda sets announceIfSlow. `budgetMs` can only
 // shorten the window (callers with network overhead need a tighter budget).
+// `deviceId` is the Echo that heard the request, so the announcement plays there.
 // Returns { text, deferred } — deferred means the real answer will be announced.
-export async function answerForVoice(query, sessionKey, { budgetMs, source = 'alexa' } = {}) {
+export async function answerForVoice(query, sessionKey, { budgetMs, source = 'alexa', deviceId = null } = {}) {
   const budget = Math.max(1000, Math.min(Number(budgetMs) || inlineBudgetMs(), inlineBudgetMs()));
   let announced = false; // guard against double delivery
 
@@ -140,7 +176,7 @@ export async function answerForVoice(query, sessionKey, { budgetMs, source = 'al
     onBackground: async ({ res }) => {
       announced = true;
       try {
-        await announce(res?.ok ? res.output : 'That task ran into a problem, Sir.');
+        await announce(res?.ok ? res.output : 'That task ran into a problem, Sir.', deviceId);
       } catch (err) {
         console.error('[alexa] onBackground announce error:', err?.message);
       }
@@ -160,10 +196,10 @@ export async function answerForVoice(query, sessionKey, { budgetMs, source = 'al
     // via announce when it's ready — unless a background job already owns it.
     askPromise.then((r) => {
       if (r && !hasBackgroundJob(r) && !announced) {
-        announce(r.text || 'Done, Sir.').catch(() => {});
+        announce(r.text || 'Done, Sir.', deviceId).catch(() => {});
       }
     }, () => {
-      announce('Something went wrong with that, Sir.').catch(() => {});
+      announce('Something went wrong with that, Sir.', deviceId).catch(() => {});
     });
     return { text: DEFERRED_ACK, deferred: true };
   }
@@ -182,7 +218,7 @@ export async function answerForVoice(query, sessionKey, { budgetMs, source = 'al
 // A deferred answer ends the Alexa session so the Echo is idle (not listening)
 // when the Home Assistant announcement arrives.
 async function answer(query, event) {
-  const { text, deferred } = await answerForVoice(query, sessionKeyFor(event));
+  const { text, deferred } = await answerForVoice(query, sessionKeyFor(event), { deviceId: deviceIdOf(event) });
   return speak(text, { keepOpen: !deferred });
 }
 
@@ -276,4 +312,6 @@ export async function handleAlexaRequest(rawBody, headers = {}) {
 }
 
 // Exported for unit testing.
-export const _internal = { cleanForSpeech, sessionKeyFor, applicationIdOf, hasBackgroundJob };
+export const _internal = {
+  cleanForSpeech, sessionKeyFor, applicationIdOf, deviceIdOf, hasBackgroundJob, parseDeviceMap, lastCalledPlayer,
+};

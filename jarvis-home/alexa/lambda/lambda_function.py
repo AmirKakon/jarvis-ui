@@ -106,7 +106,12 @@ def _resolved_addresses(host, port):
         return ["dns-error: %s" % e]
 
 
-def _ask_jarvis(text, session_key):
+def _device_id(event):
+    # The Echo that heard the request, so a delayed answer is announced on it.
+    return event.get("context", {}).get("System", {}).get("device", {}).get("deviceId")
+
+
+def _ask_jarvis(text, session_key, device_id=None):
     target = urlparse(ASK_URL)
     port = target.port or (443 if target.scheme == "https" else 80)
     _log(event="ask_start", scheme=target.scheme, host=target.hostname, port=port,
@@ -118,6 +123,7 @@ def _ask_jarvis(text, session_key):
         "source": "alexa",
         "announceIfSlow": True,
         "budgetMs": BUDGET_MS,
+        "deviceId": device_id,
     }).encode("utf-8")
     req = urllib.request.Request(ASK_URL, data=payload, method="POST")
     req.add_header("Content-Type", "application/json")
@@ -173,7 +179,7 @@ def lambda_handler(event, context):
             if not query:
                 return _response("I didn't catch that, Sir. What would you like?")
             try:
-                reply, deferred = _ask_jarvis(query, _session_key(event))
+                reply, deferred = _ask_jarvis(query, _session_key(event), _device_id(event))
             except urllib.error.HTTPError as e:
                 if e.code == 429:
                     return _response("I'm rate limited at the moment, Sir. Try again shortly.")
