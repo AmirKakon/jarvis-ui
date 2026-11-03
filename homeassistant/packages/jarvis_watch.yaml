@@ -11,12 +11,12 @@
 #    notification: enable, grant notification access, and set its Allow list to your
 #    SMS app ONLY (so HA never sees other apps' notifications): Google Messages is
 #    com.google.android.apps.messaging, Samsung Messages com.samsung.android.messaging.
-#    Check the entity id matches sensor.amir_phone_last_notification below.
+#    Check the entity id matches sensor.sm_g981u1_last_notification below.
 # 2. secrets.yaml:   jarvis_ask_auth: "Bearer <ASK_HTTP_TOKEN from ~/jarvis/.env>"
 #    (the mini-PC needs ASK_HTTP_BIND=0.0.0.0 so the HA VM can reach :20010).
 # 3. Copy this file to /config/packages/jarvis_watch.yaml and restart HA.
 # 4. Text yourself once from the watch, then in Developer tools -> States look at
-#    sensor.amir_phone_last_notification and copy into Helpers -> "Jarvis watch SMS
+#    sensor.sm_g981u1_last_notification and copy into Helpers -> "Jarvis watch SMS
 #    sender" either your number as shown in
 #    "extra_im_notification_participant_normalized_destination" (Google Messages,
 #    e.g. +9725XXXXXXXX; preferred, a contact name isn't unique) or the exact
@@ -25,7 +25,7 @@
 # 5. Recommended: keep SMS text out of HA's history. In configuration.yaml:
 #      recorder:
 #        exclude:
-#          entities: [sensor.amir_phone_last_notification]
+#          entities: [sensor.sm_g981u1_last_notification]
 #
 # Commands work too: text "/bus" or "/weather" from the watch.
 
@@ -42,7 +42,8 @@ rest_command:
     headers:
       Authorization: !secret jarvis_ask_auth
     content_type: application/json
-    payload: '{{ {"text": text, "label": "⌚"} | to_json }}'
+    # HA renders "616" or "+9725..." as numbers; | string keeps the SMS text as text.
+    payload: '{{ {"text": text | string, "label": "⌚"} | to_json }}'
     timeout: 10
 
 automation:
@@ -53,27 +54,32 @@ automation:
     max: 5
     triggers:
       - trigger: state
-        entity_id: sensor.amir_phone_last_notification
+        entity_id: sensor.sm_g981u1_last_notification
     variables:
       sms_apps: [com.google.android.apps.messaging, com.samsung.android.messaging]
       attrs: "{{ trigger.to_state.attributes }}"
-      sender: "{{ states('input_text.jarvis_watch_sms_sender') | trim }}"
       text: >-
         {{ (attrs.get('android.bigText') or attrs.get('android.text') or trigger.to_state.state or '') | trim }}
     conditions:
+      # Sender is compared as text without "+", spaces or case: HA turns a helper
+      # value like +9725... into a number when it's stored in a variable.
       - condition: template
         value_template: >-
+          {% set want = states('input_text.jarvis_watch_sms_sender') | trim | replace('+', '') | replace(' ', '') | lower %}
+          {% set have = [attrs.get('android.title'), attrs.get('extra_im_notification_participant_normalized_destination')]
+             | map('string') | map('replace', '+', '') | map('replace', ' ', '') | map('lower') | list %}
           {{ attrs.get('package') in sms_apps
-             and sender not in ['', 'unknown', 'unavailable']
-             and sender in [(attrs.get('android.title') or '') | trim,
-                            (attrs.get('extra_im_notification_participant_normalized_destination') or '') | trim]
-             and text | length > 0 }}
-      # Companion can re-report the same notification; only forward a new post.
+             and want not in ['', 'unknown', 'unavailable', 'none']
+             and want in have
+             and text | string | length > 0 }}
+      # Google Messages reposts the notification with the whole thread; only forward
+      # when its latest message id (or, for other apps, the post time) is new.
       - condition: template
         value_template: >-
-          {{ trigger.from_state is none
-             or attrs.get('post_time') is none
-             or attrs.get('post_time') != trigger.from_state.attributes.get('post_time') }}
+          {% set old = trigger.from_state.attributes if trigger.from_state else {} %}
+          {% set new_key = (attrs.get('extra_im_notification_message_ids') or [attrs.get('post_time')]) | last %}
+          {% set old_key = (old.get('extra_im_notification_message_ids') or [old.get('post_time')]) | last %}
+          {{ new_key is none or new_key | string != old_key | string }}
     actions:
       - action: rest_command.jarvis_telegram_say
         data:
@@ -87,4 +93,4 @@ automation:
           - action: notify.mobile_app_amir_phone
             data:
               title: Jarvis
-              message: "Couldn't reach JARVIS, so your watch message wasn't sent: {{ text[:80] }}"
+              message: "Couldn't reach JARVIS, so your watch message wasn't sent: {{ (text | string)[:80] }}"
