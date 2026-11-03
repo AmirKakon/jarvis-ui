@@ -21,7 +21,8 @@ import { runJellyfinQuery } from './agents/jellyfin.js';
 import { runBusQuery } from './agents/bus.js';
 import { runSelfDev } from './agents/selfdev.js';
 import { startClaudeJob, startAsyncJob } from './agents/jobs.js';
-import { frontModel, haikuModel, sonnetModel, opusModel } from './models.js';
+import { frontModel, haikuModel, sonnetModel, opusModel, openaiSmallModel, quickCallOptions } from './models.js';
+import { responseText } from './agents/shared.js';
 import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
 import { createEvent, listEvents } from './agents/calendar.js';
@@ -236,7 +237,7 @@ ${list}
 - EXAMPLE (bridging): "what can I cook with what's expiring soon" → {"mcp": true, "task": "Find items expiring soon in my inventory, then suggest recipes I can make with them", "complex": true, "acknowledge": "Let me see what needs using up, Sir."}`;
 }
 
-// --- Front model API call (Haiku 4.5 primary, GPT-4o-mini fallback) — pure router, no tools ---
+// --- Front model API call (Haiku primary, small OpenAI model fallback) — pure router, no tools ---
 
 async function runFrontModel(systemPrompt, userMessage) {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -251,6 +252,7 @@ async function runFrontModel(systemPrompt, userMessage) {
         },
         body: JSON.stringify({
           model: frontModel(),
+          ...quickCallOptions(frontModel()),
           max_tokens: 1024,
           system: systemPrompt,
           messages: [{ role: 'user', content: userMessage }],
@@ -259,9 +261,9 @@ async function runFrontModel(systemPrompt, userMessage) {
       });
       if (res.ok) {
         const data = await res.json();
-        const text = data.content?.[0]?.text?.trim();
+        const text = responseText(data);
         if (text) {
-          console.log('[front] Responded via Anthropic Haiku 4.5');
+          console.log(`[front] Responded via ${frontModel()}`);
           return { ok: true, output: text, provider: 'haiku' };
         }
       }
@@ -284,13 +286,13 @@ async function runFrontModel(systemPrompt, userMessage) {
           'Authorization': `Bearer ${openaiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: openaiSmallModel(),
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userMessage },
           ],
-          temperature: 0.7,
-          max_tokens: 1024,
+          reasoning_effort: 'none',
+          max_completion_tokens: 1024,
         }),
         signal: AbortSignal.timeout(30_000),
       });
@@ -298,11 +300,12 @@ async function runFrontModel(systemPrompt, userMessage) {
         const data = await res.json();
         const text = data.choices?.[0]?.message?.content?.trim();
         if (text) {
-          console.log('[front] Responded via OpenAI GPT-4o-mini (fallback)');
-          return { ok: true, output: text, provider: 'gpt4o-mini' };
+          console.log(`[front] Responded via OpenAI ${openaiSmallModel()} (fallback)`);
+          return { ok: true, output: text, provider: 'openai' };
         }
       }
-      console.error(`[front] OpenAI API error: ${res.status}`);
+      const errBody = await res.text().catch(() => '');
+      console.error(`[front] OpenAI API error: ${res.status} ${errBody.slice(0, 300)}`);
     } catch (err) {
       console.error('[front] OpenAI API failed:', err.message);
     }

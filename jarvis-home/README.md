@@ -160,7 +160,9 @@ When the filename is hard to parse (no `SxxExx` or year pattern), Claude Haiku i
 | Free-text chat (`askClaude`) | Opus | Deep reasoning for open-ended conversations |
 | `/ha automate`, `/ha scene` | Sonnet | Balanced quality for structured tool-use tasks |
 | Filename parsing (post-download) | Haiku | Fast, cheap extraction — ideal for simple JSON output |
-| Session summarization (memory) | Haiku | Cheap, fast — run automatically on session close |
+| Session summarization (memory) | OpenAI small model (Haiku CLI fallback) | Cheap, fast — run automatically on session close |
+
+Tier → model ID lives in `telegram-bot/src/models.js` (defaults: Haiku 5.5, Sonnet 5.5, Opus 5.5; override per tier/role in `~/jarvis/.env`). Haiku 5.x calls run with thinking disabled so short routing/extraction budgets aren't eaten by thinking. OpenAI: `gpt-6-luna` for the backup router and memory summaries (`OPENAI_SMALL_MODEL`), `gpt-transcribe` for voice notes (`OPENAI_TRANSCRIBE_MODEL`), `text-embedding-3-small` for memory search, `tts-1` for voice replies.
 
 ### qBittorrent setup (first time)
 

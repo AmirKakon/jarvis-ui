@@ -16,7 +16,7 @@
 
 import pg from 'pg';
 import { exec } from 'node:child_process';
-import { haikuModel } from './models.js';
+import { haikuModel, openaiSmallModel } from './models.js';
 
 const { Pool } = pg;
 
@@ -302,10 +302,11 @@ async function runSmallModel(prompt) {
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: openaiSmallModel(),
           messages: [{ role: 'user', content: prompt }],
+          reasoning_effort: 'none',
           temperature: 0,
-          max_tokens: 500,
+          max_completion_tokens: 500,
         }),
       });
       if (res.ok) {

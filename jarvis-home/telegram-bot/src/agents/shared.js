@@ -35,4 +35,9 @@ function extractResponseContent(data) {
   };
 }
 
-export { TOOL_RESULT_TYPES, isToolResult, extractResponseContent };
+/** Joined text blocks of a Messages API response; skips thinking and tool blocks. */
+function responseText(data) {
+  return (data?.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+}
+
+export { TOOL_RESULT_TYPES, isToolResult, extractResponseContent, responseText };

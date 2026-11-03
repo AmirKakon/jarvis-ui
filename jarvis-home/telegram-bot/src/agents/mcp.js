@@ -1,5 +1,5 @@
 import { getMcpTools, callMcpTool } from '../services/mcp-client.js';
-import { mcpSimpleModel, mcpComplexModel } from '../models.js';
+import { mcpSimpleModel, mcpComplexModel, quickCallOptions } from '../models.js';
 import { clockContext, nowJerusalem, todayJerusalemISO } from '../utils.js';
 
 // MCP tool-use agent: runs a short tool-calling loop over every tool exposed by
@@ -83,7 +83,8 @@ export async function runMcpAgent(task, { complex = false } = {}) {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 2048,
+          ...quickCallOptions(model),
+          max_tokens: 8192,
           system: mcpSystemPrompt(),
           tools,
           messages,

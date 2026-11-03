@@ -1,5 +1,5 @@
 import { fetchHA } from './ha.js';
-import { haikuModel } from '../models.js';
+import { haikuModel, quickCallOptions } from '../models.js';
 
 // Home Assistant standard weather conditions → emoji
 const CONDITION_EMOJI = {
@@ -260,6 +260,7 @@ export async function runWeatherQuery(question) {
       },
       body: JSON.stringify({
         model: haikuModel(),
+        ...quickCallOptions(haikuModel()),
         max_tokens: 512,
         system: WEATHER_QUERY_SYSTEM,
         messages: [{

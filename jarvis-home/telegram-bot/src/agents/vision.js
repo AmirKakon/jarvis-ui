@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { haikuModel } from '../models.js';
+import { haikuModel, quickCallOptions } from '../models.js';
+import { responseText } from './shared.js';
 
 const MEDIA_TYPES = {
   '.jpg': 'image/jpeg',
@@ -39,6 +40,7 @@ export async function describeImage(filepath, question) {
       },
       body: JSON.stringify({
         model: haikuModel(),
+        ...quickCallOptions(haikuModel()),
         max_tokens: 1024,
         system: 'You are a concise image analyst. Describe what you see factually. For receipts, invoices, or documents, extract all text, numbers, dates, and amounts. For screenshots, describe the UI and any visible text. For photos, describe the scene. Use British English. Be thorough but not verbose.',
         messages: [{
@@ -59,7 +61,7 @@ export async function describeImage(filepath, question) {
     }
 
     const data = await res.json();
-    const text = data.content?.[0]?.text?.trim();
+    const text = responseText(data);
     return text || null;
   } catch (err) {
     console.error('[vision] Failed:', err.message);

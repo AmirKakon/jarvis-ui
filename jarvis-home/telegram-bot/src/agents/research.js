@@ -7,7 +7,7 @@ import { researchModel } from '../models.js';
 // tool-heavy / multi-step queries the Haiku front model can't handle
 // (Haiku only supports direct, single-tool calls — see agents/search.js).
 //
-// DYNAMIC FILTERING: on capable models (Sonnet 5 / 4.6, Opus 4.6–4.8/5, Fable 5)
+// DYNAMIC FILTERING: on capable models (Sonnet 4.6 / 5 / 5.5, Opus 4.6–5.5, Fable 5 / 5.1)
 // the newer web_search_20260209 / web_fetch_20260209 tools let Claude write and
 // run code that filters raw search results BEFORE they hit the context window —
 // keeping only what's relevant, so heavy research is cheaper and sharper. That
@@ -105,7 +105,7 @@ export async function runResearch(query) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 4096,
+        max_tokens: 16000,
         system: RESEARCH_SYSTEM,
         messages: [{ role: 'user', content: query }],
         tools: buildTools(dynamic),

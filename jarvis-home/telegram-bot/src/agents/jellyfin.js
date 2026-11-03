@@ -10,7 +10,8 @@
 //   JELLYFIN_TOKEN     Jellyfin API key (Dashboard → API Keys)
 //   JELLYFIN_USER_ID   optional; otherwise the first user is used
 
-import { haikuModel } from '../models.js';
+import { haikuModel, quickCallOptions } from '../models.js';
+import { responseText } from './shared.js';
 
 const DEFAULT_JELLYFIN_URL = 'http://localhost:20002';
 
@@ -189,7 +190,8 @@ async function classify(question) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: haikuModel(),
-        max_tokens: 160,
+        ...quickCallOptions(haikuModel()),
+        max_tokens: 256,
         system: `You classify a Jellyfin media request. Return ONLY JSON:
 {"intent": "search"|"recent"|"resume"|"nextup"|"recommend"|"nowplaying"|"libraries"|"scan",
  "searchTerm": string or null,
@@ -207,7 +209,7 @@ Guidance:
     });
     if (res.ok) {
       const data = await res.json();
-      const text = (data.content?.[0]?.text || '').replace(/```json\s*|```/g, '').trim();
+      const text = responseText(data).replace(/```json\s*|```/g, '').trim();
       const parsed = JSON.parse(text);
       if (parsed?.intent) {
         return {
@@ -237,6 +239,7 @@ async function summarise(question, payload) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: haikuModel(),
+        ...quickCallOptions(haikuModel()),
         max_tokens: 700,
         system: CONCIERGE_SYSTEM,
         messages: [{ role: 'user', content: `Request: ${question}\n\nLibrary data (JSON):\n${JSON.stringify(payload)}` }],

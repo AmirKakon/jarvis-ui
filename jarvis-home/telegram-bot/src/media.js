@@ -1,6 +1,7 @@
 import { run, escapeHtml, editOrReply } from './utils.js';
 import { askClaude } from './claude.js';
 import { describeImage } from './agents/vision.js';
+import { transcribeModel } from './models.js';
 
 const HOME = process.env.HOME || '/home/iot';
 const MEDIA_DIR = `${HOME}/jarvis/telegram-media`;
@@ -27,7 +28,7 @@ async function transcribeVoice(filepath) {
     `curl -sf https://api.openai.com/v1/audio/transcriptions ` +
     `-H "Authorization: Bearer ${apiKey}" ` +
     `-F file="@${filepath}" ` +
-    `-F model="whisper-1"`,
+    `-F model="${transcribeModel()}"`,
     { timeout: 30_000 }
   );
 

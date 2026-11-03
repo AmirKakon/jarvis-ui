@@ -1,5 +1,5 @@
 import { extractResponseContent } from './shared.js';
-import { haikuModel } from '../models.js';
+import { haikuModel, quickCallOptions } from '../models.js';
 
 export async function runWebFetch(url, question) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -19,6 +19,7 @@ export async function runWebFetch(url, question) {
       },
       body: JSON.stringify({
         model: haikuModel(),
+        ...quickCallOptions(haikuModel()),
         max_tokens: 1024,
         system: 'You are a concise research assistant. Read the fetched content and answer the question or provide a summary. Cite sources. Use British English.',
         messages: [{ role: 'user', content: prompt }],

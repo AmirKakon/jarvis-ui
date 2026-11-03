@@ -1,6 +1,6 @@
 import { escapeHtml, truncate, mdToHtml } from '../utils.js';
 import { extractResponseContent } from '../agents/shared.js';
-import { haikuModel } from '../models.js';
+import { haikuModel, quickCallOptions } from '../models.js';
 
 const SEARCH_SYSTEM = `You are a web search assistant. Search for the user's query and provide a clear, concise answer based on the search results. Always cite your sources. Be brief but comprehensive. Use British English.`;
 
@@ -31,6 +31,7 @@ export async function searchCommand(ctx) {
       },
       body: JSON.stringify({
         model: haikuModel(),
+        ...quickCallOptions(haikuModel()),
         max_tokens: 1024,
         system: SEARCH_SYSTEM,
         messages: [{ role: 'user', content: query }],

@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { createCalendarEvent } from '../services/calendar-sync.js';
-import { haikuModel } from '../models.js';
+import { haikuModel, quickCallOptions } from '../models.js';
+import { responseText } from './shared.js';
 const { Pool } = pg;
 
 const TZ = 'Asia/Jerusalem';
@@ -104,7 +105,8 @@ async function parseWithHaiku(userMessage) {
       },
       body: JSON.stringify({
         model: haikuModel(),
-        max_tokens: 256,
+        ...quickCallOptions(haikuModel()),
+        max_tokens: 384,
         system: `You parse reminder requests into structured JSON.
 
 CURRENT TIME: ${isoNow}
@@ -154,7 +156,7 @@ Examples:
     }
 
     const data = await res.json();
-    const text = data.content?.[0]?.text?.trim();
+    const text = responseText(data);
     if (!text) return null;
 
     const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();

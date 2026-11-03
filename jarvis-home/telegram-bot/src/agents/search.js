@@ -1,5 +1,5 @@
 import { extractResponseContent } from './shared.js';
-import { haikuModel } from '../models.js';
+import { haikuModel, quickCallOptions } from '../models.js';
 
 export async function runWebSearch(query) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -15,6 +15,7 @@ export async function runWebSearch(query) {
       },
       body: JSON.stringify({
         model: haikuModel(),
+        ...quickCallOptions(haikuModel()),
         max_tokens: 1024,
         system: 'You are a concise research assistant. Answer based on web search results. Cite sources. Use British English.',
         messages: [{ role: 'user', content: query }],

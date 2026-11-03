@@ -1,7 +1,8 @@
 import { fetchHA, getStates } from './ha.js';
 import { escapeHtml } from '../utils.js';
 import { createCalendarEvent } from '../services/calendar-sync.js';
-import { haikuModel } from '../models.js';
+import { haikuModel, quickCallOptions } from '../models.js';
+import { responseText } from './shared.js';
 import { nowJerusalemISO, insertReminder } from './remind.js';
 
 const TZ = 'Asia/Jerusalem';
@@ -156,7 +157,8 @@ async function parseEventWithHaiku(userMessage) {
       },
       body: JSON.stringify({
         model: haikuModel(),
-        max_tokens: 300,
+        ...quickCallOptions(haikuModel()),
+        max_tokens: 448,
         system: `You parse calendar event / meeting requests into structured JSON.
 
 CURRENT TIME: ${isoNow}
@@ -200,7 +202,7 @@ Examples:
     }
 
     const data = await res.json();
-    const text = data.content?.[0]?.text?.trim();
+    const text = responseText(data);
     if (!text) return null;
 
     const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
@@ -320,7 +322,8 @@ async function resolveRange(text) {
       },
       body: JSON.stringify({
         model: haikuModel(),
-        max_tokens: 150,
+        ...quickCallOptions(haikuModel()),
+        max_tokens: 256,
         system: `You resolve a calendar date-range query to JSON. CURRENT TIME: ${isoNow}.
 Return ONLY: {"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","label":"short human label"}
 - end_date is EXCLUSIVE (the day after the last day you want to include).
@@ -334,7 +337,7 @@ Return ONLY: {"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","label":"short h
     });
     if (!res.ok) return fallback;
     const data = await res.json();
-    const raw = data.content?.[0]?.text?.trim();
+    const raw = responseText(data);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim());
     const s = String(parsed.start_date || '').split('-').map(Number);
