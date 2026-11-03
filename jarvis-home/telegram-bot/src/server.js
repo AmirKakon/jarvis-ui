@@ -186,8 +186,9 @@ async function handleAsk(req, res, token) {
     return sendJson(res, 200, { ok: true, kind: deferred ? 'deferred' : 'voice', reply, actions: [] });
   }
 
-  // Headless surface: no Telegram chatId, so reminders/calendar-create degrade
-  // gracefully inside askCore (they report they're Telegram-only for now).
+  // Headless surface: no Telegram chatId of its own. If sessionKey is mapped in
+  // JARVIS_IDENTITY_MAP, askCore uses that user's chat for reminders/calendar;
+  // otherwise those actions report they're Telegram-only.
   const result = await askCore(text, { sessionKey, source });
 
   const actions = (result.results || []).map((r) => ({

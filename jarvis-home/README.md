@@ -202,6 +202,16 @@ User message → Session boundary check (30-min gap?)
 | **Durable facts** | `memory_facts` | Never | `/remember` command or auto-extracted from summaries |
 | **Session summaries** | `chat_summaries` | 30-day half-life | Auto-created when sessions close (30-min gap) |
 
+### One conversation across surfaces
+
+Facts and summaries are shared by every surface. The live session is keyed per surface (`tg:<chatId>`, `alexa:<hash>`, `ha:<id>`, `api:default`) unless `JARVIS_IDENTITY_MAP` maps those keys to one user (`telegram-bot/src/identity.js`):
+
+```
+JARVIS_IDENTITY_MAP=tg:123456789=amir,alexa:0123456789abcdef=amir,ha:*=amir
+```
+
+Mapped keys share one `user:<id>` session, so a question asked on the Echo can be followed up in Telegram, and `/new` from any of them closes it for all. Reminders and calendar requests from Alexa or Assist fire to that user's Telegram chat (taken from their `tg:` entry); unmapped headless surfaces still reply that reminders are Telegram-only. The summary's `source` lists every surface that joined (e.g. `telegram+alexa`). Unmapped keys are logged once as `[identity] unmapped session key …`.
+
 ### Recency-weighted retrieval
 
 ```

@@ -27,6 +27,7 @@ import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
 import { createEvent, listEvents } from './agents/calendar.js';
 import { clockContext } from './utils.js';
+import { resolveIdentity } from './identity.js';
 
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -55,35 +56,43 @@ export function remainingIn(log, max) {
 
 // --- Session boundary tracking ---
 // Keyed by an opaque `sessionKey` so any surface can have its own conversation
-// thread. Telegram uses `tg:<chatId>`; HTTP callers pass their own key.
+// thread. Telegram uses `tg:<chatId>`; HTTP callers pass their own key. Keys
+// listed in JARVIS_IDENTITY_MAP fold into one `user:<id>` thread (identity.js),
+// so the same conversation continues across Telegram, Alexa, and Assist.
 
 const activeSessions = new Map();
 
+// Surfaces that joined a session, e.g. "telegram+alexa" (chat_summaries.source is varchar(50)).
+const sourceTag = (entry) => [...entry.sources].join('+').slice(0, 50);
+
 export function getOrRotateSession(sessionKey, source = 'telegram') {
-  const entry = activeSessions.get(sessionKey);
+  const key = resolveIdentity(sessionKey).sessionKey;
+  const entry = activeSessions.get(key);
   const now = Date.now();
 
   if (!entry || (now - entry.lastMessageTime) > SESSION_GAP_MS) {
     if (entry) {
-      summarizeSession(entry.sessionId, entry.source || source).catch((err) =>
+      summarizeSession(entry.sessionId, sourceTag(entry)).catch((err) =>
         console.error('Session summarization failed:', err.message)
       );
     }
     const sessionId = crypto.randomUUID();
-    activeSessions.set(sessionKey, { sessionId, lastMessageTime: now, source });
+    activeSessions.set(key, { sessionId, lastMessageTime: now, sources: new Set([source]) });
     return { sessionId, isNew: true };
   }
 
   entry.lastMessageTime = now;
+  entry.sources.add(source);
   return { sessionId: entry.sessionId, isNew: false };
 }
 
 export async function forceNewSession(sessionKey, source = 'telegram') {
-  const entry = activeSessions.get(sessionKey);
+  const key = resolveIdentity(sessionKey).sessionKey;
+  const entry = activeSessions.get(key);
   let result = null;
   if (entry) {
-    result = await summarizeSession(entry.sessionId, entry.source || source);
-    activeSessions.delete(sessionKey);
+    result = await summarizeSession(entry.sessionId, sourceTag(entry) || source);
+    activeSessions.delete(key);
   }
   return result;
 }
@@ -449,8 +458,8 @@ async function runReminder(action, chatId, prompt) {
 // --- Execute one action, returning its raw result (no transport I/O) ---
 // Rate-limited actions (research, delegate) gate synchronously here so parallel
 // dispatch reserves capacity deterministically in request order. Reminders and
-// calendar creation need a real Telegram chatId, so they degrade gracefully when
-// called from a headless surface (sctx.chatId is null).
+// calendar creation need a Telegram chatId (they fire there), so they degrade
+// gracefully on a headless surface that isn't mapped to a user (sctx.chatId null).
 
 async function runOne(action, sctx) {
   const key = actionKeyOf(action);
@@ -462,7 +471,7 @@ async function runOne(action, sctx) {
         return { key, action, res: await listEvents(action.text || sctx.prompt) };
       }
       if (!sctx.chatId) {
-        return { key, action, res: { ok: false, output: 'Calendar events can only be created via Telegram at the moment, Sir.' } };
+        return { key, action, res: { ok: false, output: 'Calendar events can only be created via Telegram from here, Sir.' } };
       }
       return { key, action, res: await createEvent(sctx.chatId, action.text || sctx.prompt) };
     case 'search':
@@ -509,7 +518,7 @@ async function runOne(action, sctx) {
       return { key, action, res: await resolveAndExecute(action.command) };
     case 'remind':
       if (!sctx.chatId) {
-        return { key, action, res: { ok: false, output: 'Reminders are only available via Telegram at the moment, Sir.' } };
+        return { key, action, res: { ok: false, output: 'Reminders are only available via Telegram from here, Sir.' } };
       }
       return { key, action, res: await runReminder(action, sctx.chatId, sctx.prompt) };
     case 'research': {
@@ -593,7 +602,8 @@ async function runOne(action, sctx) {
 // opts:
 //   sessionKey  conversation thread key (default 'api:default')
 //   source      session metadata tag (default 'api')
-//   chatId      Telegram chat id for chat-bound actions (reminders/calendar); null on headless surfaces
+//   chatId      Telegram chat id for chat-bound actions (reminders/calendar). Headless surfaces
+//               omit it; it then comes from JARVIS_IDENTITY_MAP when the key is mapped to a user.
 //   onPlan      optional async hook called with the parsed actions before execution (for progress UX)
 //   onBackground optional async hook to deliver a long/delegated action's result AFTER askCore returns
 //                (fire-and-follow-up). When omitted, such actions are awaited inline instead.
@@ -602,7 +612,9 @@ export async function askCore(prompt, { sessionKey = 'api:default', source = 'ap
   const text = (prompt || '').trim();
   if (!text) return { ok: false, kind: 'empty', sessionId: null, text: '', results: [] };
 
-  const { sessionId } = getOrRotateSession(sessionKey, source);
+  const identity = resolveIdentity(sessionKey);
+  chatId = chatId || identity.chatId;
+  const { sessionId } = getOrRotateSession(identity.sessionKey, source);
   await ensureSession(sessionId, source);
   await storeMessage(sessionId, 'user', text);
 
