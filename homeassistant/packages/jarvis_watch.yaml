@@ -8,17 +8,20 @@
 #
 # One-time setup:
 # 1. Companion app (phone): Settings -> Companion app -> Manage sensors -> Last
-#    notification: enable, grant notification access, and set its Allow list to
-#    com.samsung.android.messaging ONLY (so HA never sees other apps' notifications).
+#    notification: enable, grant notification access, and set its Allow list to your
+#    SMS app ONLY (so HA never sees other apps' notifications): Google Messages is
+#    com.google.android.apps.messaging, Samsung Messages com.samsung.android.messaging.
 #    Check the entity id matches sensor.amir_phone_last_notification below.
 # 2. secrets.yaml:   jarvis_ask_auth: "Bearer <ASK_HTTP_TOKEN from ~/jarvis/.env>"
 #    (the mini-PC needs ASK_HTTP_BIND=0.0.0.0 so the HA VM can reach :20010).
 # 3. Copy this file to /config/packages/jarvis_watch.yaml and restart HA.
 # 4. Text yourself once from the watch, then in Developer tools -> States look at
-#    sensor.amir_phone_last_notification's "android.title" attribute and copy that
-#    exact value into Helpers -> "Jarvis watch SMS sender". Until it's set, nothing
-#    is forwarded, and only SMS whose title matches it ever are (so OTP codes and
-#    other people's texts never reach JARVIS).
+#    sensor.amir_phone_last_notification and copy into Helpers -> "Jarvis watch SMS
+#    sender" either your number as shown in
+#    "extra_im_notification_participant_normalized_destination" (Google Messages,
+#    e.g. +9725XXXXXXXX; preferred, a contact name isn't unique) or the exact
+#    "android.title". Until it's set nothing is forwarded, and only SMS from that
+#    sender ever are (so OTP codes and other people's texts never reach JARVIS).
 # 5. Recommended: keep SMS text out of HA's history. In configuration.yaml:
 #      recorder:
 #        exclude:
@@ -52,6 +55,7 @@ automation:
       - trigger: state
         entity_id: sensor.amir_phone_last_notification
     variables:
+      sms_apps: [com.google.android.apps.messaging, com.samsung.android.messaging]
       attrs: "{{ trigger.to_state.attributes }}"
       sender: "{{ states('input_text.jarvis_watch_sms_sender') | trim }}"
       text: >-
@@ -59,9 +63,10 @@ automation:
     conditions:
       - condition: template
         value_template: >-
-          {{ attrs.get('package') == 'com.samsung.android.messaging'
+          {{ attrs.get('package') in sms_apps
              and sender not in ['', 'unknown', 'unavailable']
-             and (attrs.get('android.title') or '') | trim == sender
+             and sender in [(attrs.get('android.title') or '') | trim,
+                            (attrs.get('extra_im_notification_participant_normalized_destination') or '') | trim]
              and text | length > 0 }}
       # Companion can re-report the same notification; only forward a new post.
       - condition: template
