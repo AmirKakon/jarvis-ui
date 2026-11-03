@@ -11,6 +11,10 @@
 //                                  callers: kind "deferred" means the reply is an
 //                                  ack and the Echo will speak the answer via HA.
 //   POST /cam/snapshot           — grab ustreamer still, send to Telegram (same bearer token)
+//   POST /telegram/say           — { text, label? }: post text into the bot's chat as if the
+//                                  owner typed it (silent echo + normal reply). Returns 202
+//                                  at once; the answer arrives in Telegram. Used by the
+//                                  watch-SMS relay in homeassistant/packages/jarvis_watch.yaml.
 //   GET  /v1/models              — OpenAI-compatible model list (for HA setup)
 //   POST /v1/chat/completions    — OpenAI-compatible chat (HA OpenAI Conversation)
 //   POST /alexa                  — Alexa custom-skill endpoint (see alexa.js).
@@ -35,6 +39,7 @@ import crypto from 'node:crypto';
 import { askCore } from './brain.js';
 import { pushWebcamToTelegram } from './commands/cam.js';
 import { handleAlexaRequest, answerForVoice } from './alexa.js';
+import { MAX_INJECT_TEXT } from './telegram-inject.js';
 
 const MAX_BODY = 32 * 1024; // 32 KB — plenty for a text prompt
 const MODEL_ID = 'jarvis';
@@ -295,6 +300,30 @@ async function handleCamSnapshot(req, res, token) {
   }
 }
 
+async function handleTelegramSay(req, res, token, onTelegramText) {
+  if (!authorized(req, token)) return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+  if (!onTelegramText) return sendJson(res, 503, { ok: false, error: 'telegram not available' });
+
+  let body;
+  try {
+    const raw = await readBody(req, MAX_BODY);
+    body = raw ? JSON.parse(raw) : {};
+  } catch {
+    return sendJson(res, 400, { ok: false, error: 'invalid body' });
+  }
+
+  const text = typeof body.text === 'string' ? body.text.trim() : '';
+  if (!text) return sendJson(res, 400, { ok: false, error: 'missing "text"' });
+  if (text.length > MAX_INJECT_TEXT) return sendJson(res, 413, { ok: false, error: 'text too long' });
+  const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim().slice(0, 16) : undefined;
+
+  console.log(`[ask-http] /telegram/say text=${text.slice(0, 80)}`);
+  // The caller (an HA rest_command) only needs to know it was accepted; the reply
+  // can take minutes (research, delegated jobs) and is delivered in Telegram.
+  onTelegramText(text, { label }).catch((err) => console.error('[ask-http] /telegram/say:', err.message));
+  return sendJson(res, 202, { ok: true });
+}
+
 // Alexa custom-skill endpoint. Authentication is the Alexa request signature
 // (verified inside handleAlexaRequest), so this route intentionally does NOT
 // require the bearer token — an Echo cannot send one.
@@ -315,7 +344,7 @@ async function handleAlexa(req, res) {
   }
 }
 
-async function handleRequest(req, res, token) {
+async function handleRequest(req, res, token, onTelegramText) {
   try {
     const path = (req.url || '').split('?')[0];
 
@@ -344,6 +373,10 @@ async function handleRequest(req, res, token) {
       return handleCamSnapshot(req, res, token);
     }
 
+    if (req.method === 'POST' && path === '/telegram/say') {
+      return handleTelegramSay(req, res, token, onTelegramText);
+    }
+
     return sendJson(res, 404, { ok: false, error: 'not found' });
   } catch (err) {
     console.error('[ask-http] request error:', err.message);
@@ -357,7 +390,8 @@ async function handleRequest(req, res, token) {
 // enabled: ASK_HTTP_TOKEN (bearer-protected /ask + /v1 shim) or ALEXA_SKILL_ID
 // (signature-authenticated /alexa). Token-protected routes 401 when no token is
 // set, so running Alexa-only never exposes /ask unauthenticated.
-export function startAskServer() {
+// onTelegramText(text, { label }) — injects text into the Telegram chat (backs /telegram/say).
+export function startAskServer({ onTelegramText = null, port: portOverride } = {}) {
   if (server) return server; // idempotent — never double-listen
 
   const token = process.env.ASK_HTTP_TOKEN;
@@ -367,14 +401,14 @@ export function startAskServer() {
     return null;
   }
 
-  const port = Number(process.env.ASK_HTTP_PORT) || 20010;
+  const port = portOverride ?? (Number(process.env.ASK_HTTP_PORT) || 20010);
   const bind = process.env.ASK_HTTP_BIND || '127.0.0.1';
 
-  server = http.createServer((req, res) => handleRequest(req, res, token));
+  server = http.createServer((req, res) => handleRequest(req, res, token, onTelegramText));
   server.on('error', (err) => console.error('[ask-http] server error:', err.message));
   server.listen(port, bind, () => {
     const routes = ['GET /health'];
-    if (token) routes.push('POST /ask', 'POST /v1/chat/completions', 'POST /cam/snapshot', 'GET /v1/models');
+    if (token) routes.push('POST /ask', 'POST /v1/chat/completions', 'POST /cam/snapshot', 'POST /telegram/say', 'GET /v1/models');
     if (alexaEnabled) routes.push('POST /alexa');
     console.log(`[ask-http] Listening on http://${bind}:${port} (${routes.join(', ')})`);
   });

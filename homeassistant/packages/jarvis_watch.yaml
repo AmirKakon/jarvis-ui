@@ -1,0 +1,85 @@
+# Talk to JARVIS from the Gear S watch by texting yourself.
+#
+# The watch can answer Telegram notifications but can't start a chat. It CAN send an
+# SMS (through the phone), so: SMS to your own number -> the phone shows it -> the
+# Companion "Last notification" sensor reports it -> this automation posts the text
+# to JARVIS (POST /telegram/say) -> JARVIS answers in Telegram -> the reply shows on
+# the watch, where you continue by replying to it.
+#
+# One-time setup:
+# 1. Companion app (phone): Settings -> Companion app -> Manage sensors -> Last
+#    notification: enable, grant notification access, and set its Allow list to
+#    com.samsung.android.messaging ONLY (so HA never sees other apps' notifications).
+#    Check the entity id matches sensor.amir_phone_last_notification below.
+# 2. secrets.yaml:   jarvis_ask_auth: "Bearer <ASK_HTTP_TOKEN from ~/jarvis/.env>"
+#    (the mini-PC needs ASK_HTTP_BIND=0.0.0.0 so the HA VM can reach :20010).
+# 3. Copy this file to /config/packages/jarvis_watch.yaml and restart HA.
+# 4. Text yourself once from the watch, then in Developer tools -> States look at
+#    sensor.amir_phone_last_notification's "android.title" attribute and copy that
+#    exact value into Helpers -> "Jarvis watch SMS sender". Until it's set, nothing
+#    is forwarded, and only SMS whose title matches it ever are (so OTP codes and
+#    other people's texts never reach JARVIS).
+# 5. Recommended: keep SMS text out of HA's history. In configuration.yaml:
+#      recorder:
+#        exclude:
+#          entities: [sensor.amir_phone_last_notification]
+#
+# Commands work too: text "/bus" or "/weather" from the watch.
+
+input_text:
+  jarvis_watch_sms_sender:
+    name: Jarvis watch SMS sender
+    icon: mdi:watch
+    max: 100
+
+rest_command:
+  jarvis_telegram_say:
+    url: http://192.168.68.124:20010/telegram/say
+    method: POST
+    headers:
+      Authorization: !secret jarvis_ask_auth
+    content_type: application/json
+    payload: '{{ {"text": text, "label": "⌚"} | to_json }}'
+    timeout: 10
+
+automation:
+  - id: jarvis_watch_sms_to_telegram
+    alias: Jarvis - watch SMS to Telegram
+    description: Forwards SMS you text yourself (from the Gear S) to JARVIS on Telegram.
+    mode: queued
+    max: 5
+    triggers:
+      - trigger: state
+        entity_id: sensor.amir_phone_last_notification
+    variables:
+      attrs: "{{ trigger.to_state.attributes }}"
+      sender: "{{ states('input_text.jarvis_watch_sms_sender') | trim }}"
+      text: >-
+        {{ (attrs.get('android.bigText') or attrs.get('android.text') or trigger.to_state.state or '') | trim }}
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ attrs.get('package') == 'com.samsung.android.messaging'
+             and sender not in ['', 'unknown', 'unavailable']
+             and (attrs.get('android.title') or '') | trim == sender
+             and text | length > 0 }}
+      # Companion can re-report the same notification; only forward a new post.
+      - condition: template
+        value_template: >-
+          {{ trigger.from_state is none
+             or attrs.get('post_time') is none
+             or attrs.get('post_time') != trigger.from_state.attributes.get('post_time') }}
+    actions:
+      - action: rest_command.jarvis_telegram_say
+        data:
+          text: "{{ text }}"
+        response_variable: jarvis
+        continue_on_error: true
+      - if:
+          - condition: template
+            value_template: "{{ jarvis is not defined or jarvis.status | default(0) != 202 }}"
+        then:
+          - action: notify.mobile_app_amir_phone
+            data:
+              title: Jarvis
+              message: "Couldn't reach JARVIS, so your watch message wasn't sent: {{ text[:80] }}"

@@ -31,6 +31,7 @@ import { deployCallback } from './commands/deploy.js';
 import { listReminders, snoozeReminder, closeReminderPool } from './agents/remind.js';
 import { closeMcp } from './services/mcp-client.js';
 import { startAskServer, stopAskServer } from './server.js';
+import { injectTelegramText } from './telegram-inject.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
 import { startBriefingScheduler, stopBriefingScheduler } from './services/briefing-scheduler.js';
 import { startShabbatScheduler, stopShabbatScheduler } from './services/shabbat-scheduler.js';
@@ -416,7 +417,7 @@ async function launchWithRetry(attempt = 1) {
 // Start the headless /ask HTTP endpoint up front. It's independent of Telegram,
 // and bot.launch() (long polling) stays pending while running — so anything after
 // `await bot.launch()` won't run at startup. Keep this before launchWithRetry().
-startAskServer();
+startAskServer({ onTelegramText: (text, opts) => injectTelegramText(bot, CHAT_ID, text, opts) });
 
 launchWithRetry();
 
