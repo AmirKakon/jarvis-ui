@@ -1,4 +1,4 @@
-# Pre-Shabbat / Chag checklist + plata timer.
+# Pre-Shabbat / Chag checklist + plata timer + robot vacuum start.
 #
 # One shared checklist with two front-ends: this package (phone notifications +
 # the HA to-do list) and JARVIS on Telegram (/shabbat, telegram-bot/src/agents/shabbat.js).
@@ -15,10 +15,13 @@
 #    night off, day on, day off). They keep their values across restarts.
 # 4. Check the plata switch entity (switch.ac_plug_socket_1 = "Plata plug") and the
 #    phone notify service (notify.mobile_app_amir_phone in script.shabbat_checklist_notify).
+# 5. Robot vacuum (vacuum.mova_e30_ultra, Dreame/MOVA integration from HACS): turn on
+#    "Vacuum before candle lighting" and set its minutes in Helpers (or from Telegram).
 #
 # Schedule (keep in sync with SHABBAT_MORNING_TIME and STAGES in agents/shabbat.js):
 #   08:55            reset the list for the day of candle lighting
 #   09:00            "home for Shabbat?" + early tasks
+#   candle - vacuum  robot vacuum starts (if on and home)
 #   candle - 180 min main checklist
 #   candle - 45 min  nudge with what's left
 #   candle - 15 min  final summary, then quiet until havdalah
@@ -30,14 +33,20 @@ input_select:
     name: Home for Shabbat
     icon: mdi:home-question
     options: [unanswered, home, away]
+  # unset = not answered yet; "off" = answered, no plata this time.
   shabbat_plata:
     name: Plata timer
     icon: mdi:pot-steam
-    options: ["off", night, day, both]
+    options: [unset, "off", night, day, both]
   shabbat_checklist_channel:
     name: Shabbat checklist reminders
     icon: mdi:bell-ring
     options: [both, telegram, ha]
+
+input_boolean:
+  shabbat_vacuum:
+    name: Vacuum before candle lighting
+    icon: mdi:robot-vacuum
 
 input_number:
   shabbat_plata_lead_minutes:
@@ -46,6 +55,13 @@ input_number:
     min: 0
     max: 180
     step: 5
+    unit_of_measurement: min
+  shabbat_vacuum_lead_minutes:
+    name: Vacuum start before candle lighting
+    icon: mdi:robot-vacuum
+    min: 15
+    max: 360
+    step: 15
     unit_of_measurement: min
 
 input_datetime:
@@ -92,13 +108,14 @@ script:
       title: { description: "Notification title" }
       message: { description: "Notification body, or clear_notification" }
       actions: { description: "Optional list of buttons, each with action and title" }
+      tag: { description: "Optional notification tag; same tag replaces the previous one" }
     sequence:
       - action: notify.mobile_app_amir_phone
         data:
           title: "{{ title | default('') }}"
           message: "{{ message }}"
           data:
-            tag: shabbat_checklist
+            tag: "{{ tag | default('shabbat_checklist') }}"
             clickAction: /todo?entity_id=todo.shabbat_checklist
             actions: "{{ actions | default([]) }}"
 
@@ -116,11 +133,21 @@ script:
             data:
               item: "{{ existing['todo.shabbat_checklist']['items'] | map(attribute='uid') | list }}"
       # description is a tag: early = start in the morning, auto = ticks itself.
+      - action: todo.add_item
+        target: { entity_id: todo.shabbat_checklist }
+        data:
+          description: early
+          item: >-
+            {%- set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) -%}
+            {%- set lead = states('input_number.shabbat_vacuum_lead_minutes') | int(120) -%}
+            {{ ('Vacuum: fill the water tank (starts '
+                ~ as_timestamp(c - timedelta(minutes=lead)) | timestamp_custom('%H:%M') ~ ')')
+               if is_state('input_boolean.shabbat_vacuum', 'on') and c is not none
+               else 'Vacuum: fill the water tank and set it to run' }}
       - repeat:
           for_each:
             - { summary: "Fill ice trays in the freezer", description: early }
-            - { summary: "Vacuum: fill the water tank and set it to run", description: early }
-            - { summary: "Plata: plug in and pick a timer", description: auto }
+            - { summary: "Plata: pick a timer or off", description: auto }
             - { summary: "Hot water urn: fill and turn on", description: main }
             - { summary: "Fridge: Shabbat mode", description: main }
             - { summary: "Bathroom lights on", description: main }
@@ -141,7 +168,7 @@ script:
         data: { option: unanswered }
       - action: input_select.select_option
         target: { entity_id: input_select.shabbat_plata }
-        data: { option: "off" }
+        data: { option: unset }
 
   shabbat_checklist_remind:
     alias: Shabbat checklist - send reminder
@@ -173,6 +200,7 @@ script:
                   message: "Candle lighting {{ candle }}. Answer to get the checklist and plata timer."
                   actions:
                     - { action: SHABBAT_HOME_YES, title: "Yes, home" }
+                    - { action: SHABBAT_HOME_NOPLATA, title: "Home, no plata" }
                     - { action: SHABBAT_HOME_NO, title: "No, away" }
           - conditions: "{{ home == 'unanswered' and stage == 'lock' }}"
             sequence:
@@ -204,7 +232,7 @@ script:
                 data:
                   title: "{{ 'Shabbat shalom' if label == 'Shabbat' else 'Chag sameach' }}"
                   message: >
-                    Plata timer: {{ plata }}.
+                    Plata timer: {{ 'not picked, off' if plata == 'unset' else plata }}.
                     {{ ('Not done: ' ~ (left | join(', ')) ~ '.') if left | count > 0 else 'Everything is done.' }}
 
 automation:
@@ -269,6 +297,10 @@ automation:
         id: away
       - trigger: event
         event_type: mobile_app_notification_action
+        event_data: { action: SHABBAT_HOME_NOPLATA }
+        id: noplata
+      - trigger: event
+        event_type: mobile_app_notification_action
         event_data: { action: SHABBAT_PLATA_NIGHT }
         id: night
       - trigger: event
@@ -284,12 +316,22 @@ automation:
         entity_id: binary_sensor.jewish_calendar_issur_melacha_in_effect
         state: "off"
     actions:
-      - if: "{{ trigger.id in ['home', 'away'] }}"
-        then:
-          - action: input_select.select_option
-            target: { entity_id: input_select.shabbat_home }
-            data: { option: "{{ trigger.id }}" }
-        else:
+      - choose:
+          - conditions: "{{ trigger.id in ['home', 'away'] }}"
+            sequence:
+              - action: input_select.select_option
+                target: { entity_id: input_select.shabbat_home }
+                data: { option: "{{ trigger.id }}" }
+          # Plata first, so the home/away automation sees it answered and skips the plata question.
+          - conditions: "{{ trigger.id == 'noplata' }}"
+            sequence:
+              - action: input_select.select_option
+                target: { entity_id: input_select.shabbat_plata }
+                data: { option: "off" }
+              - action: input_select.select_option
+                target: { entity_id: input_select.shabbat_home }
+                data: { option: home }
+        default:
           - action: input_select.select_option
             target: { entity_id: input_select.shabbat_plata }
             data: { option: "{{ trigger.id }}" }
@@ -306,7 +348,7 @@ automation:
         then:
           - action: input_select.select_option
             target: { entity_id: input_select.shabbat_plata }
-            data: { option: "off" }
+            data: { option: unset }
       - condition: state
         entity_id: binary_sensor.shabbat_checklist_day
         state: "on"
@@ -318,6 +360,9 @@ automation:
           - action: script.shabbat_checklist_notify
             data: { message: clear_notification }
         else:
+          - condition: state
+            entity_id: input_select.shabbat_plata
+            state: unset
           - variables:
               on_at: >
                 {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
@@ -354,10 +399,12 @@ automation:
         continue_on_error: true
         target: { entity_id: todo.shabbat_checklist }
         data:
-          item: "Plata: plug in and pick a timer"
+          item: "Plata: pick a timer or off"
           status: >
-            {{ 'completed' if not is_state('input_select.shabbat_plata', 'off')
-               and states('switch.ac_plug_socket_1') not in ['unavailable', 'unknown']
+            {% set plata = states('input_select.shabbat_plata') %}
+            {{ 'completed' if plata == 'off'
+               or (plata in ['night', 'day', 'both']
+                   and states('switch.ac_plug_socket_1') not in ['unavailable', 'unknown'])
                else 'needs_action' }}
 
   - id: shabbat_plata_schedule
@@ -422,7 +469,54 @@ automation:
                 target: { entity_id: switch.ac_plug_socket_1 }
               - action: input_select.select_option
                 target: { entity_id: input_select.shabbat_plata }
-                data: { option: "off" }
+                data: { option: unset }
               - action: input_select.select_option
                 target: { entity_id: input_select.shabbat_home }
                 data: { option: unanswered }
+
+  # Starts at candle lighting - vacuum minutes; answering "home" up to 30 min late still starts it.
+  - id: shabbat_vacuum_start
+    alias: Shabbat checklist - robot vacuum
+    mode: single
+    triggers:
+      - trigger: template
+        value_template: >
+          {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+          {% set lead = states('input_number.shabbat_vacuum_lead_minutes') | int(120) %}
+          {{ c is not none and now() >= c - timedelta(minutes=lead) }}
+      - trigger: state
+        entity_id: input_select.shabbat_home
+        to: home
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.shabbat_checklist_day
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.shabbat_vacuum
+        state: "on"
+      - condition: state
+        entity_id: input_select.shabbat_home
+        state: home
+      - condition: template
+        value_template: >
+          {% set c = as_datetime(states('sensor.shabbat_checklist_candle_lighting'), none) %}
+          {% if c is none %}false{% else %}
+            {% set start = c - timedelta(minutes=states('input_number.shabbat_vacuum_lead_minutes') | int(120)) %}
+            {{ start <= now() and now() < start + timedelta(minutes=30) }}
+          {% endif %}
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: vacuum.mova_e30_ultra
+            state: cleaning
+    actions:
+      - if: "{{ states('vacuum.mova_e30_ultra') in ['unavailable', 'unknown'] }}"
+        then:
+          - action: script.shabbat_checklist_notify
+            data:
+              tag: shabbat_vacuum
+              title: Vacuum didn't start
+              message: The robot vacuum is offline. Start it from the app if you still want it to run.
+        else:
+          - action: vacuum.start
+            target: { entity_id: vacuum.mova_e30_ultra }

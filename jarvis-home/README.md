@@ -113,12 +113,14 @@ cd ~/jarvis/telegram-bot && npm test   # unit tests (node --test)
 
 One checklist with two front-ends, so you can use whichever you prefer:
 
-- **Home Assistant** (`homeassistant/packages/shabbat_checklist.yaml` + `lovelace-shabbat-checklist.yaml`) owns the data — a Local To-do list (`todo.shabbat_checklist`) and helpers for home/away, plata timer mode and times — and runs the plata timer itself, so the plata works even if the mini-PC is down. It can also send phone notifications with Yes/No and Night/Day/Both buttons.
-- **JARVIS** (`agents/shabbat.js`, `commands/shabbat.js`, `services/shabbat-scheduler.js`) shows the same list on Telegram with a button per item and plata mode, and edits the message in place when you tap.
+- **Home Assistant** (`homeassistant/packages/shabbat_checklist.yaml` + `lovelace-shabbat-checklist.yaml`) owns the data — a Local To-do list (`todo.shabbat_checklist`) and helpers for home/away, plata timer mode and times — and runs the plata timer itself, so the plata works even if the mini-PC is down. It can also send phone notifications with Yes / Home, no plata / Away and Night/Day/Both buttons.
+- **JARVIS** (`agents/shabbat.js`, `commands/shabbat.js`, `services/shabbat-scheduler.js`) shows the same list on Telegram with a button per item and plata mode, and edits the message in place when you tap. **⏱ Times** opens an editor with ± buttons for the plata lead before candle lighting, the night-off / day-on / day-off times, and the robot vacuum (on/off + minutes before candle lighting); it writes the HA helpers, so changes stick for future weeks (the HA dashboard card edits the same helpers).
+
+**Robot vacuum:** when `input_boolean.shabbat_vacuum` is on, HA starts `vacuum.mova_e30_ultra` (Dreame/MOVA HACS integration) at candle lighting − `input_number.shabbat_vacuum_lead_minutes`, only if you answered home; answering home up to 30 min late still starts it, later doesn't. If the vacuum is offline at start time you get a phone alert. The checklist item becomes "fill the water tank (starts HH:MM)".
 
 Flow on the day of candle lighting (Shabbat or Chag): 08:55 HA resets the list → 09:00 "home for Shabbat?" + early tasks (ice, vacuum) → candle −180 min main checklist → −45 min nudge with what's left → −15 min summary, then quiet. Answering "away" skips everything and keeps the plata off. Nothing fires while issur melacha is in effect, so a Chag running into Shabbat is asked once; at havdalah HA turns the plata off and resets the answers.
 
-`input_select.shabbat_checklist_channel` (both / telegram / ha) picks who sends the reminders; ticks sync either way. Plata modes: **night** = candle lighting − lead → night-off time, **day** = day-on → day-off, **both** = candle lighting − lead → day-off the next day; a 26 h safety cap and havdalah always turn it off. The plata item ticks itself once the plug is online and a mode is picked. Setup steps are at the top of the HA package.
+`input_select.shabbat_checklist_channel` (both / telegram / ha) picks who sends the reminders; ticks sync either way. Plata modes: **night** = candle lighting − lead → night-off time, **day** = day-on → day-off, **both** = candle lighting − lead → day-off the next day; a 26 h safety cap and havdalah always turn it off. **off** while home is a real answer ("Home, no plata", or the Off button) and ticks the plata item; until you answer, the mode is **unset** (treated as off). A timer mode ticks the item once the plug is online. Setup steps are at the top of the HA package.
 
 ## Smart Home (Phase 4)
 

@@ -15,7 +15,19 @@ export const STAGES = [
 ];
 
 export const PLATA_MODES = ['night', 'day', 'both', 'off'];
-const PLATA_LABELS = { night: 'Night', day: 'Day', both: 'Both', off: 'Off' };
+const TIMER_MODES = ['night', 'day', 'both'];
+const PLATA_LABELS = { night: 'Night', day: 'Day', both: 'Both', off: 'Off', unset: 'Not picked' };
+
+// Editable times: field -> ± step sizes (minutes). Fields with min/max are minute counts
+// (bounds match the HA input_number), the rest are HH:MM times.
+export const TIME_FIELDS = {
+  lead: { label: 'Plata on before candles', steps: [-15, -5, 5, 15], min: 0, max: 180 },
+  nightOff: { label: 'Plata night off', steps: [-30, -15, 15, 30] },
+  dayOn: { label: 'Plata day on', steps: [-30, -15, 15, 30] },
+  dayOff: { label: 'Plata day off', steps: [-30, -15, 15, 30] },
+  vacuumLead: { label: 'Vacuum before candles', steps: [-30, -15, 15, 30], min: 15, max: 360 },
+};
+const isMinutes = (field) => TIME_FIELDS[field]?.max !== undefined;
 
 const CANDLE_SENSORS = [
   'sensor.shabbat_checklist_candle_lighting',
@@ -34,6 +46,8 @@ function entities() {
     dayOn: 'input_datetime.shabbat_plata_day_on',
     dayOff: 'input_datetime.shabbat_plata_day_off',
     plug: process.env.SHABBAT_PLATA_SWITCH || 'switch.ac_plug_socket_1',
+    vacuum: 'input_boolean.shabbat_vacuum',
+    vacuumLead: 'input_number.shabbat_vacuum_lead_minutes',
     issur: 'binary_sensor.jewish_calendar_issur_melacha_in_effect',
   };
 }
@@ -136,27 +150,31 @@ async function getItems() {
 
 export async function getChecklist() {
   const e = entities();
-  const [candle, items, home, plata, channel, lead, nightOff, dayOn, dayOff, plug, issur] = await Promise.all([
+  const [candle, items, home, plata, channel, lead, nightOff, dayOn, dayOff, plug, vacuum, vacuumLead, issur] = await Promise.all([
     getCandle(), getItems(), state(e.home), state(e.plata), state(e.channel), state(e.lead),
-    state(e.nightOff), state(e.dayOn), state(e.dayOff), state(e.plug), state(e.issur),
+    state(e.nightOff), state(e.dayOn), state(e.dayOff), state(e.plug), state(e.vacuum), state(e.vacuumLead), state(e.issur),
   ]);
   if (!items || !home) {
     const missing = !items ? e.todo : e.home;
     return { ok: false, output: `Shabbat checklist isn't set up in Home Assistant (${missing} missing). See homeassistant/packages/shabbat_checklist.yaml.` };
   }
   const leadMin = Number(lead?.state);
+  const vacuumMin = Number(vacuumLead?.state);
   return {
     ok: true,
     candle,
     items,
     home: home.state,
-    plata: plata?.state || 'off',
+    plata: plata?.state || 'unset',
     channel: channel?.state || 'both',
     lead: Number.isFinite(leadMin) ? leadMin : 30,
     nightOff: hmOf(nightOff),
     dayOn: hmOf(dayOn),
     dayOff: hmOf(dayOff),
     plugOnline: !!plug && !['unavailable', 'unknown'].includes(plug.state),
+    vacuumSetUp: !!vacuum,
+    vacuumOn: vacuum?.state === 'on',
+    vacuumLead: Number.isFinite(vacuumMin) ? vacuumMin : 120,
     issur: issur?.state === 'on',
   };
 }
@@ -170,6 +188,31 @@ export const setItemDone = (uid, done) =>
   fetchHA('services/todo/update_item', 'POST', {
     entity_id: entities().todo, item: uid, status: done ? 'completed' : 'needs_action',
   });
+
+/** Shift 'HH:MM' by minutes, wrapping around midnight. */
+export function shiftTime(hmStr, minutes) {
+  const [h, m] = hmStr.split(':').map(Number);
+  const total = (((h * 60 + m + minutes) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** New value for a time field after a ± step, or null if the field has no value yet. */
+export function adjustTime(cl, field, minutes) {
+  const { min, max } = TIME_FIELDS[field];
+  if (isMinutes(field)) return Math.min(max, Math.max(min, cl[field] + minutes));
+  return cl[field] ? shiftTime(cl[field], minutes) : null;
+}
+
+export function setTime(field, value) {
+  const entity_id = entities()[field];
+  if (isMinutes(field)) return fetchHA('services/input_number/set_value', 'POST', { entity_id, value });
+  return fetchHA('services/input_datetime/set_datetime', 'POST', { entity_id, time: `${value}:00` });
+}
+
+export const setVacuum = (on) =>
+  fetchHA(`services/input_boolean/turn_${on ? 'on' : 'off'}`, 'POST', { entity_id: entities().vacuum });
+
+export const vacuumStart = (cl) => (cl.candle ? hm(new Date(cl.candle.getTime() - cl.vacuumLead * 60_000)) : null);
 
 // --- Telegram view ---
 
@@ -186,8 +229,9 @@ export function plataWindow(cl) {
 
 function plataLine(cl) {
   const window = plataWindow(cl);
-  let line = `🍲 Plata timer: <b>${PLATA_LABELS[cl.plata] || escapeHtml(cl.plata)}</b>${window ? ` (${window})` : ''}`;
-  if (cl.plata !== 'off' && !cl.plugOnline) line += '\n⚠️ The plata plug is offline. Plug it in so the timer can switch it.';
+  const note = window || (cl.plata === 'off' ? 'no plata this time' : null);
+  let line = `🍲 Plata timer: <b>${PLATA_LABELS[cl.plata] || escapeHtml(cl.plata)}</b>${note ? ` (${note})` : ''}`;
+  if (TIMER_MODES.includes(cl.plata) && !cl.plugOnline) line += '\n⚠️ The plata plug is offline. Plug it in so the timer can switch it.';
   return line;
 }
 
@@ -230,7 +274,14 @@ export function renderChecklist(cl, { stage = null, now = new Date() } = {}) {
     lines.push(`Are you home for ${label}?`);
     return {
       html: lines.join('\n'),
-      extra: { reply_markup: { inline_keyboard: [[button('🏠 Yes, home', 'sc:h:home'), button('🧳 No, away', 'sc:h:away')]] } },
+      extra: {
+        reply_markup: {
+          inline_keyboard: [
+            [button('🏠 Yes, home', 'sc:h:home'), button('🏠 Home, no plata', 'sc:h:noplata')],
+            [button('🧳 No, away', 'sc:h:away'), button('⏱ Times', 'sc:e')],
+          ],
+        },
+      },
     };
   }
 
@@ -247,6 +298,7 @@ export function renderChecklist(cl, { stage = null, now = new Date() } = {}) {
   if (stage === 'morning' && early.length) lines.push(`Start early: ${early.map((i) => escapeHtml(i.summary)).join(', ')}.`);
   if (stage === 'nudge') lines.push(`⏰ 45 minutes to candle lighting, ${left.length} left.`);
   lines.push(plataLine(cl));
+  if (cl.vacuumOn && vacuumStart(cl)) lines.push(`🧹 Robot vacuum starts <b>${vacuumStart(cl)}</b>`);
 
   const rows = [
     PLATA_MODES.map((m) => button(`${cl.plata === m ? '● ' : ''}${PLATA_LABELS[m]}`, `sc:p:${m}`)),
@@ -256,7 +308,35 @@ export function renderChecklist(cl, { stage = null, now = new Date() } = {}) {
         return data && [button(short(`${i.done ? '✅' : '⬜'} ${i.summary}${i.tag === 'auto' ? ' (auto)' : ''}`), data)];
       })
       .filter(Boolean),
-    [button('🔄 Refresh', 'sc:r'), button('🧳 Away', 'sc:h:away')],
+    [button('⏱ Times', 'sc:e'), button('🔄 Refresh', 'sc:r'), button('🧳 Away', 'sc:h:away')],
   ];
+  return { html: lines.join('\n'), extra: { reply_markup: { inline_keyboard: rows } } };
+}
+
+const signed = (n) => (n > 0 ? `+${n}` : `−${-n}`);
+
+/** Editor for plata + vacuum times; values are the HA helpers, so changes stick for future weeks. */
+export function renderTimes(cl) {
+  const onNight = cl.candle ? hm(new Date(cl.candle.getTime() - cl.lead * 60_000)) : null;
+  const start = vacuumStart(cl);
+  const value = (field) => (isMinutes(field) ? `${cl[field]} min` : cl[field] || '?');
+  const lines = [
+    '⏱ <b>Plata &amp; vacuum times</b>',
+    `🍲 Plata on <b>${cl.lead} min</b> before candle lighting${onNight ? ` (${onNight} this week)` : ''}`,
+    `🍲 Night: off at <b>${cl.nightOff || '?'}</b> · Day: on <b>${cl.dayOn || '?'}</b>, off <b>${cl.dayOff || '?'}</b>`,
+  ];
+  if (!cl.vacuumSetUp) lines.push('🧹 Robot vacuum: not set up in Home Assistant yet.');
+  else if (cl.vacuumOn) lines.push(`🧹 Robot vacuum starts <b>${cl.vacuumLead} min</b> before candle lighting${start ? ` (${start} this week)` : ''}, if you're home`);
+  else lines.push('🧹 Robot vacuum: <b>off</b>');
+  lines.push('', 'Saved for future weeks too.');
+
+  const rows = Object.entries(TIME_FIELDS)
+    .filter(([field]) => field !== 'vacuumLead' || cl.vacuumOn)
+    .flatMap(([field, { label, steps }]) => [
+      [button(`${label}: ${value(field)}`, 'sc:e')],
+      steps.map((s) => button(`${signed(s)} min`, `sc:a:${field}:${s}`)),
+    ]);
+  if (cl.vacuumSetUp) rows.push([button(cl.vacuumOn ? '🧹 Turn vacuum off' : '🧹 Turn vacuum on', `sc:v:${cl.vacuumOn ? 'off' : 'on'}`)]);
+  rows.push([button('⬅️ Back to checklist', 'sc:r')]);
   return { html: lines.join('\n'), extra: { reply_markup: { inline_keyboard: rows } } };
 }

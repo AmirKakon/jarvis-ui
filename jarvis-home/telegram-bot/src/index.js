@@ -279,7 +279,7 @@ bot.action(/^j:(.+)$/, cronRerun);
 bot.action(/^ts:(rs|ru|ls|lu|bi|bic|x):(.+)$/, troubleshootCallback);
 
 // --- Pre-Shabbat checklist callbacks ---
-bot.action(/^sc:(h|p|t|r)(?::(.+))?$/, shabbatCallback);
+bot.action(/^sc:(h|p|t|r|e|a|v)(?::(.+))?$/, shabbatCallback);
 
 // --- Self-development deploy gate callbacks ---
 bot.action(/^dep:(go|x):(.+)$/, deployCallback);

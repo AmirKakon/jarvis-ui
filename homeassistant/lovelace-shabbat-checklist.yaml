@@ -23,6 +23,13 @@ cards:
         name: Day on
       - entity: input_datetime.shabbat_plata_day_off
         name: Day off
+      - type: divider
+      - entity: input_boolean.shabbat_vacuum
+        name: Vacuum before candle lighting
+      - entity: input_number.shabbat_vacuum_lead_minutes
+        name: Vacuum start before candles
+      - entity: vacuum.mova_e30_ultra
+        name: Robot vacuum
       - entity: input_select.shabbat_checklist_channel
         name: Reminders from
   - type: todo-list
