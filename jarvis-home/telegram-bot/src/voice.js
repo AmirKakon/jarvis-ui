@@ -10,7 +10,7 @@
 //   POST /voice       — call comes in: reject unknown callers (before answering, so
 //                       they cost nothing), else "Yes, Sir?" and listen.
 //   POST /voice/turn  — Twilio's recognised speech in SpeechResult. Starts the answer
-//                       in the background; if it's ready within ~1s it is spoken at
+//                       in the background; if it's ready within ~0.4s it is spoken at
 //                       once, otherwise JARVIS says "Right, Sir." and redirects to…
 //   POST /voice/wait  — speaks the brain's own progress line ("Checking the weather,
 //                       Sir."), then "Still on it, Sir." every few seconds, until the
@@ -53,7 +53,7 @@ import { cleanForSpeech } from './alexa.js';
 
 const MAX_SPOKEN = 400;
 const MAX_CALL_MESSAGE = 500;
-const DEFAULT_TIMING = { fastMs: 1200, waitSliceMs: 7000, orphanMs: 30_000 };
+const DEFAULT_TIMING = { fastMs: 400, waitSliceMs: 7000, orphanMs: 30_000 };
 const ACKS = ['Right, Sir.', 'One moment, Sir.', 'Let me see, Sir.', 'Certainly, Sir.'];
 const STILL_WORKING = 'Still on it, Sir.';
 const DEFER_LINE = "This is taking a while, Sir. I'll send the answer to Telegram.";

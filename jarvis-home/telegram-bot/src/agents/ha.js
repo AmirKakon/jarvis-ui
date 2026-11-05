@@ -2,11 +2,17 @@ import { haikuModel, quickCallOptions } from '../models.js';
 import { responseText } from './shared.js';
 
 const CONTROLLABLE_DOMAINS = ['light', 'switch', 'fan', 'cover', 'climate', 'media_player', 'scene', 'script'];
+// Shown to the resolver as read-only context, e.g. input_select.livingroom_ac_mode
+// holds the AC's real mode while the scripts that drive it always read "off".
+const CONTEXT_DOMAINS = ['input_select'];
+const ACTIONS = ['turn_on', 'turn_off', 'toggle'];
 
-const DOMAIN_SERVICE_MAP = {
-  scene:  { toggle: 'turn_on', turn_off: 'turn_on' },
-  script: { toggle: 'turn_on', turn_off: 'turn_on' },
-};
+const RESOLVER_PROMPT = `You resolve Home Assistant commands. Given a user command and the entity list ("entity_id | name | current state"), return ONLY a JSON object {"action": "turn_on" | "turn_off" | "toggle", "entity_id": "..."}. If no entity matches, return {"error": "reason"}.
+Rules:
+- Prefer a device entity (switch, light, climate, fan, cover, media_player) over a script, and a script over a scene.
+- Scenes and scripts can only be RUN; they have no on/off state, and running one never reverses it. To switch something off with a script or scene, pick the one whose name says off, with action "turn_on".
+- A script's state "off" only means it isn't running right now; it says nothing about the device it controls.
+- "Current modes" shows the real state of devices driven by scripts; use it when the command depends on it ("again", "if it's off").`;
 
 export async function fetchHA(endpoint, method = 'GET', body = null) {
   const url = process.env.HA_URL;
@@ -84,23 +90,60 @@ export async function getHomeSummary(states = null) {
   return { ok: true, onByDomain, onNames, unavailable };
 }
 
-function buildEntityList(states) {
-  return states
-    .filter((s) => {
-      const domain = s.entity_id.split('.')[0];
-      return CONTROLLABLE_DOMAINS.includes(domain) && s.state !== 'unavailable';
-    })
-    .map((s) => {
-      const name = s.attributes?.friendly_name || s.entity_id.split('.')[1].replace(/_/g, ' ');
-      return `${s.entity_id} | ${name} | ${s.state}`;
-    })
+// HA_AGENT_EXCLUDE: CSV of entity ids or * patterns the resolver never sees
+// (look-alikes such as the raw IR scenes behind a script or template switch).
+export function parseExcludes(raw) {
+  return (raw || '').split(',').map((p) => p.trim()).filter(Boolean).map((p) => new RegExp(
+    `^${p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`, 'i',
+  ));
+}
+
+const entityName = (s) => s?.attributes?.friendly_name || (s ? s.entity_id.split('.')[1].replace(/_/g, ' ') : '');
+const domainOf = (entityId) => entityId.split('.')[0];
+
+function buildEntityList(states, excludes = parseExcludes(process.env.HA_AGENT_EXCLUDE)) {
+  const usable = states.filter((s) => s.state !== 'unavailable' && !excludes.some((re) => re.test(s.entity_id)));
+  const lines = (domains) => usable
+    .filter((s) => domains.includes(domainOf(s.entity_id)))
+    .map((s) => `${s.entity_id} | ${entityName(s)} | ${s.state}`)
     .join('\n');
+  return { controllable: lines(CONTROLLABLE_DOMAINS), context: lines(CONTEXT_DOMAINS) };
+}
+
+// The resolver sometimes wraps its JSON in prose or code fences.
+export function parseResolution(text) {
+  if (!text) return null;
+  const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+  for (const candidate of [cleaned, cleaned.match(/\{[\s\S]*\}/)?.[0]]) {
+    if (!candidate) continue;
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {
+      // not JSON — try the next candidate
+    }
+  }
+  return null;
+}
+
+// Scenes and scripts can only be run. Running one for "turn off" used to switch
+// things ON (e.g. the AC's "Turn on … Cold" scene), so an off/toggle request may
+// only run a scene or script whose own name says off/toggle.
+export function serviceFor(entityId, action, name = '') {
+  const domain = domainOf(entityId);
+  if (domain !== 'scene' && domain !== 'script') return { service: action };
+  const label = `${entityId} ${name}`.toLowerCase();
+  if (action === 'turn_on') return { service: 'turn_on' };
+  if (action === 'turn_off' && /(^|[^a-z])off([^a-z]|$)/.test(label)) return { service: 'turn_on' };
+  if (action === 'toggle' && label.includes('toggle')) return { service: 'turn_on' };
+  return { error: `I didn't run "${name || entityId}": it's a ${domain}, so it can't turn anything off.` };
 }
 
 async function resolveEntity(command, entityList) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
+  const context = entityList.context ? `\n\nCurrent modes (read-only, cannot be controlled):\n${entityList.context}` : '';
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -113,10 +156,10 @@ async function resolveEntity(command, entityList) {
         model: haikuModel(),
         ...quickCallOptions(haikuModel()),
         max_tokens: 384,
-        system: `You resolve Home Assistant commands. Given a user command and entity list, return ONLY a JSON object with "action" (turn_on, turn_off, or toggle) and "entity_id". If the command is ambiguous, pick the most likely match. If no entity matches, return {"error": "reason"}.`,
+        system: RESOLVER_PROMPT,
         messages: [{
           role: 'user',
-          content: `Command: "${command}"\n\nAvailable entities:\n${entityList}`,
+          content: `Command: "${command}"\n\nAvailable entities:\n${entityList.controllable}${context}`,
         }],
       }),
       signal: AbortSignal.timeout(15_000),
@@ -128,12 +171,10 @@ async function resolveEntity(command, entityList) {
       return null;
     }
 
-    const data = await res.json();
-    const text = responseText(data);
-    if (!text) return null;
-
-    const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    return JSON.parse(cleaned);
+    const text = responseText(await res.json());
+    const parsed = parseResolution(text);
+    if (!parsed) console.error(`[ha] unreadable resolver reply for "${command.slice(0, 80)}": ${(text || '').slice(0, 300)}`);
+    return parsed;
   } catch (err) {
     console.error('[ha] Entity resolution failed:', err.message);
     return null;
@@ -147,7 +188,7 @@ export async function resolveAndExecute(command) {
   }
 
   const entityList = buildEntityList(statesResult.data);
-  if (!entityList) {
+  if (!entityList.controllable) {
     return { ok: false, output: 'No controllable entities found in Home Assistant.' };
   }
 
@@ -157,29 +198,36 @@ export async function resolveAndExecute(command) {
   }
 
   if (resolved.error) {
+    console.log(`[ha] "${command.slice(0, 80)}" → no match: ${String(resolved.error).slice(0, 120)}`);
     return { ok: false, output: `Could not match: ${resolved.error}` };
   }
 
-  const { action, entity_id } = resolved;
-  if (!action || !entity_id) {
+  const { action, entity_id: entityId } = resolved;
+  const listed = typeof entityId === 'string'
+    && entityList.controllable.split('\n').some((line) => line.startsWith(`${entityId} |`));
+  if (!ACTIONS.includes(action) || !listed) {
+    console.error(`[ha] "${command.slice(0, 80)}" → invalid pick ${JSON.stringify(resolved).slice(0, 200)}`);
     return { ok: false, output: 'Could not determine the action or entity from the command.' };
   }
 
-  const domain = entity_id.split('.')[0];
-  const resolvedAction = DOMAIN_SERVICE_MAP[domain]?.[action] || action;
+  const domain = domainOf(entityId);
+  const friendlyName = entityName(statesResult.data.find((s) => s.entity_id === entityId)) || entityId;
+  const { service, error } = serviceFor(entityId, action, friendlyName);
+  console.log(`[ha] "${command.slice(0, 80)}" → ${entityId} (${action}${service ? ` → ${domain}.${service}` : ', refused'})`);
+  if (error) return { ok: false, output: error };
 
-  const serviceResult = await fetchHA(`services/${domain}/${resolvedAction}`, 'POST', { entity_id });
+  const serviceResult = await fetchHA(`services/${domain}/${service}`, 'POST', { entity_id: entityId });
   if (!serviceResult.ok) {
-    return { ok: false, output: `Failed to ${resolvedAction} ${entity_id}: ${serviceResult.output}` };
+    return { ok: false, output: `Failed to ${service} ${entityId}: ${serviceResult.output}` };
   }
-
-  const friendlyName = statesResult.data.find((s) => s.entity_id === entity_id)
-    ?.attributes?.friendly_name || entity_id;
 
   return {
     ok: true,
-    output: `${friendlyName} — ${resolvedAction} executed.`,
-    entity: entity_id,
-    action: resolvedAction,
+    output: `${friendlyName} — ${service} executed.`,
+    entity: entityId,
+    action: service,
   };
 }
+
+// Exported for unit testing.
+export const _internal = { buildEntityList };

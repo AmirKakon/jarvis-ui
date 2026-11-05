@@ -1,0 +1,41 @@
+# One "Living Room AC" switch on top of the IR scenes + scripts in scripts.yaml.
+#
+# Why: the AC is driven by three IR scenes (turn_on_livingroom_ac,
+# turn_on_livingroom_ac_heat, turn_off_livingroom_ac) wrapped by scripts that
+# also record the mode in input_select.livingroom_ac_mode. JARVIS used to see
+# seven look-alike entities and, for "turn on the AC", picked the raw scene
+# "Turn on Livingroom AC Cold" — the AC came on but the mode stayed "off", which
+# broke the Smart Toggle and the dashboard.
+#
+# This switch always goes through the scripts, and its state IS the recorded
+# mode, so it is right whatever turned the AC on (as long as it was a script):
+#   on  → heat when it's below 22° outside, else cool (same rule as the Smart Toggle)
+#   off → script.livingroom_ac_off
+#
+# JARVIS is pointed at it by hiding the look-alikes from its HA agent
+# (HA_AGENT_EXCLUDE in ~/jarvis/.env, see jarvis-home/env.example). The scenes
+# and scripts stay in HA for dashboards and automations; "heat" / "cool"
+# requests still reach script.livingroom_ac_heat / script.livingroom_ac_cool.
+#
+# Setup: copy to /config/packages/livingroom_ac.yaml and restart HA. The new
+# entity is switch.living_room_ac.
+
+template:
+  - switch:
+      - name: Living Room AC
+        unique_id: livingroom_ac_switch
+        icon: mdi:air-conditioner
+        state: "{{ states('input_select.livingroom_ac_mode') in ['cool', 'heat'] }}"
+        availability: "{{ has_value('input_select.livingroom_ac_mode') }}"
+        turn_on:
+          - if:
+              - condition: numeric_state
+                entity_id: weather.forecast_home_2
+                attribute: temperature
+                below: 22
+            then:
+              - action: script.livingroom_ac_heat
+            else:
+              - action: script.livingroom_ac_cool
+        turn_off:
+          - action: script.livingroom_ac_off

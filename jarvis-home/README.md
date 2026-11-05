@@ -131,6 +131,11 @@ Two-tier integration with Home Assistant:
 | **Free** | HA-native automations (presence, time, sensors) — run on HA 24/7 | $0 |
 | **Hybrid** | `/ha automate` and `/ha scene` — Claude designs once, HA runs forever | One-time AI call |
 
+**"Turn on the AC" and other device commands** go to the HA agent (`telegram-bot/src/agents/ha.js`). A small model picks one entity and `turn_on` / `turn_off` / `toggle` from a list of lights, switches, fans, covers, climate, media players, scenes and scripts, with `input_select` helpers shown as read-only "current modes".
+- **Scenes and scripts can only be run.** "Turn off" may only run a scene or script whose name says off; anything else is refused instead of being run. This used to turn the AC on when asked to turn it off.
+- **Hide look-alikes** with `HA_AGENT_EXCLUDE` (entity ids or `*` patterns). The living-room AC is one `switch.living_room_ac` (`homeassistant/packages/livingroom_ac.yaml`) built on the IR scripts, with the raw scenes hidden from the agent.
+- **Every decision is logged:** `[ha] "turn on the AC" → switch.living_room_ac (turn_on → switch.turn_on)`, plus the raw reply when the model's answer can't be read. To see what it picked: `journalctl --user -u jarvis-telegram-bot | grep -F '[ha]'`.
+
 ## Media Downloads (Phase 5)
 
 Torrent-based media downloads with smart file organization:
@@ -264,7 +269,7 @@ caller → Twilio number → https://kakischer.duckdns.org:20443/voice (nginx) �
 ```
 
 - **A call is a conversation.** JARVIS says "Yes, Sir?", answers each sentence and keeps listening. Talking over a reply interrupts it. Silence gets one "Anything else, Sir?", then the call ends. "Bye", "thanks", "that's it" or "that will be all" end it at once; "no" or "nothing" end it only as an answer to "Anything else, Sir?".
-- **No dead air.** Questions are answered in voice mode (the brain keeps replies to a sentence or two). If the answer isn't ready within about a second, JARVIS says "Right, Sir.", then the brain's own progress line ("Checking the weather, Sir."), then "Still on it, Sir." every few seconds (`/voice/wait` redirects, each well under Twilio's 15 s limit). After `VOICE_MAX_TURN_MS` (40 s) the answer goes to Telegram instead.
+- **No dead air.** Questions are answered in voice mode (the brain keeps replies to a sentence or two). If the answer isn't ready within about 0.4 s, JARVIS says "Right, Sir.", then the brain's own progress line ("Checking the weather, Sir."), then "Still on it, Sir." every few seconds (`/voice/wait` redirects, each well under Twilio's 15 s limit). After `VOICE_MAX_TURN_MS` (40 s) the answer goes to Telegram instead.
 - **Telegram for the rest.** Answers over ~400 characters are cut at a sentence and sent to Telegram in full (📞), as are background jobs and answers that finish after you hang up. Each turn logs `[voice] answered in … ms (plan … ms, … wait(s))`.
 - **JARVIS calls you.** `POST /voice/call {"message": "…"}` (bearer token, LAN only) rings `VOICE_CALL_TO`, says the message, then listens, and the brain knows what it called about. A copy goes to Telegram; at most one call per 5 minutes. Home Assistant uses it through `homeassistant/packages/jarvis_call.yaml` (`script.jarvis_call_me`).
 - **Security.** Every webhook must carry a valid `X-Twilio-Signature`. Only `VOICE_ALLOWED_CALLERS` are answered; other numbers are rejected before pickup, so they cost nothing. Caller ID can be spoofed, so treat a call like any other surface that can control the house.
