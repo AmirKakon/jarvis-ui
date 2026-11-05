@@ -64,6 +64,8 @@ async function resolveCalendarEntities(states) {
     .map((s) => s.entity_id);
 }
 
+const isWorkoutCalendar = (entity) => entity.includes('workout');
+
 const eventTag = (entity) => {
   if (entity.includes('birthday')) return '🎂 ';
   if (entity.includes('holiday')) return '🇮🇱 ';
@@ -122,19 +124,25 @@ export async function getTodayCalendar(states = null) {
   const res = await fetchCalendarRange(start, end, states);
   if (!res.ok) return res;
 
-  if (!res.events.length) return { ok: true, text: null }; // nothing scheduled today
+  // Planned workouts (e.g. Garmin "Scheduled workouts" calendar) get their own section.
+  const fmt = (events) => {
+    if (!events.length) return null;
+    return events
+      .slice()
+      .sort((a, b) => (a.allDay === b.allDay ? a.sortKey - b.sortKey : a.allDay ? -1 : 1))
+      .slice(0, 8)
+      .map((e) => {
+        const when = e.allDay ? 'all-day' : e.time;
+        return `   • <b>${when}</b> ${eventTag(e.entity)}${escapeHtml(e.summary)}`;
+      })
+      .join('\n');
+  };
 
-  const enriched = res.events
-    .slice()
-    .sort((a, b) => (a.allDay === b.allDay ? a.sortKey - b.sortKey : a.allDay ? -1 : 1))
-    .slice(0, 8);
-
-  const lines = enriched.map((e) => {
-    const when = e.allDay ? 'all-day' : e.time;
-    return `   • <b>${when}</b> ${eventTag(e.entity)}${escapeHtml(e.summary)}`;
-  });
-
-  return { ok: true, text: lines.join('\n') };
+  return {
+    ok: true,
+    text: fmt(res.events.filter((e) => !isWorkoutCalendar(e.entity))),
+    workouts: fmt(res.events.filter((e) => isWorkoutCalendar(e.entity))),
+  };
 }
 
 // ---------------------------------------------------------------------------

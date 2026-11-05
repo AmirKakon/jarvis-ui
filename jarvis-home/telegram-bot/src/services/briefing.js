@@ -121,6 +121,12 @@ export async function buildBriefing(chatId) {
     lines.push(calendar.text);
   }
 
+  if (calendar.ok && calendar.workouts) {
+    lines.push('');
+    lines.push('<b>Today\u2019s Workouts</b>');
+    lines.push(calendar.workouts);
+  }
+
   if (reminders) {
     lines.push('');
     lines.push('<b>Today\u2019s Reminders</b>');
