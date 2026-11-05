@@ -1,0 +1,73 @@
+# Have JARVIS phone you when something needs your attention now.
+#
+# JARVIS rings your phone (so the Gear S rings too), says the message, then
+# listens, so you can ask about it or give an order on the spot ("close it",
+# "show me the camera"). A copy of the message goes to Telegram in case you miss
+# the call. The bot places at most one call per 5 minutes (VOICE_CALL_COOLDOWN_MS),
+# so a noisy trigger can't run up a bill.
+#
+# One-time setup:
+# 1. Bot: set TWILIO_ACCOUNT_SID and TWILIO_FROM_NUMBER in ~/jarvis/.env (see
+#    jarvis-home/env.example) and restart it; the log lists POST /voice/call.
+# 2. secrets.yaml: jarvis_ask_auth: "Bearer <ASK_HTTP_TOKEN>" (already there if you
+#    use jarvis_watch.yaml).
+# 3. Copy this file to /config/packages/jarvis_call.yaml and restart HA.
+# 4. Test: Developer tools → Actions → "Jarvis - call me", message
+#    "This is a test call, Sir."
+#
+# Use script.jarvis_call_me from any automation. Keep it for things worth a phone
+# call; everything else belongs in a Telegram message.
+
+rest_command:
+  jarvis_call:
+    url: http://192.168.68.124:20010/voice/call
+    method: POST
+    headers:
+      Authorization: !secret jarvis_ask_auth
+    content_type: application/json
+    payload: '{{ {"message": message | string} | to_json }}'
+    timeout: 15
+
+script:
+  jarvis_call_me:
+    alias: Jarvis - call me
+    description: JARVIS phones you, says the message, then listens for your reply.
+    icon: mdi:phone-ring
+    mode: queued
+    fields:
+      message:
+        description: What JARVIS says when you pick up.
+        example: The front gate has been open for ten minutes, Sir. Shall I close it?
+        required: true
+        selector:
+          text:
+    sequence:
+      - action: rest_command.jarvis_call
+        data:
+          message: "{{ message }}"
+        response_variable: call
+        continue_on_error: true
+      # 429 means a call was placed less than 5 minutes ago; the Telegram copy of
+      # that one is already there, so only real failures are reported.
+      - if:
+          - condition: template
+            value_template: "{{ call is not defined or call.status | default(0) not in [202, 429] }}"
+        then:
+          - action: notify.mobile_app_amir_phone
+            data:
+              title: Jarvis
+              message: "Couldn't place the call: {{ message }}"
+
+# Example — adjust the entity id, then uncomment:
+# automation:
+#   - id: jarvis_call_gate_left_open
+#     alias: Jarvis - call me when the gate is left open
+#     triggers:
+#       - trigger: state
+#         entity_id: binary_sensor.front_gate
+#         to: "on"
+#         for: "00:10:00"
+#     actions:
+#       - action: script.jarvis_call_me
+#         data:
+#           message: The front gate has been open for ten minutes, Sir. Shall I close it?

@@ -76,3 +76,16 @@ test('POST /voice is routed to the phone handler and answers with TwiML', async 
     for (const k of ['TWILIO_AUTH_TOKEN', 'VOICE_PUBLIC_URL', 'VOICE_ALLOWED_CALLERS']) delete process.env[k];
   }
 });
+
+test('POST /voice/call needs the bearer token and reports when calls out are not configured', async () => {
+  const call = (auth) => fetch(`${baseUrl}/voice/call`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
+    body: JSON.stringify({ message: 'The gate is open, Sir.' }),
+  });
+  assert.equal((await call(null)).status, 401);
+  assert.equal((await call('Bearer nope')).status, 401);
+  const res = await call(`Bearer ${TOKEN}`);
+  assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { ok: false, error: 'outbound calls not configured' });
+});

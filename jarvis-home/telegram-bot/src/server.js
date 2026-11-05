@@ -20,8 +20,10 @@
 //   POST /alexa                  — Alexa custom-skill endpoint (see alexa.js).
 //                                  Auth is the Alexa request signature, NOT the
 //                                  bearer token — Alexa cannot send one.
-//   POST /voice, /voice/turn     — Twilio phone-call webhooks (see voice.js). Auth is the
-//                                  Twilio request signature plus a caller allow list.
+//   POST /voice, /voice/turn, /voice/wait — Twilio phone-call webhooks (see voice.js).
+//                                  Auth is the Twilio request signature plus a caller allow list.
+//   POST /voice/call             — { message }: JARVIS phones the owner, says it, then listens
+//                                  (same bearer token; one call per VOICE_CALL_COOLDOWN_MS).
 //
 // The /v1 shim is chat-only (no tools). HA Assist points here; JARVIS owns all
 // routing and device control via askCore. Long delegate/complex-MCP jobs are
@@ -42,7 +44,7 @@ import { askCore } from './brain.js';
 import { pushWebcamToTelegram } from './commands/cam.js';
 import { handleAlexaRequest, answerForVoice } from './alexa.js';
 import { MAX_INJECT_TEXT } from './telegram-inject.js';
-import { handleVoiceRequest, voiceEnabled } from './voice.js';
+import { handleVoiceRequest, voiceEnabled, placeCall } from './voice.js';
 
 const MAX_BODY = 32 * 1024; // 32 KB — plenty for a text prompt
 const MODEL_ID = 'jarvis';
@@ -367,6 +369,21 @@ async function handleVoice(req, res, notifyTelegram) {
   }
 }
 
+async function handleVoiceCall(req, res, token, notifyTelegram) {
+  if (!authorized(req, token)) return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+
+  let body;
+  try {
+    const raw = await readBody(req, MAX_BODY);
+    body = raw ? JSON.parse(raw) : {};
+  } catch {
+    return sendJson(res, 400, { ok: false, error: 'invalid body' });
+  }
+
+  const { status, body: out } = await placeCall(body.message, { notifyTelegram });
+  return sendJson(res, status, out);
+}
+
 async function handleRequest(req, res, token, { onTelegramText, notifyTelegram }) {
   try {
     const path = (req.url || '').split('?')[0];
@@ -380,7 +397,11 @@ async function handleRequest(req, res, token, { onTelegramText, notifyTelegram }
       return handleAlexa(req, res);
     }
 
-    if (req.method === 'POST' && (path === '/voice' || path === '/voice/turn')) {
+    if (req.method === 'POST' && path === '/voice/call') {
+      return handleVoiceCall(req, res, token, notifyTelegram);
+    }
+
+    if (req.method === 'POST' && (path === '/voice' || path === '/voice/turn' || path === '/voice/wait')) {
       return handleVoice(req, res, notifyTelegram);
     }
 
@@ -438,9 +459,9 @@ export function startAskServer({ onTelegramText = null, notifyTelegram = null, p
   server.on('error', (err) => console.error('[ask-http] server error:', err.message));
   server.listen(port, bind, () => {
     const routes = ['GET /health'];
-    if (token) routes.push('POST /ask', 'POST /v1/chat/completions', 'POST /cam/snapshot', 'POST /telegram/say', 'GET /v1/models');
+    if (token) routes.push('POST /ask', 'POST /v1/chat/completions', 'POST /cam/snapshot', 'POST /telegram/say', 'POST /voice/call', 'GET /v1/models');
     if (alexaEnabled) routes.push('POST /alexa');
-    if (phoneEnabled) routes.push('POST /voice', 'POST /voice/turn');
+    if (phoneEnabled) routes.push('POST /voice', 'POST /voice/turn', 'POST /voice/wait');
     console.log(`[ask-http] Listening on http://${bind}:${port} (${routes.join(', ')})`);
   });
   return server;

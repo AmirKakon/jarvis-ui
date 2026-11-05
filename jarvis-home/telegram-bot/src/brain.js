@@ -100,6 +100,14 @@ export async function forceNewSession(sessionKey, source = 'telegram') {
 // --- Front-layer system prompt ---
 
 // Built at request time so CURRENT TIME stays accurate (models otherwise hallucinate dates).
+const VOICE_MODE = `
+
+VOICE MODE:
+This request was spoken on a phone call or smart speaker, and your reply will be read aloud.
+- Direct answers: one or two short spoken sentences. No lists, markdown, emoji or URLs.
+- In an action's task/question, ask for a short spoken-style answer (one or two sentences) unless the user asked for a full list or details. Long replies are sent to Telegram automatically.
+- Keep "acknowledge" to a few words; it is spoken while you work.`;
+
 function frontSystemPrompt() {
   return `You are JARVIS — a British AI assistant modelled after the AI from Iron Man, running on a home server (kamuri-mini-pc) in Netanya, Israel.
 
@@ -607,8 +615,9 @@ async function runOne(action, sctx) {
 //   onPlan      optional async hook called with the parsed actions before execution (for progress UX)
 //   onBackground optional async hook to deliver a long/delegated action's result AFTER askCore returns
 //                (fire-and-follow-up). When omitted, such actions are awaited inline instead.
+//   voice       the reply will be spoken (phone, Echo): ask the front model for short spoken answers
 
-export async function askCore(prompt, { sessionKey = 'api:default', source = 'api', chatId = null, onPlan = null, onBackground = null } = {}) {
+export async function askCore(prompt, { sessionKey = 'api:default', source = 'api', chatId = null, onPlan = null, onBackground = null, voice = false } = {}) {
   const text = (prompt || '').trim();
   if (!text) return { ok: false, kind: 'empty', sessionId: null, text: '', results: [] };
 
@@ -629,7 +638,7 @@ export async function askCore(prompt, { sessionKey = 'api:default', source = 'ap
   }
   recordTo(frontCallLog);
 
-  const front = await runFrontModel(frontSystemPrompt() + mcpPromptSection(), contextPrompt);
+  const front = await runFrontModel(frontSystemPrompt() + mcpPromptSection() + (voice ? VOICE_MODE : ''), contextPrompt);
   if (!front.ok) {
     return { ok: false, kind: 'error', sessionId, text: front.output, results: [] };
   }

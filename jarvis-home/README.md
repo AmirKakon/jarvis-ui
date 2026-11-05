@@ -263,17 +263,19 @@ caller → Twilio number → https://kakischer.duckdns.org:20443/voice (nginx) �
        ← Twilio <Say> reply, then <Gather> listens again ←
 ```
 
-- **A call is a conversation.** JARVIS says "Yes, Sir?", answers each sentence and keeps listening. Talking over a reply interrupts it. Silence gets one "Anything else, Sir?", then the call ends; "goodbye" or "that will be all" ends it at once.
-- **Slow or long answers.** Twilio waits about 15 s per turn, so a turn answers within `VOICE_INLINE_BUDGET_MS` (10 s). Slower answers are acknowledged and arrive in Telegram (📞), which also shows on the watch. Answers over ~700 characters are cut at a sentence and sent to Telegram in full.
+- **A call is a conversation.** JARVIS says "Yes, Sir?", answers each sentence and keeps listening. Talking over a reply interrupts it. Silence gets one "Anything else, Sir?", then the call ends. "Bye", "thanks", "that's it" or "that will be all" end it at once; "no" or "nothing" end it only as an answer to "Anything else, Sir?".
+- **No dead air.** Questions are answered in voice mode (the brain keeps replies to a sentence or two). If the answer isn't ready within about a second, JARVIS says "Right, Sir.", then the brain's own progress line ("Checking the weather, Sir."), then "Still on it, Sir." every few seconds (`/voice/wait` redirects, each well under Twilio's 15 s limit). After `VOICE_MAX_TURN_MS` (40 s) the answer goes to Telegram instead.
+- **Telegram for the rest.** Answers over ~400 characters are cut at a sentence and sent to Telegram in full (📞), as are background jobs and answers that finish after you hang up. Each turn logs `[voice] answered in … ms (plan … ms, … wait(s))`.
+- **JARVIS calls you.** `POST /voice/call {"message": "…"}` (bearer token, LAN only) rings `VOICE_CALL_TO`, says the message, then listens, and the brain knows what it called about. A copy goes to Telegram; at most one call per 5 minutes. Home Assistant uses it through `homeassistant/packages/jarvis_call.yaml` (`script.jarvis_call_me`).
 - **Security.** Every webhook must carry a valid `X-Twilio-Signature`. Only `VOICE_ALLOWED_CALLERS` are answered; other numbers are rejected before pickup, so they cost nothing. Caller ID can be spoofed, so treat a call like any other surface that can control the house.
 - **Shared session.** Map `phone:*` to yourself in `JARVIS_IDENTITY_MAP` to carry a call on in Telegram.
 
 Setup:
-1. Add `TWILIO_AUTH_TOKEN`, `VOICE_PUBLIC_URL` and `VOICE_ALLOWED_CALLERS` to `~/jarvis/.env` (see `env.example`) and restart the bot. The log shows `POST /voice` in its route list.
-2. Deploy the updated `alexa/nginx-jarvis-alexa.conf` (it now also proxies `/voice`) and reload nginx.
+1. Add `TWILIO_AUTH_TOKEN`, `VOICE_PUBLIC_URL` and `VOICE_ALLOWED_CALLERS` to `~/jarvis/.env` (see `env.example`), plus `TWILIO_ACCOUNT_SID` and `TWILIO_FROM_NUMBER` for calls out, and restart the bot. The log shows `POST /voice` and `POST /voice/call` in its route list.
+2. Deploy the updated `alexa/nginx-jarvis-alexa.conf` (it proxies `/voice`, `/voice/turn` and `/voice/wait`) and reload nginx. The router must forward TCP 20443 to the mini-PC.
 3. In the Twilio Console: Phone Numbers → your number → Voice configuration → "A call comes in" → Webhook `https://kakischer.duckdns.org:20443/voice`, HTTP POST.
 
-Costs (Israel, Aug 2026): local number $5.50/month, receiving calls $0.0107/min, speech recognition $0.02 per turn.
+Costs (Israel, Aug 2026): local number $5.50/month, receiving calls $0.0107/min, calling a mobile $0.0646/min, speech recognition $0.02 per turn.
 
 ## Network & Security (Phase 7)
 
