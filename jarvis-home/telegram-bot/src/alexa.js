@@ -52,7 +52,7 @@ function inlineBudgetMs() {
 
 // --- Text shaping (markdown/HTML → plain speech) ---
 
-function cleanForSpeech(input) {
+export function cleanForSpeech(input) {
   if (!input) return '';
   let t = String(input);
   t = t.replace(/```[\s\S]*?```/g, ' ');            // fenced code blocks
@@ -158,27 +158,32 @@ function hasBackgroundJob(result) {
 
 const DEFERRED_ACK = "Right away, Sir — I'll speak the answer in just a moment.";
 
-// Answer within a voice assistant's reply window, or acknowledge now and speak
-// the finished answer on the Echo via Home Assistant. Shared by POST /alexa and
-// by POST /ask when the Alexa Lambda sets announceIfSlow. `budgetMs` can only
-// shorten the window (callers with network overhead need a tighter budget).
-// `deviceId` is the Echo that heard the request, so the announcement plays there.
-// Returns { text, deferred } — deferred means the real answer will be announced.
-export async function answerForVoice(query, sessionKey, { budgetMs, source = 'alexa', deviceId = null } = {}) {
-  const budget = Math.max(1000, Math.min(Number(budgetMs) || inlineBudgetMs(), inlineBudgetMs()));
+// Answer within a voice assistant's reply window, or acknowledge now and deliver
+// the finished answer later. Shared by POST /alexa, by POST /ask when the Alexa
+// Lambda sets announceIfSlow, and by the phone surface (voice.js). `budgetMs` can
+// only shorten the window up to `ceilingMs` (default ALEXA_INLINE_BUDGET_MS).
+// `deliver(text)` sends a late answer; by default it is spoken on the Echo that
+// heard the request (`deviceId`) via Home Assistant.
+// Returns { text, deferred } — deferred means the real answer will be delivered.
+export async function answerForVoice(query, sessionKey, {
+  budgetMs, ceilingMs, source = 'alexa', deviceId = null, deliver = null, deferredAck = DEFERRED_ACK,
+} = {}) {
+  const ceiling = Number(ceilingMs) || inlineBudgetMs();
+  const budget = Math.max(1000, Math.min(Number(budgetMs) || ceiling, ceiling));
+  const send = deliver || ((text) => announce(text, deviceId));
   let announced = false; // guard against double delivery
 
   const askPromise = askCore(query, {
     sessionKey,
     source,
     // Slow/complex actions (cross-provider MCP, delegate) run in the background
-    // and finish after we've already replied — speak the result on the Echo.
+    // and finish after we've already replied — deliver the result late.
     onBackground: async ({ res }) => {
       announced = true;
       try {
-        await announce(res?.ok ? res.output : 'That task ran into a problem, Sir.', deviceId);
+        await send(res?.ok ? res.output : 'That task ran into a problem, Sir.');
       } catch (err) {
-        console.error('[alexa] onBackground announce error:', err?.message);
+        console.error(`[${source}] onBackground delivery error:`, err?.message);
       }
     },
   });
@@ -193,19 +198,19 @@ export async function answerForVoice(query, sessionKey, { budgetMs, source = 'al
 
   if (outcome === TIMEOUT) {
     // We couldn't answer within the voice window. Deliver the eventual answer
-    // via announce when it's ready — unless a background job already owns it.
+    // when it's ready — unless a background job already owns it.
     askPromise.then((r) => {
       if (r && !hasBackgroundJob(r) && !announced) {
-        announce(r.text || 'Done, Sir.', deviceId).catch(() => {});
+        send(r.text || 'Done, Sir.').catch(() => {});
       }
     }, () => {
-      announce('Something went wrong with that, Sir.', deviceId).catch(() => {});
+      send('Something went wrong with that, Sir.').catch(() => {});
     });
-    return { text: DEFERRED_ACK, deferred: true };
+    return { text: deferredAck, deferred: true };
   }
 
   if (outcome?.__err) {
-    console.error('[alexa] askCore error:', outcome.__err?.message);
+    console.error(`[${source}] askCore error:`, outcome.__err?.message);
     return { text: 'Something went wrong, Sir.', deferred: false };
   }
 

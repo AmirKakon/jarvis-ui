@@ -5,7 +5,7 @@
 //
 // The chat is always the bot's authorised chat — callers never choose it.
 
-import { escapeHtml } from './utils.js';
+import { escapeHtml, mdToHtml, truncate } from './utils.js';
 
 export const MAX_INJECT_TEXT = 2000;
 const COMMAND_RE = /^\/[A-Za-z0-9_]+(@[A-Za-z0-9_]+)?/;
@@ -35,4 +35,20 @@ export async function injectTelegramText(bot, chatId, text, { label = '⌚' } = 
     disable_notification: true,
   });
   await bot.handleUpdate(buildTextUpdate(chatId, echo.message_id, text));
+}
+
+const TG_SAFE_HTML = 4000;
+
+// Send JARVIS's own message (e.g. a late answer to a phone call) to the chat:
+// rendered markdown when it fits, plain text otherwise or if Telegram rejects the HTML.
+export async function sendTelegramNote(bot, chatId, text, { label = '📞' } = {}) {
+  const html = `${label} ${mdToHtml(text)}`;
+  if (html.length <= TG_SAFE_HTML) {
+    try {
+      return await bot.telegram.sendMessage(chatId, html, { parse_mode: 'HTML' });
+    } catch (err) {
+      console.warn('[telegram] HTML note rejected, sending plain text:', err.message);
+    }
+  }
+  return bot.telegram.sendMessage(chatId, truncate(`${label} ${text}`));
 }

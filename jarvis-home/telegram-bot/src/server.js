@@ -20,6 +20,8 @@
 //   POST /alexa                  — Alexa custom-skill endpoint (see alexa.js).
 //                                  Auth is the Alexa request signature, NOT the
 //                                  bearer token — Alexa cannot send one.
+//   POST /voice, /voice/turn     — Twilio phone-call webhooks (see voice.js). Auth is the
+//                                  Twilio request signature plus a caller allow list.
 //
 // The /v1 shim is chat-only (no tools). HA Assist points here; JARVIS owns all
 // routing and device control via askCore. Long delegate/complex-MCP jobs are
@@ -40,6 +42,7 @@ import { askCore } from './brain.js';
 import { pushWebcamToTelegram } from './commands/cam.js';
 import { handleAlexaRequest, answerForVoice } from './alexa.js';
 import { MAX_INJECT_TEXT } from './telegram-inject.js';
+import { handleVoiceRequest, voiceEnabled } from './voice.js';
 
 const MAX_BODY = 32 * 1024; // 32 KB — plenty for a text prompt
 const MODEL_ID = 'jarvis';
@@ -344,7 +347,27 @@ async function handleAlexa(req, res) {
   }
 }
 
-async function handleRequest(req, res, token, onTelegramText) {
+// Twilio phone-call webhooks. Authentication is the Twilio request signature
+// (verified inside handleVoiceRequest), not the bearer token.
+async function handleVoice(req, res, notifyTelegram) {
+  let raw;
+  try {
+    raw = await readBody(req, MAX_BODY);
+  } catch {
+    return sendJson(res, 413, { error: 'payload too large' });
+  }
+
+  try {
+    const { status, contentType, body } = await handleVoiceRequest({ url: req.url || '', rawBody: raw, headers: req.headers, notifyTelegram });
+    res.writeHead(status, { 'Content-Type': `${contentType}; charset=utf-8`, 'Content-Length': Buffer.byteLength(body) });
+    return res.end(body);
+  } catch (err) {
+    console.error('[ask-http] /voice:', err.message);
+    return sendJson(res, 500, { error: 'internal error' });
+  }
+}
+
+async function handleRequest(req, res, token, { onTelegramText, notifyTelegram }) {
   try {
     const path = (req.url || '').split('?')[0];
 
@@ -355,6 +378,10 @@ async function handleRequest(req, res, token, onTelegramText) {
 
     if (req.method === 'POST' && path === '/alexa') {
       return handleAlexa(req, res);
+    }
+
+    if (req.method === 'POST' && (path === '/voice' || path === '/voice/turn')) {
+      return handleVoice(req, res, notifyTelegram);
     }
 
     if (req.method === 'POST' && path === '/ask') {
@@ -387,29 +414,33 @@ async function handleRequest(req, res, token, onTelegramText) {
 // --- Lifecycle ---
 
 // Start the HTTP server. No-op (returns null) unless at least one surface is
-// enabled: ASK_HTTP_TOKEN (bearer-protected /ask + /v1 shim) or ALEXA_SKILL_ID
-// (signature-authenticated /alexa). Token-protected routes 401 when no token is
-// set, so running Alexa-only never exposes /ask unauthenticated.
+// enabled: ASK_HTTP_TOKEN (bearer-protected /ask + /v1 shim), ALEXA_SKILL_ID
+// (signature-authenticated /alexa) or TWILIO_AUTH_TOKEN + VOICE_PUBLIC_URL
+// (signature-authenticated /voice). Token-protected routes 401 when no token is
+// set, so running Alexa- or phone-only never exposes /ask unauthenticated.
 // onTelegramText(text, { label }) — injects text into the Telegram chat (backs /telegram/say).
-export function startAskServer({ onTelegramText = null, port: portOverride } = {}) {
+// notifyTelegram(text) — sends JARVIS's own message to the chat (late phone answers).
+export function startAskServer({ onTelegramText = null, notifyTelegram = null, port: portOverride } = {}) {
   if (server) return server; // idempotent — never double-listen
 
   const token = process.env.ASK_HTTP_TOKEN;
   const alexaEnabled = !!process.env.ALEXA_SKILL_ID;
-  if (!token && !alexaEnabled) {
-    console.log('[ask-http] neither ASK_HTTP_TOKEN nor ALEXA_SKILL_ID set — HTTP endpoint disabled.');
+  const phoneEnabled = voiceEnabled();
+  if (!token && !alexaEnabled && !phoneEnabled) {
+    console.log('[ask-http] none of ASK_HTTP_TOKEN, ALEXA_SKILL_ID or TWILIO_AUTH_TOKEN set — HTTP endpoint disabled.');
     return null;
   }
 
   const port = portOverride ?? (Number(process.env.ASK_HTTP_PORT) || 20010);
   const bind = process.env.ASK_HTTP_BIND || '127.0.0.1';
 
-  server = http.createServer((req, res) => handleRequest(req, res, token, onTelegramText));
+  server = http.createServer((req, res) => handleRequest(req, res, token, { onTelegramText, notifyTelegram }));
   server.on('error', (err) => console.error('[ask-http] server error:', err.message));
   server.listen(port, bind, () => {
     const routes = ['GET /health'];
     if (token) routes.push('POST /ask', 'POST /v1/chat/completions', 'POST /cam/snapshot', 'POST /telegram/say', 'GET /v1/models');
     if (alexaEnabled) routes.push('POST /alexa');
+    if (phoneEnabled) routes.push('POST /voice', 'POST /voice/turn');
     console.log(`[ask-http] Listening on http://${bind}:${port} (${routes.join(', ')})`);
   });
   return server;

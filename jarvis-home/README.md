@@ -204,10 +204,10 @@ User message → Session boundary check (30-min gap?)
 
 ### One conversation across surfaces
 
-Facts and summaries are shared by every surface. The live session is keyed per surface (`tg:<chatId>`, `alexa:<hash>`, `ha:<id>`, `api:default`) unless `JARVIS_IDENTITY_MAP` maps those keys to one user (`telegram-bot/src/identity.js`):
+Facts and summaries are shared by every surface. The live session is keyed per surface (`tg:<chatId>`, `alexa:<hash>`, `ha:<id>`, `phone:<hash>`, `api:default`) unless `JARVIS_IDENTITY_MAP` maps those keys to one user (`telegram-bot/src/identity.js`):
 
 ```
-JARVIS_IDENTITY_MAP=tg:123456789=amir,alexa:0123456789abcdef=amir,ha:*=amir
+JARVIS_IDENTITY_MAP=tg:123456789=amir,alexa:0123456789abcdef=amir,ha:*=amir,phone:*=amir
 ```
 
 Mapped keys share one `user:<id>` session, so a question asked on the Echo can be followed up in Telegram, and `/new` from any of them closes it for all. Reminders and calendar requests from Alexa or Assist fire to that user's Telegram chat (taken from their `tg:` entry); unmapped headless surfaces still reply that reminders are Telegram-only. The summary's `source` lists every surface that joined (e.g. `telegram+alexa`). Unmapped keys are logged once as `[identity] unmapped session key …`.
@@ -253,6 +253,27 @@ Run the Alembic migration (from the backend directory):
 ```bash
 cd ~/repos/jarvis-ui/backend && alembic upgrade head
 ```
+
+## Phone calls (Twilio)
+
+Call a Twilio number and talk to JARVIS. Any phone works, including the Gear S watch, which calls through the S20 and uses its own mic and speaker. Twilio turns speech into text and reads the reply aloud. The bot answers through the same `askCore` as Telegram and Alexa (`telegram-bot/src/voice.js`).
+
+```
+caller → Twilio number → https://kakischer.duckdns.org:20443/voice (nginx) → bot :20010
+       ← Twilio <Say> reply, then <Gather> listens again ←
+```
+
+- **A call is a conversation.** JARVIS says "Yes, Sir?", answers each sentence and keeps listening. Talking over a reply interrupts it. Silence gets one "Anything else, Sir?", then the call ends; "goodbye" or "that will be all" ends it at once.
+- **Slow or long answers.** Twilio waits about 15 s per turn, so a turn answers within `VOICE_INLINE_BUDGET_MS` (10 s). Slower answers are acknowledged and arrive in Telegram (📞), which also shows on the watch. Answers over ~700 characters are cut at a sentence and sent to Telegram in full.
+- **Security.** Every webhook must carry a valid `X-Twilio-Signature`. Only `VOICE_ALLOWED_CALLERS` are answered; other numbers are rejected before pickup, so they cost nothing. Caller ID can be spoofed, so treat a call like any other surface that can control the house.
+- **Shared session.** Map `phone:*` to yourself in `JARVIS_IDENTITY_MAP` to carry a call on in Telegram.
+
+Setup:
+1. Add `TWILIO_AUTH_TOKEN`, `VOICE_PUBLIC_URL` and `VOICE_ALLOWED_CALLERS` to `~/jarvis/.env` (see `env.example`) and restart the bot. The log shows `POST /voice` in its route list.
+2. Deploy the updated `alexa/nginx-jarvis-alexa.conf` (it now also proxies `/voice`) and reload nginx.
+3. In the Twilio Console: Phone Numbers → your number → Voice configuration → "A call comes in" → Webhook `https://kakischer.duckdns.org:20443/voice`, HTTP POST.
+
+Costs (Israel, Aug 2026): local number $5.50/month, receiving calls $0.0107/min, speech recognition $0.02 per turn.
 
 ## Network & Security (Phase 7)
 

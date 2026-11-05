@@ -53,3 +53,26 @@ test('POST /telegram/say accepts trimmed text and injects it with the label', as
   assert.deepEqual(await res.json(), { ok: true });
   assert.deepEqual(injected.at(-1), { text: 'next bus?', opts: { label: '📱' } });
 });
+
+test('POST /voice is routed to the phone handler and answers with TwiML', async () => {
+  const { twilioSignature } = await import('./voice.js');
+  Object.assign(process.env, {
+    TWILIO_AUTH_TOKEN: 'twilio-token', VOICE_PUBLIC_URL: 'https://jarvis.example:20443', VOICE_ALLOWED_CALLERS: '+972500000001',
+  });
+  try {
+    const params = new URLSearchParams({ CallSid: 'CA1', From: '+972500000001' });
+    const res = await fetch(`${baseUrl}/voice`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Twilio-Signature': twilioSignature('twilio-token', 'https://jarvis.example:20443/voice', params),
+      },
+      body: params.toString(),
+    });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /^text\/xml/);
+    assert.match(await res.text(), /<Gather input="speech"[^>]*><Say[^>]*>Yes, Sir\?<\/Say><\/Gather>/);
+  } finally {
+    for (const k of ['TWILIO_AUTH_TOKEN', 'VOICE_PUBLIC_URL', 'VOICE_ALLOWED_CALLERS']) delete process.env[k];
+  }
+});

@@ -12,7 +12,8 @@
 - 20005: Jarvis backend (legacy FastAPI)
 - 20006: Jarvis frontend (legacy React/nginx)
 - 20008: qBittorrent WebUI
-- 20010: JARVIS HTTP brain (`/ask`, Assist shim, `/cam/snapshot`, `/telegram/say` for the watch-SMS relay)
+- 20010: JARVIS HTTP brain (`/ask`, Assist shim, `/cam/snapshot`, `/telegram/say` for the watch-SMS relay, `/voice` Twilio phone calls)
+- 20443: nginx HTTPS (DuckDNS cert) exposing only `/alexa` and `/voice` from 20010 to the internet
 - 20011: ustreamer webcam (MJPEG stream / stills for Home Assistant). Listens on all interfaces.
 
 ## Webcam (ustreamer)
