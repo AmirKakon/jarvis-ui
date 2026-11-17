@@ -1,5 +1,6 @@
 import { runMcpAgent } from './mcp.js';
 import { resolveAndExecute } from './ha.js';
+import { cleanRoom } from './ha-rooms.js';
 import { clockContext } from '../utils.js';
 
 // Home Assistant subagent: the only route chat takes to HA. Reads, history,
@@ -27,6 +28,16 @@ const CONTROL_TOOL = {
   },
 };
 
+const CLEAN_ROOM_TOOL = {
+  name: 'clean_room',
+  description: 'Send the robot vacuum to clean one room, by the room name as the user said it (e.g. "Kitchen"). Use this for any room-cleaning request; ha_control cannot run the vacuum.',
+  input_schema: {
+    type: 'object',
+    properties: { room: { type: 'string', description: 'The room name, as the user said it' } },
+    required: ['room'],
+  },
+};
+
 function haSystemPrompt() {
   return `You are JARVIS, a British AI assistant, handling the user's Home Assistant.
 
@@ -34,7 +45,8 @@ ${clockContext()}
 
 - To change a device, scene or script, call ha_control with the user's command. Never use any other tool to change device state.
 - Use the other tools to read states, history, logs, automations, scripts, scenes and helpers, and to edit them when the user asks.
-- Report ha_control's result as it is; do not claim an action it did not report.
+- To clean a room with the vacuum, call clean_room with the room name. Never use ha_control for the vacuum.
+- Report ha_control's and clean_room's results as they are; do not claim an action they did not report.
 - Count and list from the tool results. Work out totals before you write, and never correct a number or a list mid-answer.
 - Give a short, clear final answer in British English, addressing the user as "Sir".
 - If a tool returns nothing useful, say so rather than inventing data.`;
@@ -43,7 +55,10 @@ ${clockContext()}
 export function runHaSubagent(command) {
   return runMcpAgent(command, {
     include: isHaTool,
-    localTools: [{ tool: CONTROL_TOOL, run: (input) => resolveAndExecute(String(input.command || '')) }],
+    localTools: [
+      { tool: CONTROL_TOOL, run: (input) => resolveAndExecute(String(input.command || '')) },
+      { tool: CLEAN_ROOM_TOOL, run: (input) => cleanRoom(input.room) },
+    ],
     system: haSystemPrompt(),
   });
 }
