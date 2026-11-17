@@ -162,7 +162,7 @@ async function renderOne(ctx, { key, action, res }) {
   }
 
   if (key === 'ha') {
-    await ctx.replyWithHTML(`✅ ${escapeHtml(res.output)}`);
+    await sendLong(ctx, `✅ ${mdToHtml(res.output)}`, { disable_web_page_preview: true });
   } else if (key === 'remind') {
     await ctx.replyWithHTML(`⏰ ${escapeHtml(res.output)}`);
   } else if (key === 'selfdev' && res.deploy) {
