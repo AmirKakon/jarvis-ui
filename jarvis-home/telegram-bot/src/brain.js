@@ -16,6 +16,7 @@ import { runCodeExecution } from './agents/compute.js';
 import { runResearch } from './agents/research.js';
 import { runMcpAgent } from './agents/mcp.js';
 import { mcpServerSummaries } from './services/mcp-client.js';
+import { runHaSubagent, isNonHaServer } from './agents/ha-subagent.js';
 import { runWeatherQuery } from './agents/weather.js';
 import { runJellyfinQuery } from './agents/jellyfin.js';
 import { runBusQuery } from './agents/bus.js';
@@ -23,7 +24,6 @@ import { runSelfDev } from './agents/selfdev.js';
 import { startClaudeJob, startAsyncJob } from './agents/jobs.js';
 import { frontModel, haikuModel, sonnetModel, opusModel, openaiSmallModel, quickCallOptions } from './models.js';
 import { responseText } from './agents/shared.js';
-import { resolveAndExecute } from './agents/ha.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
 import { createEvent, listEvents } from './agents/calendar.js';
 import { clockContext } from './utils.js';
@@ -141,8 +141,8 @@ When you cannot answer directly, respond with ONLY a raw JSON object — no mark
 4. Calculations, data analysis, or code tasks (math, conversions, charts, CSV analysis, programming puzzles — NO internet access):
 {"compute": true, "task": "what to calculate or generate", "acknowledge": "brief message to user"}
 
-5. Home Assistant device control (turn on/off lights, switches, fans, or other smart devices):
-{"ha": true, "command": "the full natural language command", "acknowledge": "brief message to user"}
+5. Home Assistant (turning devices, scenes or scripts on/off, and questions about Home Assistant: states, history, automations, scripts, scenes, helpers):
+{"ha": true, "command": "the full natural language command or question", "acknowledge": "brief message to user"}
 
 6. Reminders (set, list, cancel, or extend reminders — supports one-shot, recurring daily/weekly/monthly, and interval-based like "every N minutes/hours"):
 {"remind": true, "action": "set|list|cancel|extend", "text": "the user's full message", "acknowledge": "brief message to user"}
@@ -183,6 +183,7 @@ EXAMPLES:
 - User: "how's the server doing" → {"delegate": true, "task": "Run a full system health check (CPU, memory, disk, containers, failed services)", "agent": "diagnostics", "acknowledge": "Running a health check, Sir."}
 - User: "turn off the heater plug" → {"ha": true, "command": "turn off the heater plug", "acknowledge": "Switching it off now, Sir."}
 - User: "turn on the living room light" → {"ha": true, "command": "turn on the living room light", "acknowledge": "Lighting up the living room, Sir."}
+- User: "what's the state history of the bedroom light today" → {"ha": true, "command": "what's the state history of the bedroom light today", "acknowledge": "Checking the bedroom light's history, Sir."}
 - User: "remind me to check the laundry in 30 minutes" → {"remind": true, "action": "set", "text": "remind me to check the laundry in 30 minutes", "acknowledge": "Setting that reminder, Sir."}
 - User: "reminder for every 5 minutes to stretch" → {"remind": true, "action": "set", "text": "reminder for every 5 minutes to stretch", "acknowledge": "Setting that recurring reminder, Sir."}
 - User: "schedule a meeting with Dana tomorrow 3pm for an hour" → {"calendar": true, "action": "create", "text": "schedule a meeting with Dana tomorrow 3pm for an hour", "acknowledge": "Adding that to your calendar, Sir."}
@@ -235,7 +236,7 @@ RULES:
 // services/mcp-client.js). They're injected into the front prompt at runtime so
 // the router can offer their capabilities without hard-coding any provider.
 function mcpPromptSection() {
-  const servers = mcpServerSummaries();
+  const servers = mcpServerSummaries(isNonHaServer);
   if (!servers.length) return '';
   const list = servers
     .map((s) => `   • ${s.name}${s.description ? ` — ${s.description}` : ''}`)
@@ -500,7 +501,7 @@ async function runOne(action, sctx) {
         const { id, promise } = startAsyncJob({
           label,
           task,
-          run: () => runMcpAgent(task, { complex: true }),
+          run: () => runMcpAgent(task, { complex: true, include: isNonHaServer }),
         });
         promise.then(async (res) => {
           try {
@@ -516,14 +517,14 @@ async function runOne(action, sctx) {
         });
         return { key, action, res: { ok: true, output: label, background: true, jobId: id } };
       }
-      return { key, action, res: await runMcpAgent(task, { complex }) };
+      return { key, action, res: await runMcpAgent(task, { complex, include: isNonHaServer }) };
     }
     case 'jellyfin':
       return { key, action, res: await runJellyfinQuery(action.query || sctx.prompt) };
     case 'bus':
       return { key, action, res: await runBusQuery(action.question || sctx.prompt) };
     case 'ha':
-      return { key, action, res: await resolveAndExecute(action.command) };
+      return { key, action, res: await runHaSubagent(action.command) };
     case 'remind':
       if (!sctx.chatId) {
         return { key, action, res: { ok: false, output: 'Reminders are only available via Telegram from here, Sir.' } };

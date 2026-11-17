@@ -36,18 +36,20 @@ ${clockContext()}
 }
 
 function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-    }),
-  ]);
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  // Clear the timer so a finished call doesn't keep the process alive until it fires.
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 const toText = (content) =>
   (content || []).map((c) => (c?.type === 'text' ? c.text : '')).join('');
 
-export async function runMcpAgent(task, { complex = false } = {}) {
+// `include(server, tool)` narrows the MCP tools this run may use; `localTools` adds
+// in-process tools ({ tool, run }) whose run() resolves to { ok, output }.
+export async function runMcpAgent(task, { complex = false, include, localTools = [], system } = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { ok: false, output: 'ANTHROPIC_API_KEY not configured' };
 
@@ -56,9 +58,13 @@ export async function runMcpAgent(task, { complex = false } = {}) {
 
   let tools, lookup;
   try {
-    ({ tools, lookup } = await getMcpTools());
+    ({ tools, lookup } = await getMcpTools(include));
   } catch (err) {
     return { ok: false, output: `MCP connection error: ${err.message}` };
+  }
+  for (const { tool, run } of localTools) {
+    tools.push(tool);
+    lookup.set(tool.name, { local: run });
   }
   if (!tools.length) {
     return { ok: false, output: 'No MCP tools are available. Check ~/jarvis/mcp.json.' };
@@ -85,7 +91,7 @@ export async function runMcpAgent(task, { complex = false } = {}) {
           model,
           ...quickCallOptions(model),
           max_tokens: 8192,
-          system: mcpSystemPrompt(),
+          system: system || mcpSystemPrompt(),
           tools,
           messages,
         }),
@@ -124,6 +130,12 @@ export async function runMcpAgent(task, { complex = false } = {}) {
         continue;
       }
       try {
+        if (target.local) {
+          console.log(`[mcp-agent] local ${tu.name}(${JSON.stringify(tu.input || {}).slice(0, 200)})`);
+          const r = await withTimeout(target.local(tu.input || {}), TOOL_TIMEOUT_MS, tu.name);
+          results.push({ type: 'tool_result', tool_use_id: tu.id, content: String(r.output).slice(0, 8000), is_error: !r.ok });
+          continue;
+        }
         console.log(`[mcp-agent] ${target.server}.${target.tool}(${JSON.stringify(tu.input || {}).slice(0, 200)})`);
         const r = await withTimeout(
           callMcpTool(target.server, target.tool, tu.input || {}),

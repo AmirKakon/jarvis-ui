@@ -3,8 +3,9 @@
 // Connects to any number of MCP servers declared in a JSON config file
 // (default: ~/jarvis/mcp.json). Each server may be reached over HTTP
 // (Streamable HTTP, with SSE fallback) or spawned as a stdio child process.
-// Tools from every connected server are exposed to the LLM in Anthropic
-// tool format, namespaced as `<server>__<tool>` so names never collide.
+// Tools are exposed to the LLM in Anthropic tool format, namespaced as
+// `<server>__<tool>` so names never collide. Each caller passes an include(server,
+// tool) filter, so a subagent only sees the servers that belong to its role.
 //
 // Adding a new tool provider is purely a config change — no code edits.
 //
@@ -59,8 +60,10 @@ const enabledServers = () =>
   Object.entries(loadConfig().mcpServers).filter(([, c]) => c && !c.disabled);
 
 // One-line summaries for prompt injection (name + description).
-export function mcpServerSummaries() {
-  return enabledServers().map(([name, c]) => ({ name, description: c.description || '' }));
+export function mcpServerSummaries(include = () => true) {
+  return enabledServers()
+    .filter(([name]) => include(name))
+    .map(([name, c]) => ({ name, description: c.description || '' }));
 }
 
 export function hasMcpServers() {
@@ -125,9 +128,9 @@ function ensureConnected() {
 
 const sanitize = (s) => s.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-// Returns Anthropic-format tools across all servers plus a lookup map from the
-// namespaced tool name back to { server, tool } for dispatching calls.
-export async function getMcpTools() {
+// Returns Anthropic-format tools for the servers and tools `include(server, tool)`
+// accepts, plus a lookup map from the namespaced tool name back to { server, tool }.
+export async function getMcpTools(include = () => true) {
   const conns = await ensureConnected();
   const tools = [];
   const lookup = new Map();
@@ -135,6 +138,7 @@ export async function getMcpTools() {
   for (const [server, { tools: serverTools }] of conns) {
     const prefix = sanitize(server);
     for (const t of serverTools) {
+      if (!include(server, t.name)) continue;
       let fq = `${prefix}__${t.name}`;
       if (fq.length > 64) fq = fq.slice(0, 64);
       // Guard against the rare truncation collision.
