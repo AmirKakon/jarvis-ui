@@ -8,6 +8,7 @@
 import { exec } from 'node:child_process';
 import { Markup } from 'telegraf';
 import { truncate, escapeHtml, mdToHtml, sendLong, sendPhotoAlbum } from './utils.js';
+import { withReplyContext } from './reply-context.js';
 import {
   ensureSession, storeMessage, buildMemoryContext, closePool,
   extractFactsFromExchange, deduplicateFacts, storePendingBatch,
@@ -199,7 +200,8 @@ async function renderOne(ctx, { key, action, res }) {
 // --- Main chat handler: Telegram adapter over askCore ---
 
 export async function askClaude(ctx, textOverride = null) {
-  const prompt = (typeof textOverride === 'string' ? textOverride : ctx.message.text || '').trim();
+  const rawText = typeof textOverride === 'string' ? textOverride : ctx.message.text || '';
+  const prompt = withReplyContext(rawText, ctx.message?.reply_to_message).trim();
   if (!prompt) return;
 
   const chatId = String(ctx.chat?.id || 'default');
