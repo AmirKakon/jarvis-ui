@@ -419,17 +419,19 @@ async function listRange({ startISO, endISO, label }) {
     ? d.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' })
     : 'Undated';
 
-  const lines = [`📅 <b>Schedule — ${escapeHtml(label)}</b>`];
+  // Markdown, like every other agent's output: the chat renderer and /agenda
+  // convert it with mdToHtml, and voice surfaces read it as plain text.
+  const lines = [`📅 **Schedule — ${label}**`];
   let lastKey = null;
   for (const e of events) {
     const key = dayKey(e.date);
     if (key !== lastKey) {
       lines.push('');
-      lines.push(`<b>${escapeHtml(dayHeading(e.date))}</b>`);
+      lines.push(`**${dayHeading(e.date)}**`);
       lastKey = key;
     }
     const when = e.allDay ? 'all-day' : (e.time || '');
-    lines.push(`   • <b>${when}</b> ${eventTag(e.entity)}${escapeHtml(e.summary)}`);
+    lines.push(`   • **${when}** ${eventTag(e.entity)}${e.summary}`);
   }
 
   return { ok: true, output: lines.join('\n') };

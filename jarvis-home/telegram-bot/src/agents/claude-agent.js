@@ -16,7 +16,15 @@ const DESTRUCTIVE_BASH = [
   [/:\(\)\s*\{/, 'is a fork bomb'],
 ];
 
-const GIT_WRITE = /\bgit\s+(?:commit|push|reset|checkout|switch|add|rm|mv|rebase|merge|stash|clean|restore|tag|branch\s+-[dD])\b/;
+// A .env path (optionally .env.<suffix>) that isn't an *.example template.
+const ENV_PATH = String.raw`\S*\.env(?![\w.-]*example)(?:\.[\w-]+)*(?=\s|$|[;&|)])`;
+const ENV_SHELL_WRITE = [
+  new RegExp(String.raw`(?:>>?|\btee(?:\s+-a)?)\s*${ENV_PATH}`),
+  new RegExp(String.raw`\bsed\b(?=[^;&|]*\s-i)[^;&|]*\s${ENV_PATH}`),
+  new RegExp(String.raw`\b(?:cp|mv|rm|truncate|install|ln)\b[^;&|]*\s${ENV_PATH}`),
+];
+
+const GIT_WRITE =/\bgit\s+(?:commit|push|reset|checkout|switch|add|rm|mv|rebase|merge|stash|clean|restore|tag|branch\s+-[dD])\b/;
 const SERVICE_CONTROL = /\bsystemctl\s+(?:--user\s+)?(?:start|stop|restart|reload|enable|disable|kill)\b/;
 
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
@@ -48,6 +56,7 @@ export function toolGuard({ writeRoot = null, editOnly = false } = {}) {
       for (const [pattern, why] of DESTRUCTIVE_BASH) {
         if (pattern.test(command)) return deny(`the command ${why}`);
       }
+      if (ENV_SHELL_WRITE.some((p) => p.test(command))) return deny('.env files are never edited automatically');
       if (editOnly && GIT_WRITE.test(command)) return deny('git changes are made by the self-development orchestrator, not the editor');
       if (editOnly && SERVICE_CONTROL.test(command)) return deny('services are not started or stopped during a code edit');
       return {};

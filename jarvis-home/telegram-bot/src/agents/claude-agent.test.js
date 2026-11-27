@@ -37,6 +37,22 @@ test('no agent may edit a .env file; examples are fine', async () => {
   assert.equal(await decision(guard, write('/home/iot/jarvis/.env.example')), 'allow');
 });
 
+test('shell commands may read .env but not write it', async () => {
+  const guard = toolGuard();
+  for (const cmd of [
+    "echo '# test' >> ~/jarvis/.env", 'echo X=1 > .env', 'printf x | tee -a /home/iot/jarvis/.env',
+    "sed -i 's/A=1/A=2/' ~/jarvis/.env", 'cp /tmp/new ~/jarvis/.env', 'rm ~/jarvis/.env', 'mv .env.local /tmp/x && echo ok > .env.local',
+  ]) {
+    assert.equal(await decision(guard, bash(cmd)), 'deny', cmd);
+  }
+  for (const cmd of [
+    'source ~/jarvis/.env && curl -s $HA_URL/api/', '. ~/jarvis/.env', 'grep HA_URL ~/jarvis/.env',
+    'cp env.example /tmp/x', "sed -i 's/a/b/' ~/jarvis/env.example", 'echo ok > /tmp/log.txt', 'docker compose --env-file .env up -d',
+  ]) {
+    assert.equal(await decision(guard, bash(cmd)), 'allow', cmd);
+  }
+});
+
 test('self-development edits stay under the repo checkout', async () => {
   const guard = toolGuard({ writeRoot: ROOT, editOnly: true });
   assert.equal(await decision(guard, write('telegram-bot/src/agents/foo.js')), 'allow');
