@@ -121,10 +121,12 @@ if command -v node &>/dev/null; then
     mkdir -p "$SYSTEMD_USER_DIR"
     cp "$SCRIPT_DIR/telegram-bot/jarvis-telegram-bot.service" "$SYSTEMD_USER_DIR/"
 
-    # The bot shells out to the `claude` CLI, but systemd user services start
-    # with a minimal PATH that excludes nvm/npm bin dirs. Inject the dir that
-    # actually contains `claude` (resolved from the deploying user's shell) via
-    # a drop-in so the bot can find it. Drop-in survives future `cp` of the unit.
+    # The bot runs Claude Code in-process (Agent SDK, bundled binary), but the
+    # agent's Bash tool still inherits the service PATH, and systemd user
+    # services start with a minimal PATH that excludes nvm/npm bin dirs. Inject
+    # the dir that contains `claude` (resolved from the deploying user's shell)
+    # via a drop-in so tools found from an interactive shell work for the agent
+    # too. Drop-in survives future `cp` of the unit.
     DROPIN_DIR="$SYSTEMD_USER_DIR/jarvis-telegram-bot.service.d"
     CLAUDE_BIN="$(command -v claude 2>/dev/null)"
     if [ -n "$CLAUDE_BIN" ]; then
@@ -136,7 +138,7 @@ Environment=PATH=${CLAUDE_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 EOF
         echo "  PATH drop-in written (claude found at $CLAUDE_BIN)."
     else
-        echo -e "  ${YELLOW}'claude' CLI not found on PATH — bot delegation will fail until it is installed.${NC}"
+        echo -e "  ${YELLOW}'claude' CLI not found on PATH — no PATH drop-in written (the bot uses its bundled Claude Code, so delegation still works).${NC}"
     fi
 
     systemctl --user daemon-reload

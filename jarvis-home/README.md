@@ -28,6 +28,8 @@ Mobile (Telegram)                  Terminal (SSH)
                               └──────────────────┘
 ```
 
+The bot runs Claude Code in-process through the Claude Agent SDK (`telegram-bot/src/agents/claude-agent.js`), with the same `CLAUDE.md`, rules and subagents as the interactive CLI. A `PreToolUse` guard there blocks destructive shell commands (deleting `/` or home, `mkfs`, raw device writes, reboot/poweroff) and `.env` edits for every agent. For self-development it also keeps file edits inside the repo's `jarvis-home/` and blocks git writes and service start/stop.
+
 ## Components
 
 | Component | Purpose |

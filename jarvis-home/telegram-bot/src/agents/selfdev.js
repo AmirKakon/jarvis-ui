@@ -1,6 +1,6 @@
 // Self-development agent — lets JARVIS modify its own source code.
 //
-// Flow: a headless `claude` agent edits files under the repo's jarvis-home/
+// Flow: a Claude Code agent (claude-agent.js) edits files under the repo's jarvis-home/
 // directory, then this orchestrator syntax-checks the changed files, commits,
 // and pushes to the CURRENTLY CHECKED-OUT branch (whatever the server deploys
 // from). Deployment (redeploy + self-restart) is a separate, user-gated step —
@@ -17,10 +17,10 @@
 //   - Never commits straight to a protected branch without you: it commits to
 //     the current branch, but the actual deploy is behind a one-tap button.
 
-import { exec } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { run } from '../utils.js';
 import { opusModel } from '../models.js';
+import { runClaudeAgent, toolGuard } from './claude-agent.js';
 
 const SELFDEV_TIMEOUT = 15 * 60 * 1000; // 15 min — code edits are slow
 
@@ -60,26 +60,21 @@ TASK RULES:
 REQUESTED CHANGE:
 ${task}`;
 
-// Run the headless claude editor in `absDir`. Resolves { ok, output }.
-function runEditor(task, absDir) {
-  const model = selfDevModel();
-  const prompt = SELFDEV_INSTRUCTIONS(task, absDir);
-  return new Promise((resolve) => {
-    const escaped = prompt.replace(/'/g, "'\\''");
-    const cmd = `cd ${absDir} && claude --dangerously-skip-permissions --model ${model} -p '${escaped}'`;
-    exec(cmd, { timeout: SELFDEV_TIMEOUT, shell: '/bin/bash', maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) {
-        if (err.killed) {
-          const mins = Math.round(SELFDEV_TIMEOUT / 60_000);
-          resolve({ ok: false, output: `The code edit timed out after ${mins} minutes.` });
-        } else {
-          resolve({ ok: false, output: stderr?.trim() || err.message });
-        }
-      } else {
-        resolve({ ok: true, output: stdout?.trim() || '(no summary returned)' });
-      }
-    });
+// Run the Claude Code editor in `absDir`. File edits outside it, .env edits,
+// git writes and service start/stop are blocked by the tool guard, not just
+// the instructions. Resolves { ok, output }.
+async function runEditor(task, absDir) {
+  const res = await runClaudeAgent({
+    prompt: SELFDEV_INSTRUCTIONS(task, absDir),
+    model: selfDevModel(),
+    cwd: absDir,
+    timeoutMs: SELFDEV_TIMEOUT,
+    guard: toolGuard({ writeRoot: absDir, editOnly: true }),
   });
+  if (res.status === 'timeout') {
+    return { ok: false, output: `The code edit timed out after ${Math.round(SELFDEV_TIMEOUT / 60_000)} minutes.` };
+  }
+  return { ok: res.ok, output: res.ok && res.output === '(no response)' ? '(no summary returned)' : res.output };
 }
 
 // Parse `git status --porcelain` into changed file paths (repo-relative),

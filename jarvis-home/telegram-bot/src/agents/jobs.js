@@ -1,17 +1,17 @@
 // Background job runner for long-running delegated tasks.
 //
-// Delegated server ops (agents/opus.js via the front router) used to run inline
-// with a per-model timeout as short as 1 minute — anything slower (a big pull,
-// an apt upgrade, a multi-step diagnostic) was killed and the result lost. This
-// runner instead executes the headless Claude Code agent in the background with
+// Delegated server ops (via the front router) used to run inline with a
+// per-model timeout as short as 1 minute — anything slower (a big pull, an apt
+// upgrade, a multi-step diagnostic) was killed and the result lost. This runner
+// instead executes the Claude Code agent (claude-agent.js) in the background with
 // a generous ceiling and hands the result back via a promise, so:
 //   • Telegram fires-and-follows-up (immediate ack, result delivered when done)
 //   • headless callers (HTTP /ask) still await the full answer
 // Jobs are tracked in-memory so `/jobs` can report what's running.
 
-import { exec } from 'node:child_process';
 import crypto from 'node:crypto';
-import { claudeCmd } from './opus.js';
+import { runClaudeAgent } from './claude-agent.js';
+import { jarvisDir } from './opus.js';
 
 const JOB_TIMEOUT = 25 * 60 * 1000;      // 25 min — generous ceiling for slow ops
 const JOB_TTL = 6 * 60 * 60 * 1000;      // keep finished jobs 6h for /jobs history
@@ -69,25 +69,13 @@ export function startClaudeJob({ prompt, model, label, task }) {
   };
   jobs.set(id, job);
 
-  const promise = new Promise((resolve) => {
-    const { cmd, shell } = claudeCmd(prompt, model);
-    exec(cmd, { timeout: JOB_TIMEOUT, shell, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-      job.finishedAt = Date.now();
-      if (err) {
-        if (err.killed) {
-          const mins = Math.round(JOB_TIMEOUT / 60_000);
-          job.status = 'timeout';
-          job.output = `The task ran past ${mins} minutes and was stopped, Sir.`;
-        } else {
-          job.status = 'failed';
-          job.output = stderr?.trim() || err.message;
-        }
-      } else {
-        job.status = 'done';
-        job.output = stdout?.trim() || '(no response)';
-      }
-      resolve({ ok: job.status === 'done', output: job.output, status: job.status });
-    });
+  const promise = runClaudeAgent({ prompt, model, cwd: jarvisDir(), timeoutMs: JOB_TIMEOUT }).then((res) => {
+    job.finishedAt = Date.now();
+    job.status = res.status;
+    job.output = res.status === 'timeout'
+      ? `The task ran past ${Math.round(JOB_TIMEOUT / 60_000)} minutes and was stopped, Sir.`
+      : res.output;
+    return { ok: res.ok, output: job.output, status: job.status };
   });
 
   return { id, promise };
