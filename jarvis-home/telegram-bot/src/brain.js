@@ -18,7 +18,7 @@ import { runMcpAgent } from './agents/mcp.js';
 import { mcpServerSummaries } from './services/mcp-client.js';
 import { runHaSubagent, isNonHaServer } from './agents/ha-subagent.js';
 import { runWeatherQuery } from './agents/weather.js';
-import { runJellyfinQuery } from './agents/jellyfin.js';
+import { runJellyfinQuery, requestFromTool } from './agents/jellyfin.js';
 import { runBusQuery } from './agents/bus.js';
 import { runSelfDev } from './agents/selfdev.js';
 import { startClaudeJob, startAsyncJob } from './agents/jobs.js';
@@ -158,8 +158,10 @@ EXAMPLES (user message → tool call):
 - "standup every Monday at 9" → calendar(action: "create", text: "standup every Monday at 9", summary: "Standup", repeat: "weekly", weekday: 1, time: "09:00", acknowledge: "A weekly standup it is, Sir.")
 - (today is Thursday 2026-11-26) "what do I have this week" → calendar(action: "list", text: "what do I have this week", start_date: "2026-11-26", end_date: "2026-11-29", acknowledge: "Let me check your schedule, Sir.")
 - (today is Thursday 2026-11-26) "what's on Friday" → calendar(action: "list", text: "what's on Friday", start_date: "2026-11-27", end_date: "2026-11-27", acknowledge: "Checking Friday, Sir.")
-- "what should I watch tonight" → jellyfin(query: "What should I watch tonight?", acknowledge: "Let me see what's on, Sir.")
-- "do we have the movie Dune on jellyfin" → jellyfin(query: "Is the movie Dune in the library?", acknowledge: "Checking the library, Sir.")
+- "what should I watch tonight" → jellyfin(query: "What should I watch tonight?", intent: "recommend", acknowledge: "Let me see what's on, Sir.")
+- "any good comedy series to watch?" → jellyfin(query: "Recommend a comedy series", intent: "recommend", genres: ["Comedy"], item_type: "Series", acknowledge: "Let me find you something funny, Sir.")
+- "do we have the movie Dune on jellyfin" → jellyfin(query: "Is the movie Dune in the library?", intent: "search", search_term: "Dune", item_type: "Movie", acknowledge: "Checking the library, Sir.")
+- "what's new on jellyfin" → jellyfin(query: "What was recently added?", intent: "recent", acknowledge: "Checking what's new, Sir.")
 - "when is the next 65 to the train" → bus(question: "next 65 leaving to the train", acknowledge: "Checking line 65, Sir.")
 - "616 ETA coming home" → bus(question: "616 returning home", acknowledge: "Checking the 616, Sir.")
 - "add a comment at the top of scripts/samba-monitor.sh noting it self-heals mounts" → selfdev(task: "Add a comment near the top of scripts/samba-monitor.sh (right after the shebang) explaining that the script self-heals mounts before alerting", acknowledge: "Adding that note to my code, Sir.")
@@ -422,8 +424,11 @@ async function runOne(action, sctx) {
       }
       return { key, action, res: await runMcpAgent(task, { complex, include: isNonHaServer }) };
     }
-    case 'jellyfin':
-      return { key, action, res: await runJellyfinQuery(action.query || sctx.prompt) };
+    case 'jellyfin': {
+      const request = requestFromTool(action);
+      if (!request) console.log('[jellyfin] no structured intent from the router — falling back to the classifier');
+      return { key, action, res: await runJellyfinQuery(action.query || sctx.prompt, request) };
+    }
     case 'bus':
       return { key, action, res: await runBusQuery(action.question || sctx.prompt) };
     case 'ha':

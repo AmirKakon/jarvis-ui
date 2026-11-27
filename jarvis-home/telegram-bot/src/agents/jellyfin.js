@@ -167,6 +167,26 @@ const PARAMLESS_HEURISTICS = [
   [/\b(what libraries|list libraries|which libraries|my libraries)/i, 'libraries'],
 ];
 
+export const JELLYFIN_INTENTS = ['search', 'recent', 'resume', 'nextup', 'recommend', 'nowplaying', 'libraries', 'scan'];
+
+/**
+ * The jellyfin tool's structured fields (intent, search_term, genres,
+ * item_type) as { intent, searchTerm, genres, itemType }, or null when the
+ * router sent no usable intent.
+ */
+export function requestFromTool(input) {
+  const intent = String(input?.intent || '').toLowerCase();
+  if (!JELLYFIN_INTENTS.includes(intent)) return null;
+  const searchTerm = String(input.search_term || '').trim() || null;
+  if (intent === 'search' && !searchTerm && !input.genres?.length && !input.item_type) return null;
+  return {
+    intent,
+    searchTerm,
+    genres: Array.isArray(input.genres) ? input.genres.map((g) => String(g).trim()).filter(Boolean) : [],
+    itemType: input.item_type === 'Movie' || input.item_type === 'Series' ? input.item_type : null,
+  };
+}
+
 // Fallback classifier when no Anthropic key is available.
 function heuristicClassify(q) {
   const itemType = /\b(tv|show|shows|series|episode|episodes)\b/i.test(q) ? 'Series'
@@ -336,13 +356,15 @@ async function buildPosters(candidates, summaryText) {
 
 // --- Public entry point ---
 
-export async function runJellyfinQuery(question) {
+// `request` is the router's structured { intent, searchTerm, genres, itemType }
+// (requestFromTool); without it the question is classified by heuristics + Haiku.
+export async function runJellyfinQuery(question, request = null) {
   if (!token()) {
     return { ok: false, output: 'Jellyfin is not configured. Set JELLYFIN_TOKEN in ~/jarvis/.env.' };
   }
 
   const q = (question || '').trim() || 'What should I watch tonight?';
-  const { intent, searchTerm, genres = [], itemType = null } = await classify(q);
+  const { intent, searchTerm, genres = [], itemType = null } = request || await classify(q);
 
   // Action / status intents — deterministic formatting, no LLM.
   if (intent === 'scan') {

@@ -43,7 +43,7 @@ function stubFetch(t, routes) {
 }
 
 function withKeys(t, keys) {
-  const saved = { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY, OPENAI_API_KEY: process.env.OPENAI_API_KEY };
+  const saved = Object.fromEntries(Object.keys(keys).map((k) => [k, process.env[k]]));
   for (const [k, v] of Object.entries(keys)) {
     if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
@@ -149,4 +149,19 @@ test('a calendar listing with structured dates skips the range parser', async (t
   await askCore('what do I have on Friday', { sessionKey: 'api:cal-2', chatId: '42' });
 
   assert.equal(requests.filter((r) => r.url === ANTHROPIC).length, 1);
+});
+
+test('a structured jellyfin request skips the intent classifier', async (t) => {
+  withKeys(t, { ANTHROPIC_API_KEY: 'test', OPENAI_API_KEY: undefined, JELLYFIN_TOKEN: 'test', JELLYFIN_URL: 'http://jf.test' });
+  const requests = stubFetch(t, {
+    'http://jf.test/Sessions': [],
+    [ANTHROPIC]: { content: [{ type: 'tool_use', id: 't1', name: 'jellyfin', input: {
+      query: 'is anyone watching anything?', intent: 'nowplaying', acknowledge: 'Checking, Sir.',
+    } }] },
+  });
+
+  const out = await askCore('is anyone watching anything?', { sessionKey: 'api:jf-1' });
+
+  assert.equal(requests.filter((r) => r.url === ANTHROPIC).length, 1);
+  assert.equal(out.results[0].res.output, 'Nothing is playing on Jellyfin right now, Sir.');
 });
