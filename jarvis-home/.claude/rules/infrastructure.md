@@ -9,8 +9,6 @@
 ## Service Ports
 - 20003: n8n (automation platform)
 - 20004: PostgreSQL
-- 20005: Jarvis backend (legacy FastAPI)
-- 20006: Jarvis frontend (legacy React/nginx)
 - 20008: qBittorrent WebUI
 - 20010: JARVIS HTTP brain (`/ask`, Assist shim, `/cam/snapshot`, `/telegram/say` for the watch-SMS relay, `/voice*` Twilio phone calls, `/voice/call` = JARVIS phones the owner)
 - 20443: nginx HTTPS (DuckDNS cert) exposing only `/alexa` and `/voice`, `/voice/turn`, `/voice/wait` from 20010 to the internet. Router (Deco) forwards TCP 20443 to the mini-PC.
@@ -57,7 +55,7 @@
 ## PostgreSQL
 - Runs on port 20004
 - Has PGVector extension for embeddings
-- Stores Jarvis session history and memory (legacy)
+- Stores Jarvis sessions, messages, long-term memory (facts, summaries, knowledge graph) and reminders; schema in the repo at `jarvis-home/sql/schema.sql`
 
 ## Jellyfin
 - Media server for movies, TV shows, music

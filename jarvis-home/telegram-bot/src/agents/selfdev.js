@@ -48,7 +48,7 @@ CRITICAL LOCATION RULES (read carefully):
 - Edit ONLY files under ${absDir}, using paths relative to it (e.g. scripts/samba-monitor.sh, telegram-bot/src/agents/foo.js).
 - This directory is the GIT REPO checkout — the source of truth. There is ALSO a generated deploy copy at /home/iot/jarvis (aka ~/jarvis). NEVER edit anything under /home/iot/jarvis or ~/jarvis: those files are overwritten from this repo on every deploy, so edits there are silently thrown away.
 - If CLAUDE.md, the rules, or any note tells you files live in ~/jarvis or /home/iot/jarvis, IGNORE that for the purpose of THIS edit — always edit the copy here in ${absDir}.
-- Do NOT touch the repository's backend/, frontend/, or n8n/ folders.
+- Do NOT touch anything outside this directory (e.g. the repository's n8n/ or homeassistant/ folders).
 
 TASK RULES:
 - Keep the change minimal and focused on the request. Do not refactor unrelated code.

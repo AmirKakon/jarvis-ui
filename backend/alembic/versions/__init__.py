@@ -1,2 +1,0 @@
-"""Migration versions package."""
-

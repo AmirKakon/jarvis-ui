@@ -37,7 +37,7 @@ done
 
 # --- Check port-based services (not managed by systemd) ---
 # Format: "name|port|check_method" (http = curl, tcp = port open check)
-PORT_SERVICES="n8n|20003|http PostgreSQL|20004|tcp Jarvis-Backend|20005|http Jarvis-Frontend|20006|http"
+PORT_SERVICES="n8n|20003|http PostgreSQL|20004|tcp"
 for ENTRY in $PORT_SERVICES; do
     NAME=$(echo "$ENTRY" | cut -d'|' -f1)
     PORT=$(echo "$ENTRY" | cut -d'|' -f2)
@@ -84,8 +84,8 @@ if [ -n "$UNHEALTHY" ]; then
     done <<< "$UNHEALTHY"
 fi
 
-# --- Auto-restart known-safe containers ---
-SAFE_RESTART="jarvis-backend jarvis-frontend"
+# --- Auto-restart known-safe containers (space-separated names; none at the moment) ---
+SAFE_RESTART=""
 for CONTAINER in $SAFE_RESTART; do
     STATUS=$(docker inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null)
     if [ "$STATUS" = "exited" ]; then

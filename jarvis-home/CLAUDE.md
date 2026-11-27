@@ -43,7 +43,7 @@ n8n runs at `http://localhost:20003` and hosts automation workflows. You can tri
 - Home directory: /home/iot
 - n8n: http://localhost:20003
 - PostgreSQL: localhost:20004
-- Jarvis UI (legacy): backend port 20005, frontend port 20006
+- JARVIS HTTP (bot): localhost:20010
 
 ## @imports
 

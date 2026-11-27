@@ -1,138 +1,81 @@
 # CLAUDE.md
 
-## Project Overview
+## Project overview
 
-Jarvis UI is a web-based AI assistant with a React frontend and Python FastAPI backend. The backend communicates directly with LLM providers (OpenAI, Anthropic, Gemini) and uses n8n exclusively as a tool executor for infrastructure operations. Real-time streaming is handled via WebSocket.
+JARVIS is a personal AI assistant running on a home Mini PC (`kamuri-mini-pc`, user `iot`). The assistant is one Node.js service in `jarvis-home/telegram-bot/`. Surfaces (Telegram, Alexa, Twilio calls, Home Assistant Assist, watch SMS relay) all call the same brain.
+
+There is no separate backend or web UI any more; the old FastAPI + React app was removed in November 2026.
 
 ## Architecture
 
 ```
-React Frontend (port 20006) → WebSocket/REST → FastAPI Backend (port 20005) → LLM Providers
-                                                        ↓ (tool calls only)
-                                                   n8n (port 20003)
-                                                        ↓
-                                                PostgreSQL + PGVector (port 20004)
+Telegram ─┐
+Alexa ────┤                      ┌─ domain agents (ha, remind, calendar, weather, jellyfin, bus, …)
+Twilio ───┼─► brain.js askCore ─►├─ MCP servers (~/jarvis/mcp.json: Home Assistant, QRganize, RecipeRack)
+Assist ───┤   front router        ├─ Claude Agent SDK (delegate, /deep, selfdev) with a PreToolUse guard
+Watch ────┘   (native tool calls) └─ web search / fetch / code execution (Anthropic server tools)
+                     │
+                     └─ memory.js: PostgreSQL + pgvector (sessions, summaries, facts, knowledge graph)
 ```
 
-- **Backend-hosted LLM**: The backend calls LLM APIs directly, not through n8n
-- **Tool execution**: n8n handles system status, Docker control, service management, Jellyfin API, SSH, Gemini CLI
-- **Memory**: PostgreSQL stores sessions/messages; PGVector stores embeddings for semantic memory over chat summaries
-- **Orchestrator loop**: User message → LLM → (optional tool call → execute → feed back) → stream final response
+- **Router**: `brain.js` calls the front model (Haiku) with the tools in `front-tools.js`. Each tool call becomes an action object `{ <tool>: true, ...input }` that `runOne()` dispatches. No tool call means a direct answer.
+- **Domain tools take structured fields**, not the user's raw text. Date maths lives in code: `agents/schedule-spec.js` and `time.js` (always Asia/Jerusalem, never the server TZ).
+- **Server tasks** run Claude Code in-process via `agents/claude-agent.js` (`@anthropic-ai/claude-agent-sdk`), in `~/jarvis` for delegate and `/deep`, and in the repo's `jarvis-home/` for selfdev. Safety rules are enforced by its `PreToolUse` hook.
+- **Models**: every model ID comes from `models.js` (overridable in `~/jarvis/.env`).
+- **Schedulers**: reminders, morning briefing and Shabbat run inside the bot (`services/*-scheduler.js`); system monitors are cron scripts in `jarvis-home/scripts/`.
 
-## Repository Structure
+## Repository structure
 
 ```
-backend/           Python FastAPI backend
-  main.py          Entry point (uvicorn)
-  config.py        Pydantic settings from .env
-  routers/         api.py (REST), websocket.py (streaming)
-  services/        orchestrator.py, llm_provider.py, tool_registry.py, n8n_client.py,
-                   session_manager.py, session_cleanup.py, embeddings.py, query_classifier.py
-  models/          SQLAlchemy models (session, message, chat_summary)
-  prompts/         jarvis.py (system prompt)
-  alembic/         Database migrations
-frontend/          React SPA
-  src/components/  Chat.jsx, MessageList.jsx, MessageInput.jsx
-  src/services/    websocket.js
-  src/utils/       session.js
-  vite.config.js   Dev server on 20006, proxies /api and /ws to backend
-  nginx.conf       Production reverse proxy config
-n8n/workflows/     JSON workflow definitions (20+)
-scripts/           PowerShell (Windows) and bash (Linux) scripts for setup, build, deploy
-docker-compose.yml Backend + frontend containers on bridge network
+jarvis-home/
+  telegram-bot/src/   brain.js, front-tools.js, claude.js (Telegram adapter), server.js (HTTP),
+                      alexa.js, voice.js, memory.js, models.js, time.js,
+                      agents/, commands/, services/
+  .claude/            rules, commands, subagents for Claude Code on the server
+  scripts/            cron monitors and helpers
+  sql/schema.sql      database schema (idempotent; applied by setup.sh)
+  setup.sh            deploys to ~/jarvis and restarts the bot
+homeassistant/        HA packages, automations, dashboards (applied to HA by hand)
+n8n/                  n8n workflows (Google Calendar sync webhook)
+scripts/              n8n workflow import/export helpers (Windows)
+FEATURE_IDEAS.md      roadmap and design notes — update it when shipping a feature
 ```
 
-## Tech Stack
-
-- **Frontend**: React 18, Vite 5, plain JSX (no TypeScript), CSS files per component
-- **Backend**: Python 3.11, FastAPI 0.109, Uvicorn, async everywhere
-- **Database**: PostgreSQL + asyncpg, SQLAlchemy 2.0, Alembic migrations, PGVector for embeddings
-- **LLM SDKs**: openai, anthropic, google-generativeai
-- **HTTP client**: httpx (async)
-- **Config**: pydantic-settings, loaded from .env files
-- **Production**: Docker Compose, nginx serves frontend, systemd for Linux deployment
-
-## Development Commands
+## Commands
 
 ```bash
-# Frontend
-cd frontend && npm install
-npm run dev                    # Vite dev server on port 20006
+cd jarvis-home/telegram-bot
+npm install
+npm test               # node --test, all *.test.js under src/
+node --check src/x.js  # syntax check
 
-# Backend
-cd backend && pip install -r requirements.txt
-python main.py                 # Uvicorn with auto-reload on port 20005
-
-# Database migrations
-cd backend && alembic upgrade head
-
-# Build frontend for production
-cd frontend && npm run build
-
-# Docker
-docker compose up -d --build
-
-# Linux deploy
-./scripts/linux/deploy.sh
+# On the Mini PC
+cd ~/repos/jarvis-ui && git pull && bash jarvis-home/setup.sh
+journalctl --user -u jarvis-telegram-bot -f
 ```
 
-## Code Conventions
+## Code conventions
 
-- **Backend**: snake_case for files, functions, variables. Async functions throughout. Pydantic for config/validation.
-- **Frontend**: PascalCase for components (Chat.jsx), camelCase for utilities (session.js). Each component has a co-located CSS file.
-- **No TypeScript** in the frontend — everything is JSX.
-- **No linter/formatter** configured (no ESLint, Prettier, or ruff).
-- Keep responses and code concise. Avoid unnecessary abstractions.
+- Node.js ESM, plain JavaScript (no TypeScript), Node 18+.
+- Tests use `node:test` + `node:assert/strict`, next to the code (`foo.js` → `foo.test.js`). Stub `globalThis.fetch` rather than calling real APIs.
+- Read `process.env` lazily (inside functions): `index.js` loads `~/jarvis/.env` after module top-level code runs.
+- Agent output is Markdown; the Telegram layer converts it with `mdToHtml`, and voice surfaces read it as plain text.
+- Keep changes small and consistent with the surrounding code. No new abstractions without a second use.
 
-## Key Design Patterns
+## Ports (Mini PC)
 
-- `LLMProvider` is an abstract base class with concrete implementations for each provider (OpenAI, Anthropic, Gemini, Local, Mock). New providers should extend this base.
-- `ToolRegistry` manages built-in tools + n8n tools. Built-in tools are registered as Python functions; n8n tools are fetched via HTTP and executed through n8n webhooks.
-- `Orchestrator` runs the agentic loop: classify query → select tools → call LLM → execute tool calls → loop until done → stream to client.
-- `QueryClassifier` categorizes queries to load only relevant tools, reducing time-to-first-token.
-- Session memory uses PGVector for semantic search over past conversation summaries.
+| Port  | Service |
+|-------|---------|
+| 20002 | Jellyfin |
+| 20003 | n8n |
+| 20004 | PostgreSQL + pgvector |
+| 20008 | qBittorrent |
+| 20010 | JARVIS HTTP (`/ask`, Assist shim, Alexa, Twilio, watch relay) |
+| 20011 | ustreamer webcam |
+| 20443 | nginx HTTPS (Alexa + Twilio from the internet) |
 
-## Environment Variables
+## Important notes
 
-Required (set in `backend/.env`):
-- `DATABASE_URL` — PostgreSQL connection string
-- At least one LLM key: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`
-
-Optional:
-- `LLM_PROVIDER` (default: openai) — openai, anthropic, gemini, n8n, mock
-- `LLM_MODEL` (default: gpt-4o)
-- `N8N_TOOL_EXECUTOR_URL`, `N8N_API_URL`, `N8N_API_KEY` — for tool execution
-- `SESSION_TTL_DAYS` (default: 30)
-- `CORS_ORIGINS` (default: *)
-- `VERIFY_SSL` (default: true)
-
-## Ports
-
-| Port  | Service              |
-|-------|----------------------|
-| 20005 | Backend (FastAPI)    |
-| 20006 | Frontend (Vite/nginx)|
-| 20003 | n8n                  |
-| 20004 | PostgreSQL           |
-
-## Testing
-
-No test framework is currently configured. When adding tests:
-- Backend: use pytest + pytest-asyncio + httpx for async FastAPI testing
-- Frontend: use Vitest + React Testing Library
-- `backend/services/llm_provider.py` has a `MockProvider` for testing without real API keys
-
-## Deployment
-
-- **Docker**: `docker compose up -d --build` — builds both services, frontend depends on backend health check
-- **Linux native**: `scripts/linux/deploy.sh` sets up systemd services
-- **Frontend production**: Multi-stage Docker build (Node build → nginx Alpine serve), base path `/jarvis/`
-- **Backend production**: Python 3.11-slim, uvicorn on port 20005
-
-## Important Notes
-
-- The frontend uses base path `/jarvis/` in production but `/` in development
-- nginx proxies `/jarvis/api/` and `/jarvis/ws/` to the backend
-- The backend `.env` file contains secrets — never commit it
-- n8n workflows are version-controlled as JSON in `n8n/workflows/`
-- Alembic migrations use the same DATABASE_URL from pydantic settings
+- `~/jarvis/.env` holds secrets — never commit it, never print it.
+- `~/jarvis` is a generated deploy copy; edit the repo, then run `setup.sh`.
+- n8n is still used for Google Calendar sync; don't remove it without replacing that.

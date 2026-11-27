@@ -101,9 +101,21 @@ echo -e "${GREEN}[10/17]${NC} Setting up Telegram bot ($JARVIS_DIR/telegram-bot/
 if command -v node &>/dev/null; then
     mkdir -p "$JARVIS_DIR/telegram-bot"
     cp -r "$SCRIPT_DIR/telegram-bot/src" "$JARVIS_DIR/telegram-bot/"
-    cp "$SCRIPT_DIR/telegram-bot/package.json" "$JARVIS_DIR/telegram-bot/"
+    cp "$SCRIPT_DIR/telegram-bot/package.json" "$SCRIPT_DIR/telegram-bot/package-lock.json" "$JARVIS_DIR/telegram-bot/"
     cd "$JARVIS_DIR/telegram-bot" && npm install --production --silent 2>/dev/null
     cd "$SCRIPT_DIR"
+
+    # Database schema: idempotent, so a no-op on an existing database.
+    DB_URL="$(grep -E '^DATABASE_URL=' "$JARVIS_DIR/.env" 2>/dev/null | cut -d= -f2- | xargs)"
+    if command -v psql &>/dev/null && [ -n "$DB_URL" ]; then
+        if psql "$DB_URL" -q -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/sql/schema.sql" >/dev/null 2>&1; then
+            echo "  Database schema up to date."
+        else
+            echo -e "  ${YELLOW}Could not apply sql/schema.sql — run it by hand: psql \"\$DATABASE_URL\" -f jarvis-home/sql/schema.sql${NC}"
+        fi
+    else
+        echo -e "  ${YELLOW}psql or DATABASE_URL missing — skipped sql/schema.sql.${NC}"
+    fi
     echo "  Done."
 else
     echo -e "  ${YELLOW}Node.js not found — skipping Telegram bot install.${NC}"
@@ -206,7 +218,7 @@ fi
 # --- Step 16: Seed monitoring allowlists ---
 echo -e "${GREEN}[16/17]${NC} Seeding monitoring allowlists..."
 ALLOWLIST="$JARVIS_DIR/logs/docker-security-allowlist.txt"
-for CONTAINER in qbittorrent pgvector jarvis-frontend jarvis-backend; do
+for CONTAINER in qbittorrent pgvector; do
     if ! grep -qxF "$CONTAINER" "$ALLOWLIST" 2>/dev/null; then
         echo "$CONTAINER" >> "$ALLOWLIST"
     fi
