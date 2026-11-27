@@ -5,7 +5,7 @@
 import { listJobs } from '../agents/jobs.js';
 import { escapeHtml } from '../utils.js';
 
-const STATUS_EMOJI = { running: '⏳', done: '✅', failed: '🔴', timeout: '⌛' };
+const STATUS_EMOJI = { running: '⏳', done: '✅', failed: '🔴', timeout: '⌛', interrupted: '⚠️' };
 
 function fmtAge(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -17,7 +17,7 @@ function fmtAge(ms) {
 
 export async function jobsCommand(ctx) {
   const now = Date.now();
-  const jobs = listJobs().slice(0, 15);
+  const jobs = await listJobs(15);
   if (!jobs.length) {
     return ctx.replyWithHTML('No background tasks, Sir.');
   }

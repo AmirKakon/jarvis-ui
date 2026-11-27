@@ -295,8 +295,8 @@ export async function askOpusDirect(ctx, textOverride = null) {
   }
 
   const chatId = String(ctx.chat?.id || 'default');
-  const { sessionId } = getOrRotateSession(`tg:${chatId}`, 'telegram');
-  await ensureSession(sessionId, 'telegram');
+  const { sessionId, key } = getOrRotateSession(`tg:${chatId}`, 'telegram');
+  await ensureSession(sessionId, 'telegram', key);
   await storeMessage(sessionId, 'user', prompt);
 
   const contextPrompt = await buildMemoryContext(prompt, sessionId);

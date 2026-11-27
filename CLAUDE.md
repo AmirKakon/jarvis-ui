@@ -23,6 +23,7 @@ Watch ────┘   (native tool calls) └─ web search / fetch / code exe
 - **Server tasks** run Claude Code in-process via `agents/claude-agent.js` (`@anthropic-ai/claude-agent-sdk`), in `~/jarvis` for delegate and `/deep`, and in the repo's `jarvis-home/` for selfdev. Safety rules are enforced by its `PreToolUse` hook.
 - **Models**: every model ID comes from `models.js` (overridable in `~/jarvis/.env`).
 - **Schedulers**: reminders, morning briefing and Shabbat run inside the bot (`services/*-scheduler.js`); system monitors are cron scripts in `jarvis-home/scripts/`.
+- **Restarts**: sessions and background jobs are persisted in Postgres. `services/recovery.js` restores open conversations on startup, reports jobs a restart cut off, and sweeps idle sessions into long-term memory every 10 minutes.
 
 ## Repository structure
 

@@ -15,8 +15,8 @@
  */
 
 import pg from 'pg';
-import { exec } from 'node:child_process';
-import { haikuModel, openaiSmallModel } from './models.js';
+import { haikuModel, openaiSmallModel, quickCallOptions } from './models.js';
+import { responseText } from './agents/shared.js';
 
 const { Pool } = pg;
 
@@ -28,7 +28,6 @@ const DECAY_LAMBDA = 0.023; // ln(2)/30 ≈ 30-day half-life
 const SIMILARITY_THRESHOLD = 0.25;
 const FACT_DEDUP_THRESHOLD = 0.92;
 
-const JARVIS_DIR = process.env.HOME + '/jarvis';
 
 // --- Fact categorization & context bounding ---
 
@@ -260,16 +259,36 @@ function vectorLiteral(embedding) {
 // --- Session management ---
 
 /**
- * Ensure a session row exists and return its UUID.
- * The bot calls this once per getOrRotateSession.
+ * Ensure a session row exists and mark it active. `sessionKey` is the
+ * identity-resolved conversation key (e.g. "user:amir", "tg:123"); it is stored
+ * in sessions.user_id so an open conversation can be restored after a restart.
  */
-export async function ensureSession(sessionId, source = 'telegram') {
+export async function ensureSession(sessionId, source = 'telegram', sessionKey = null) {
   await query(
-    `INSERT INTO sessions (session_id, created_at, last_activity, metadata)
-     VALUES ($1, NOW(), NOW(), $2)
-     ON CONFLICT (session_id) DO UPDATE SET last_activity = NOW()`,
-    [sessionId, JSON.stringify({ source })]
+    `INSERT INTO sessions (session_id, user_id, created_at, last_activity, metadata)
+     VALUES ($1, $3, NOW(), NOW(), $2)
+     ON CONFLICT (session_id) DO UPDATE
+       SET last_activity = NOW(), user_id = COALESCE(sessions.user_id, EXCLUDED.user_id)`,
+    [sessionId, JSON.stringify({ source }), sessionKey]
   );
+}
+
+/**
+ * Sessions not yet summarised (summarizeSession deletes a session once done),
+ * newest first: { sessionId, sessionKey, lastActivity (ms), source }.
+ */
+export async function getUnsummarizedSessions(limit = 200) {
+  const { rows } = await query(
+    `SELECT session_id, user_id, last_activity, metadata->>'source' AS source
+     FROM sessions ORDER BY last_activity DESC LIMIT $1`,
+    [limit]
+  );
+  return rows.map((r) => ({
+    sessionId: r.session_id,
+    sessionKey: r.user_id,
+    lastActivity: new Date(r.last_activity).getTime(),
+    source: r.source || 'telegram',
+  }));
 }
 
 export async function storeMessage(sessionId, role, content) {
@@ -319,19 +338,31 @@ async function runSmallModel(prompt) {
     }
   }
 
-  // Fallback: Claude CLI
-  const escaped = prompt.replace(/'/g, "'\\''");
-  const cmd = `cd ${JARVIS_DIR} && claude --dangerously-skip-permissions --model ${haikuModel()} -p '${escaped}' 2>&1`;
-  return new Promise((resolve) => {
-    exec(cmd, { timeout: 60_000, shell: '/bin/bash', maxBuffer: 1024 * 1024 }, (err, stdout) => {
-      if (err) {
-        console.error('[memory] Claude CLI fallback failed:', stdout?.slice(0, 200) || err.message);
-        resolve(null);
-      } else {
-        resolve(stdout?.trim() || null);
-      }
+  // Fallback: Claude Haiku over the API.
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicKey) return null;
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: haikuModel(),
+        ...quickCallOptions(haikuModel()),
+        max_tokens: 500,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+      signal: AbortSignal.timeout(60_000),
     });
-  });
+    if (res.ok) return responseText(await res.json()) || null;
+    console.error(`[memory] Anthropic fallback error: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  } catch (err) {
+    console.error('[memory] Anthropic fallback failed:', err.message);
+  }
+  return null;
 }
 
 function parseJsonResponse(text) {

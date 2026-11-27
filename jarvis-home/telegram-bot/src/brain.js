@@ -8,7 +8,7 @@
 
 import crypto from 'node:crypto';
 import {
-  ensureSession, storeMessage, summarizeSession, buildMemoryContext,
+  ensureSession, storeMessage, summarizeSession, buildMemoryContext, getUnsummarizedSessions,
 } from './memory.js';
 import { runWebSearch } from './agents/search.js';
 import { runWebFetch } from './agents/fetch.js';
@@ -63,8 +63,22 @@ export function remainingIn(log, max) {
 
 const activeSessions = new Map();
 
+// Session ids being summarised right now, so the rotation path and the sweep
+// never summarise the same conversation twice.
+const summarizing = new Set();
+
 // Surfaces that joined a session, e.g. "telegram+alexa" (chat_summaries.source is varchar(50)).
 const sourceTag = (entry) => [...entry.sources].join('+').slice(0, 50);
+
+async function summarizeOnce(sessionId, tag, summarize = summarizeSession) {
+  if (summarizing.has(sessionId)) return null;
+  summarizing.add(sessionId);
+  try {
+    return await summarize(sessionId, tag);
+  } finally {
+    summarizing.delete(sessionId);
+  }
+}
 
 export function getOrRotateSession(sessionKey, source = 'telegram') {
   const key = resolveIdentity(sessionKey).sessionKey;
@@ -73,18 +87,18 @@ export function getOrRotateSession(sessionKey, source = 'telegram') {
 
   if (!entry || (now - entry.lastMessageTime) > SESSION_GAP_MS) {
     if (entry) {
-      summarizeSession(entry.sessionId, sourceTag(entry)).catch((err) =>
+      summarizeOnce(entry.sessionId, sourceTag(entry)).catch((err) =>
         console.error('Session summarization failed:', err.message)
       );
     }
     const sessionId = crypto.randomUUID();
     activeSessions.set(key, { sessionId, lastMessageTime: now, sources: new Set([source]) });
-    return { sessionId, isNew: true };
+    return { sessionId, isNew: true, key };
   }
 
   entry.lastMessageTime = now;
   entry.sources.add(source);
-  return { sessionId: entry.sessionId, isNew: false };
+  return { sessionId: entry.sessionId, isNew: false, key };
 }
 
 export async function forceNewSession(sessionKey, source = 'telegram') {
@@ -92,10 +106,63 @@ export async function forceNewSession(sessionKey, source = 'telegram') {
   const entry = activeSessions.get(key);
   let result = null;
   if (entry) {
-    result = await summarizeSession(entry.sessionId, sourceTag(entry) || source);
     activeSessions.delete(key);
+    result = await summarizeOnce(entry.sessionId, sourceTag(entry) || source);
   }
   return result;
+}
+
+// --- Surviving restarts ---
+// Live sessions are cached in memory but every session row (with its key) is in
+// Postgres until it is summarised. On startup, conversations active within the
+// last SESSION_GAP_MS are picked up again; the sweep summarises the rest.
+
+/** Restore recently active sessions into the cache. Returns how many. */
+export async function restoreSessions({ load = getUnsummarizedSessions, now = Date.now() } = {}) {
+  let restored = 0;
+  for (const row of await load()) {
+    if (!row.sessionKey || now - row.lastActivity > SESSION_GAP_MS || activeSessions.has(row.sessionKey)) continue;
+    activeSessions.set(row.sessionKey, {
+      sessionId: row.sessionId,
+      lastMessageTime: row.lastActivity,
+      sources: new Set([row.source]),
+    });
+    restored++;
+  }
+  return restored;
+}
+
+/**
+ * Summarise conversations that went quiet: idle cached sessions, and rows left
+ * behind by a restart. At most `limit` per run, newest first, so a backlog is
+ * worked through gradually. Returns how many were summarised.
+ */
+export async function sweepIdleSessions({
+  load = getUnsummarizedSessions, summarize = summarizeSession, now = Date.now(), limit = 5,
+} = {}) {
+  const due = [];
+  for (const [key, entry] of activeSessions) {
+    if (now - entry.lastMessageTime > SESSION_GAP_MS) {
+      activeSessions.delete(key);
+      due.push({ sessionId: entry.sessionId, tag: sourceTag(entry) });
+    }
+  }
+  const live = new Set([...activeSessions.values()].map((e) => e.sessionId));
+  for (const row of await load()) {
+    if (live.has(row.sessionId) || due.some((d) => d.sessionId === row.sessionId)) continue;
+    if (now - row.lastActivity > SESSION_GAP_MS) due.push({ sessionId: row.sessionId, tag: row.source });
+  }
+
+  let done = 0;
+  for (const { sessionId, tag } of due.slice(0, limit)) {
+    try {
+      await summarizeOnce(sessionId, tag, summarize);
+      done++;
+    } catch (err) {
+      console.error(`[sessions] summarising ${sessionId} failed:`, err.message);
+    }
+  }
+  return done;
 }
 
 // --- Front-layer system prompt ---
@@ -406,6 +473,7 @@ async function runOne(action, sctx) {
         const { id, promise } = startAsyncJob({
           label,
           task,
+          chatId: sctx.chatId,
           run: () => runMcpAgent(task, { complex: true, include: isNonHaServer }),
         });
         promise.then(async (res) => {
@@ -468,7 +536,7 @@ async function runOne(action, sctx) {
 
       // Run in the background so slow ops can't hit the old inline timeout.
       const label = action.acknowledge || ACTION_META.delegate.ack;
-      const { id, promise } = startClaudeJob({ prompt, model: target.model, label, task: action.task });
+      const { id, promise } = startClaudeJob({ prompt, model: target.model, label, task: action.task, chatId: sctx.chatId });
 
       // Headless callers (no onBackground hook — e.g. HTTP /ask) await the full
       // result so their response carries the answer, not just an ack.
@@ -532,8 +600,8 @@ export async function askCore(prompt, { sessionKey = 'api:default', source = 'ap
 
   const identity = resolveIdentity(sessionKey);
   chatId = chatId || identity.chatId;
-  const { sessionId } = getOrRotateSession(identity.sessionKey, source);
-  await ensureSession(sessionId, source);
+  const { sessionId, key } = getOrRotateSession(identity.sessionKey, source);
+  await ensureSession(sessionId, source, key);
   await storeMessage(sessionId, 'user', text);
 
   const contextPrompt = await buildMemoryContext(text, sessionId);

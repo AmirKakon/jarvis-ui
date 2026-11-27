@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 delete process.env.DATABASE_URL;
 process.env.JARVIS_IDENTITY_MAP = 'tg:111=amir,alexa:abc=amir,ha:*=amir';
 
-const { getOrRotateSession, forceNewSession, askCore } = await import('./brain.js');
+const { getOrRotateSession, forceNewSession, askCore, restoreSessions, sweepIdleSessions } = await import('./brain.js');
 
 test('mapped surfaces continue the same live session', () => {
   const tg = getOrRotateSession('tg:111', 'telegram');
@@ -164,4 +164,69 @@ test('a structured jellyfin request skips the intent classifier', async (t) => {
 
   assert.equal(requests.filter((r) => r.url === ANTHROPIC).length, 1);
   assert.equal(out.results[0].res.output, 'Nothing is playing on Jellyfin right now, Sir.');
+});
+
+const MIN = 60_000;
+
+test('a restart picks up conversations active in the last 30 minutes, keyed by identity', async () => {
+  const now = Date.now();
+  const restored = await restoreSessions({
+    now,
+    load: async () => [
+      { sessionId: 'aaaaaaaa-0000-4000-8000-000000000001', sessionKey: 'tg:restore-1', lastActivity: now - 5 * MIN, source: 'telegram' },
+      { sessionId: 'aaaaaaaa-0000-4000-8000-000000000002', sessionKey: 'tg:restore-2', lastActivity: now - 45 * MIN, source: 'telegram' },
+      { sessionId: 'aaaaaaaa-0000-4000-8000-000000000003', sessionKey: null, lastActivity: now - 1 * MIN, source: 'telegram' },
+    ],
+  });
+
+  assert.equal(restored, 1);
+  const s = getOrRotateSession('tg:restore-1', 'telegram');
+  assert.equal(s.isNew, false);
+  assert.equal(s.sessionId, 'aaaaaaaa-0000-4000-8000-000000000001');
+  assert.equal(getOrRotateSession('tg:restore-2', 'telegram').isNew, true);
+});
+
+test('getOrRotateSession returns the identity-resolved key to store with the session', () => {
+  assert.equal(getOrRotateSession('alexa:abc', 'alexa').key, 'user:amir');
+  assert.equal(getOrRotateSession('tg:unmapped-9', 'telegram').key, 'tg:unmapped-9');
+});
+
+test('the sweep summarises idle and orphaned sessions, newest first, a few at a time', async () => {
+  const live = getOrRotateSession('tg:sweep-live', 'telegram').sessionId;
+  const now = Date.now();
+  const summarised = [];
+
+  const first = await sweepIdleSessions({
+    now,
+    limit: 2,
+    summarize: async (id) => { summarised.push(id); },
+    load: async () => [
+      { sessionId: live, sessionKey: 'tg:sweep-live', lastActivity: now, source: 'telegram' },
+      { sessionId: 'orphan-recent', sessionKey: 'tg:x', lastActivity: now - 2 * MIN, source: 'telegram' },
+      { sessionId: 'orphan-1', sessionKey: 'tg:y', lastActivity: now - 40 * MIN, source: 'telegram' },
+      { sessionId: 'orphan-2', sessionKey: null, lastActivity: now - 3 * 24 * 60 * MIN, source: 'alexa' },
+      { sessionId: 'orphan-3', sessionKey: null, lastActivity: now - 9 * 24 * 60 * MIN, source: 'telegram' },
+    ],
+  });
+
+  assert.equal(first, 2);
+  assert.deepEqual(summarised, ['orphan-1', 'orphan-2']);
+  assert.equal(getOrRotateSession('tg:sweep-live', 'telegram').sessionId, live);
+});
+
+test('a cached session that has gone quiet is summarised and the next message starts a new one', async () => {
+  const before = getOrRotateSession('tg:sweep-idle', 'telegram').sessionId;
+  const summarised = [];
+
+  await sweepIdleSessions({
+    now: Date.now() + 31 * MIN,
+    limit: 50,
+    summarize: async (id) => { summarised.push(id); },
+    load: async () => [],
+  });
+
+  assert.ok(summarised.includes(before));
+  const after = getOrRotateSession('tg:sweep-idle', 'telegram');
+  assert.equal(after.isNew, true);
+  assert.notEqual(after.sessionId, before);
 });

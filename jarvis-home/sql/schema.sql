@@ -110,6 +110,22 @@ CREATE TABLE IF NOT EXISTS fact_entities (
 );
 CREATE INDEX IF NOT EXISTS idx_fact_entities_entity ON fact_entities (entity_id);
 
+-- --- Background jobs (agents/jobs.js): delegated tasks and long MCP runs ---
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id          TEXT PRIMARY KEY,
+    label       TEXT,
+    task        TEXT,
+    model       TEXT,
+    chat_id     TEXT,
+    status      TEXT NOT NULL,
+    started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at TIMESTAMPTZ,
+    output      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_started_at ON jobs (started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_running ON jobs (status) WHERE status = 'running';
+
 -- --- Reminders (remind.js also creates this on first use) ---
 
 CREATE TABLE IF NOT EXISTS reminders (

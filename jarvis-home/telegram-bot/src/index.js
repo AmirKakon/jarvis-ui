@@ -35,6 +35,8 @@ import { injectTelegramText, sendTelegramNote } from './telegram-inject.js';
 import { startScheduler, stopScheduler } from './services/reminder-scheduler.js';
 import { startBriefingScheduler, stopBriefingScheduler } from './services/briefing-scheduler.js';
 import { startShabbatScheduler, stopShabbatScheduler } from './services/shabbat-scheduler.js';
+import { startRecovery, stopRecovery } from './services/recovery.js';
+import { closeDb } from './db.js';
 import { shabbatCommand, shabbatCallback } from './commands/shabbat.js';
 import { buildBriefing } from './services/briefing.js';
 
@@ -352,11 +354,13 @@ async function shutdown(signal) {
   stopScheduler();
   stopBriefingScheduler();
   stopShabbatScheduler();
+  stopRecovery();
   try { bot.stop(signal); } catch {}
   await stopAskServer();
   await closePool();
   await closeReminderPool();
   await closeMcp();
+  await closeDb();
   process.exit(0);
 }
 process.once('SIGINT', () => shutdown('SIGINT'));
@@ -421,6 +425,10 @@ startAskServer({
   onTelegramText: (text, opts) => injectTelegramText(bot, CHAT_ID, text, opts),
   notifyTelegram: (text) => sendTelegramNote(bot, CHAT_ID, text),
 });
+
+// Restore open sessions, report jobs a restart cut off, start the idle sweep.
+// Sending messages doesn't need long polling, so this runs alongside launch.
+startRecovery(bot, CHAT_ID).catch((err) => console.error('[recovery] failed:', err.message));
 
 launchWithRetry();
 

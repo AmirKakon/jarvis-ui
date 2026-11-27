@@ -7,18 +7,21 @@
 // a generous ceiling and hands the result back via a promise, so:
 //   • Telegram fires-and-follows-up (immediate ack, result delivered when done)
 //   • headless callers (HTTP /ask) still await the full answer
-// Jobs are tracked in-memory so `/jobs` can report what's running.
+// Jobs are written to the `jobs` table as they start and finish, so `/jobs`
+// history survives a restart and jobs cut off by one can be reported.
 
 import crypto from 'node:crypto';
 import { runClaudeAgent } from './claude-agent.js';
 import { jarvisDir } from './opus.js';
+import { query } from '../db.js';
 
 const JOB_TIMEOUT = 25 * 60 * 1000;      // 25 min — generous ceiling for slow ops
-const JOB_TTL = 6 * 60 * 60 * 1000;      // keep finished jobs 6h for /jobs history
-const MAX_JOBS = 100;                    // hard cap on retained entries
+const JOB_TTL = 6 * 60 * 60 * 1000;      // keep finished jobs 6h in memory
+const MAX_JOBS = 100;                    // hard cap on in-memory entries
+const HISTORY_DAYS = 30;                 // jobs table retention
 
-// id -> { id, label, task, model, status, startedAt, finishedAt, output }
-// status ∈ 'running' | 'done' | 'failed' | 'timeout'
+// This process's jobs: id -> { id, label, task, model, chatId, status, startedAt, finishedAt, output }
+// status ∈ 'running' | 'done' | 'failed' | 'timeout' | 'interrupted'
 const jobs = new Map();
 
 function prune() {
@@ -37,82 +40,107 @@ function prune() {
   }
 }
 
-// Most-recent-first snapshot for the /jobs command.
-export function listJobs() {
-  return [...jobs.values()].sort((a, b) => b.startedAt - a.startedAt);
-}
+const persist = (sql, params) => query(sql, params).catch((err) => console.error('[jobs] persist failed:', err.message));
 
-export function getJob(id) {
-  return jobs.get(id) || null;
-}
-
-export function activeJobCount() {
-  let n = 0;
-  for (const j of jobs.values()) if (j.status === 'running') n++;
-  return n;
-}
-
-// Start a background Claude job. Returns { id, promise } where `promise` always
-// RESOLVES (never rejects) to { ok, output, status } once the job finishes.
-export function startClaudeJob({ prompt, model, label, task }) {
+function newJob({ label, task, model, chatId }) {
   prune();
-  const id = crypto.randomBytes(4).toString('hex');
   const job = {
-    id,
+    id: crypto.randomBytes(4).toString('hex'),
     label: label || 'Task',
     task: task || '',
     model,
+    chatId: chatId ? String(chatId) : null,
     status: 'running',
     startedAt: Date.now(),
     finishedAt: null,
     output: '',
   };
-  jobs.set(id, job);
+  jobs.set(job.id, job);
+  persist(
+    'INSERT INTO jobs (id, label, task, model, chat_id, status, started_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+    [job.id, job.label, job.task, job.model, job.chatId, job.status, new Date(job.startedAt)],
+  );
+  return job;
+}
 
+function finish(job, status, output) {
+  job.finishedAt = Date.now();
+  job.status = status;
+  job.output = output;
+  persist(
+    'UPDATE jobs SET status = $2, finished_at = $3, output = $4 WHERE id = $1',
+    [job.id, status, new Date(job.finishedAt), String(output || '').slice(0, 4000)],
+  );
+}
+
+const fromRow = (r) => ({
+  id: r.id,
+  label: r.label,
+  task: r.task,
+  model: r.model,
+  chatId: r.chat_id,
+  status: r.status,
+  startedAt: new Date(r.started_at).getTime(),
+  finishedAt: r.finished_at ? new Date(r.finished_at).getTime() : null,
+});
+
+/** Most-recent-first jobs for /jobs: from the jobs table, or this process's memory without a database. */
+export async function listJobs(limit = 15, { db = query } = {}) {
+  try {
+    const { rows } = await db('SELECT * FROM jobs ORDER BY started_at DESC LIMIT $1', [limit]);
+    if (rows.length) return rows.map(fromRow);
+  } catch (err) {
+    console.error('[jobs] list failed:', err.message);
+  }
+  return [...jobs.values()].sort((a, b) => b.startedAt - a.startedAt).slice(0, limit);
+}
+
+/**
+ * At startup: jobs still marked running were cut off by the restart. Mark them
+ * interrupted, drop history past the retention window, and return the
+ * interrupted ones so the caller can tell the user.
+ */
+export async function recoverInterruptedJobs({ db = query } = {}) {
+  try {
+    const { rows } = await db(
+      `UPDATE jobs SET status = 'interrupted', finished_at = NOW(), output = 'Stopped by a bot restart.'
+       WHERE status = 'running' RETURNING *`,
+    );
+    await db(`DELETE FROM jobs WHERE started_at < NOW() - ($1 || ' days')::interval`, [String(HISTORY_DAYS)]);
+    return rows.map(fromRow);
+  } catch (err) {
+    console.error('[jobs] recovery failed:', err.message);
+    return [];
+  }
+}
+
+// Start a background Claude job. Returns { id, promise } where `promise` always
+// RESOLVES (never rejects) to { ok, output, status } once the job finishes.
+export function startClaudeJob({ prompt, model, label, task, chatId }) {
+  const job = newJob({ label, task, model, chatId });
   const promise = runClaudeAgent({ prompt, model, cwd: jarvisDir(), timeoutMs: JOB_TIMEOUT }).then((res) => {
-    job.finishedAt = Date.now();
-    job.status = res.status;
-    job.output = res.status === 'timeout'
+    finish(job, res.status, res.status === 'timeout'
       ? `The task ran past ${Math.round(JOB_TIMEOUT / 60_000)} minutes and was stopped, Sir.`
-      : res.output;
+      : res.output);
     return { ok: res.ok, output: job.output, status: job.status };
   });
-
-  return { id, promise };
+  return { id: job.id, promise };
 }
 
 // Start a background job that runs an arbitrary async function (e.g. complex MCP
 // agent). Same return shape as startClaudeJob so Telegram /ask can fire-and-follow-up.
 // `run` should resolve to { ok, output } (extra fields are fine).
-export function startAsyncJob({ run, label, task }) {
-  prune();
-  const id = crypto.randomBytes(4).toString('hex');
-  const job = {
-    id,
-    label: label || 'Task',
-    task: task || '',
-    model: 'async',
-    status: 'running',
-    startedAt: Date.now(),
-    finishedAt: null,
-    output: '',
-  };
-  jobs.set(id, job);
-
+export function startAsyncJob({ run, label, task, chatId }) {
+  const job = newJob({ label, task, model: 'async', chatId });
   const promise = Promise.resolve()
     .then(() => run())
     .then((res) => {
-      job.finishedAt = Date.now();
-      job.status = res?.ok ? 'done' : 'failed';
-      job.output = res?.output || (res?.ok ? 'Done.' : 'Failed.');
+      finish(job, res?.ok ? 'done' : 'failed', res?.output || (res?.ok ? 'Done.' : 'Failed.'));
       return { ok: !!res?.ok, output: job.output, status: job.status, ...res };
     })
     .catch((err) => {
-      job.finishedAt = Date.now();
-      job.status = 'failed';
-      job.output = err?.message || String(err);
+      finish(job, 'failed', err?.message || String(err));
       return { ok: false, output: job.output, status: job.status };
     });
-
-  return { id, promise };
+  return { id: job.id, promise };
 }
