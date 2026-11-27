@@ -474,6 +474,7 @@ async function runOne(action, sctx) {
           label,
           task,
           chatId: sctx.chatId,
+          sessionId: sctx.sessionId,
           run: () => runMcpAgent(task, { complex: true, include: isNonHaServer }),
         });
         promise.then(async (res) => {
@@ -536,7 +537,7 @@ async function runOne(action, sctx) {
 
       // Run in the background so slow ops can't hit the old inline timeout.
       const label = action.acknowledge || ACTION_META.delegate.ack;
-      const { id, promise } = startClaudeJob({ prompt, model: target.model, label, task: action.task, chatId: sctx.chatId });
+      const { id, promise } = startClaudeJob({ prompt, model: target.model, label, task: action.task, chatId: sctx.chatId, sessionId: sctx.sessionId });
 
       // Headless callers (no onBackground hook — e.g. HTTP /ask) await the full
       // result so their response carries the answer, not just an ack.

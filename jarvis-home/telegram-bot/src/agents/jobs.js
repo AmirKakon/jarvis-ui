@@ -20,7 +20,7 @@ const JOB_TTL = 6 * 60 * 60 * 1000;      // keep finished jobs 6h in memory
 const MAX_JOBS = 100;                    // hard cap on in-memory entries
 const HISTORY_DAYS = 30;                 // jobs table retention
 
-// This process's jobs: id -> { id, label, task, model, chatId, status, startedAt, finishedAt, output }
+// This process's jobs: id -> { id, label, task, model, chatId, sessionId, status, startedAt, finishedAt, output }
 // status ∈ 'running' | 'done' | 'failed' | 'timeout' | 'interrupted'
 const jobs = new Map();
 
@@ -42,7 +42,7 @@ function prune() {
 
 const persist = (sql, params) => query(sql, params).catch((err) => console.error('[jobs] persist failed:', err.message));
 
-function newJob({ label, task, model, chatId }) {
+function newJob({ label, task, model, chatId, sessionId }) {
   prune();
   const job = {
     id: crypto.randomBytes(4).toString('hex'),
@@ -50,6 +50,7 @@ function newJob({ label, task, model, chatId }) {
     task: task || '',
     model,
     chatId: chatId ? String(chatId) : null,
+    sessionId: sessionId || null,
     status: 'running',
     startedAt: Date.now(),
     finishedAt: null,
@@ -57,8 +58,8 @@ function newJob({ label, task, model, chatId }) {
   };
   jobs.set(job.id, job);
   persist(
-    'INSERT INTO jobs (id, label, task, model, chat_id, status, started_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-    [job.id, job.label, job.task, job.model, job.chatId, job.status, new Date(job.startedAt)],
+    'INSERT INTO jobs (id, label, task, model, chat_id, session_id, status, started_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+    [job.id, job.label, job.task, job.model, job.chatId, job.sessionId, job.status, new Date(job.startedAt)],
   );
   return job;
 }
@@ -79,6 +80,7 @@ const fromRow = (r) => ({
   task: r.task,
   model: r.model,
   chatId: r.chat_id,
+  sessionId: r.session_id || null,
   status: r.status,
   startedAt: new Date(r.started_at).getTime(),
   finishedAt: r.finished_at ? new Date(r.finished_at).getTime() : null,
@@ -116,8 +118,8 @@ export async function recoverInterruptedJobs({ db = query } = {}) {
 
 // Start a background Claude job. Returns { id, promise } where `promise` always
 // RESOLVES (never rejects) to { ok, output, status } once the job finishes.
-export function startClaudeJob({ prompt, model, label, task, chatId }) {
-  const job = newJob({ label, task, model, chatId });
+export function startClaudeJob({ prompt, model, label, task, chatId, sessionId }) {
+  const job = newJob({ label, task, model, chatId, sessionId });
   const promise = runClaudeAgent({ prompt, model, cwd: jarvisDir(), timeoutMs: JOB_TIMEOUT }).then((res) => {
     finish(job, res.status, res.status === 'timeout'
       ? `The task ran past ${Math.round(JOB_TIMEOUT / 60_000)} minutes and was stopped, Sir.`
@@ -130,8 +132,8 @@ export function startClaudeJob({ prompt, model, label, task, chatId }) {
 // Start a background job that runs an arbitrary async function (e.g. complex MCP
 // agent). Same return shape as startClaudeJob so Telegram /ask can fire-and-follow-up.
 // `run` should resolve to { ok, output } (extra fields are fine).
-export function startAsyncJob({ run, label, task, chatId }) {
-  const job = newJob({ label, task, model: 'async', chatId });
+export function startAsyncJob({ run, label, task, chatId, sessionId }) {
+  const job = newJob({ label, task, model: 'async', chatId, sessionId });
   const promise = Promise.resolve()
     .then(() => run())
     .then((res) => {

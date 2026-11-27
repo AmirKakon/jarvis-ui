@@ -121,8 +121,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     status      TEXT NOT NULL,
     started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     finished_at TIMESTAMPTZ,
-    output      TEXT
+    output      TEXT,
+    session_id  TEXT
 );
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS session_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_jobs_started_at ON jobs (started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_running ON jobs (status) WHERE status = 'running';
 
