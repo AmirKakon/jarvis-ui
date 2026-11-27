@@ -25,8 +25,8 @@ import { startClaudeJob, startAsyncJob } from './agents/jobs.js';
 import { frontModel, haikuModel, sonnetModel, opusModel, openaiSmallModel, quickCallOptions } from './models.js';
 import { FRONT_TOOL_NAMES, frontTools, openaiTools, fromAnthropic, fromOpenAI } from './front-tools.js';
 import { createReminder, parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
-import { hasTiming } from './agents/reminder-spec.js';
-import { createEvent, listEvents } from './agents/calendar.js';
+import { hasTiming } from './agents/schedule-spec.js';
+import { createEvent, createEventFromSpec, listEvents, listEventsBetween } from './agents/calendar.js';
 import { clockContext } from './utils.js';
 import { resolveIdentity } from './identity.js';
 
@@ -153,8 +153,11 @@ EXAMPLES (user message → tool call):
 - "what reminders do I have" → remind(action: "list", text: "list reminders", acknowledge: "Let me check, Sir.")
 - "cancel reminder 3" → remind(action: "cancel", text: "cancel reminder 3", reminder_id: 3, acknowledge: "Cancelling that reminder, Sir.")
 - "extend reminder 2 by 20 minutes" → remind(action: "extend", text: "extend reminder 2 by 20 minutes", reminder_id: 2, minutes: 20, acknowledge: "Extending that reminder, Sir.")
-- "schedule a meeting with Dana tomorrow 3pm for an hour" → calendar(action: "create", text: "schedule a meeting with Dana tomorrow 3pm for an hour", acknowledge: "Adding that to your calendar, Sir.")
-- "what do I have this week" → calendar(action: "list", text: "what do I have this week", acknowledge: "Let me check your schedule, Sir.")
+- (today is Thursday 2026-11-26) "schedule a meeting with Dana tomorrow 3pm for an hour" → calendar(action: "create", text: "schedule a meeting with Dana tomorrow 3pm for an hour", summary: "Meeting with Dana", date: "2026-11-27", time: "15:00", duration_min: 60, acknowledge: "Adding that to your calendar, Sir.")
+- (today is Thursday 2026-11-26) "dentist Sunday 10-10:30 at Clinic X" → calendar(action: "create", text: "dentist Sunday 10-10:30 at Clinic X", summary: "Dentist", date: "2026-11-29", time: "10:00", end_time: "10:30", location: "Clinic X", acknowledge: "Booked in, Sir.")
+- "standup every Monday at 9" → calendar(action: "create", text: "standup every Monday at 9", summary: "Standup", repeat: "weekly", weekday: 1, time: "09:00", acknowledge: "A weekly standup it is, Sir.")
+- (today is Thursday 2026-11-26) "what do I have this week" → calendar(action: "list", text: "what do I have this week", start_date: "2026-11-26", end_date: "2026-11-29", acknowledge: "Let me check your schedule, Sir.")
+- (today is Thursday 2026-11-26) "what's on Friday" → calendar(action: "list", text: "what's on Friday", start_date: "2026-11-27", end_date: "2026-11-27", acknowledge: "Checking Friday, Sir.")
 - "what should I watch tonight" → jellyfin(query: "What should I watch tonight?", acknowledge: "Let me see what's on, Sir.")
 - "do we have the movie Dune on jellyfin" → jellyfin(query: "Is the movie Dune in the library?", acknowledge: "Checking the library, Sir.")
 - "when is the next 65 to the train" → bus(question: "next 65 leaving to the train", acknowledge: "Checking line 65, Sir.")
@@ -163,7 +166,7 @@ EXAMPLES (user message → tool call):
 - "make your morning briefing also include the weather for tomorrow" → selfdev(task: "Modify the morning briefing so it also includes tomorrow's weather forecast, not just today's", acknowledge: "I'll amend my briefing code, Sir.")
 - "add a /gpu command that shows GPU temperature" → selfdev(task: "Add a new Telegram command /gpu that reports GPU temperature and utilisation", acknowledge: "Adding that command to myself, Sir.")
 - "turn on the office light and tell me the news about the port strike" → two calls: ha(command: "turn on the office light", acknowledge: "Lighting up the office, Sir.") and search(query: "port strike news today", acknowledge: "Fetching the latest, Sir.")
-- "what's on my calendar today and will it rain" → two calls: calendar(action: "list", text: "what's on my calendar today", acknowledge: "Checking your calendar, Sir.") and weather(question: "will it rain today?", acknowledge: "Checking the forecast, Sir.")
+- (today is Thursday 2026-11-26) "what's on my calendar today and will it rain" → two calls: calendar(action: "list", text: "what's on my calendar today", start_date: "2026-11-26", end_date: "2026-11-26", acknowledge: "Checking your calendar, Sir.") and weather(question: "will it rain today?", acknowledge: "Checking the forecast, Sir.")
 
 RULES:
 - Reminders, alarms, scheduled messages, "remind me to..." (including recurring like "every X minutes") → remind. NEVER refuse a reminder request.
@@ -373,11 +376,15 @@ async function runOne(action, sctx) {
       return { key, action, res: await runWeatherQuery(action.question) };
     case 'calendar':
       if (action.action === 'list') {
+        if (action.start_date) return { key, action, res: await listEventsBetween(action.start_date, action.end_date) };
+        console.log('[calendar] no structured dates from the router — falling back to the text parser');
         return { key, action, res: await listEvents(action.text || sctx.prompt) };
       }
       if (!sctx.chatId) {
         return { key, action, res: { ok: false, output: 'Calendar events can only be created via Telegram from here, Sir.' } };
       }
+      if (action.summary && hasTiming(action)) return { key, action, res: await createEventFromSpec(sctx.chatId, action) };
+      console.log('[calendar] no structured timing from the router — falling back to the text parser');
       return { key, action, res: await createEvent(sctx.chatId, action.text || sctx.prompt) };
     case 'search':
       return { key, action, res: await runWebSearch(action.query) };

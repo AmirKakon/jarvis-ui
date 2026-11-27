@@ -4,6 +4,7 @@ import { createCalendarEvent } from '../services/calendar-sync.js';
 import { haikuModel, quickCallOptions } from '../models.js';
 import { responseText } from './shared.js';
 import { nowJerusalemISO, insertReminder } from './remind.js';
+import { buildEvent, resolveDateRange } from './schedule-spec.js';
 
 const TZ = 'Asia/Jerusalem';
 const DEFAULT_EVENT_DURATION_MIN = 60;
@@ -224,9 +225,19 @@ Examples:
 }
 
 /**
- * Create a calendar event from a natural-language request.
- * Pushes to Google Calendar via n8n; on failure, falls back to a local
- * Telegram reminder at the start time so the event is never silently lost.
+ * Create a calendar event from the calendar tool's structured fields (summary,
+ * date, time, duration_min / end_time, location, repeat …). See schedule-spec.js.
+ */
+export async function createEventFromSpec(chatId, spec) {
+  const built = buildEvent(spec);
+  if (!built.ok) return { ok: false, output: built.error };
+  console.log(`[calendar] structured: start=${built.start.toISOString()} dur=${built.durationMin} recurrence=${built.recurrence} "${built.summary}"`);
+  return scheduleEvent(chatId, built);
+}
+
+/**
+ * Create a calendar event from free text (the /calendar command, or when the
+ * router sent no structured timing): parsed by a separate Haiku call.
  */
 export async function createEvent(chatId, userMessage) {
   const parsed = await parseEventWithHaiku(userMessage);
@@ -244,40 +255,42 @@ export async function createEvent(chatId, userMessage) {
     return { ok: false, output: 'That time is in the past, Sir.' };
   }
 
-  const durationMin = Number.isFinite(parsed.duration_min) && parsed.duration_min > 0
-    ? parsed.duration_min
-    : DEFAULT_EVENT_DURATION_MIN;
-  const recurrence = parsed.recurrence || null;
-  const location = parsed.location || null;
+  return scheduleEvent(chatId, {
+    summary: parsed.summary,
+    start,
+    durationMin: Number.isFinite(parsed.duration_min) && parsed.duration_min > 0 ? parsed.duration_min : DEFAULT_EVENT_DURATION_MIN,
+    recurrence: parsed.recurrence || null,
+    location: parsed.location || null,
+    description: parsed.description || null,
+  });
+}
 
+/**
+ * Push an event to Google Calendar via n8n; on failure, fall back to a local
+ * Telegram reminder at the start time so the event is never silently lost.
+ */
+async function scheduleEvent(chatId, { summary, start, durationMin, recurrence, location, description }) {
   const timeStr = start.toLocaleString('en-GB', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' });
   const durLabel = durationMin >= 60 && durationMin % 60 === 0
     ? `${durationMin / 60}h`
     : `${durationMin}m`;
   const locLabel = location ? ` @ ${location}` : '';
 
-  const cal = await createCalendarEvent({
-    summary: parsed.summary,
-    fireAt: start,
-    recurrence,
-    durationMin,
-    location,
-    description: parsed.description || null,
-  });
+  const cal = await createCalendarEvent({ summary, fireAt: start, recurrence, durationMin, location, description });
 
   if (cal.ok) {
     return {
       ok: true,
-      output: `📅 Scheduled: "${parsed.summary}"${locLabel} — ${timeStr} (${durLabel})\nIt's on your Google Calendar — it'll notify you there.`,
+      output: `📅 Scheduled: "${summary}"${locLabel} — ${timeStr} (${durLabel})\nIt's on your Google Calendar — it'll notify you there.`,
     };
   }
 
   // GCal unavailable — fall back to a local Telegram reminder so it's not lost.
-  const fb = await insertReminder(chatId, parsed.summary, start);
+  const fb = await insertReminder(chatId, summary, start);
   if (fb.ok) {
     return {
       ok: true,
-      output: `⚠️ Couldn't reach Google Calendar, so I set a Telegram reminder instead: "${parsed.summary}"${locLabel} — ${timeStr}`,
+      output: `⚠️ Couldn't reach Google Calendar, so I set a Telegram reminder instead: "${summary}"${locLabel} — ${timeStr}`,
     };
   }
 
@@ -363,12 +376,23 @@ Return ONLY: {"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","label":"short h
 }
 
 /**
- * List calendar events for a natural-language range. Returns { ok, output }.
+ * List calendar events for a natural-language range (the /calendar command, or
+ * when the router sent no dates). Returns { ok, output }.
  * Reads Home Assistant calendar entities (same source as the briefing), so
  * JARVIS-created events appear only if HA is connected to that Google Calendar.
  */
 export async function listEvents(text) {
-  const { startISO, endISO, label } = await resolveRange(text);
+  return listRange(await resolveRange(text));
+}
+
+/** List events for an inclusive local date range (YYYY-MM-DD) from the calendar tool. */
+export async function listEventsBetween(startDate, endDate) {
+  const range = resolveDateRange(startDate, endDate);
+  if (!range.ok) return { ok: false, output: range.error };
+  return listRange(range);
+}
+
+async function listRange({ startISO, endISO, label }) {
   const res = await fetchCalendarRange(startISO, endISO);
   if (!res.ok) {
     return { ok: false, output: res.output === 'disabled' ? 'Calendar listing is disabled.' : (res.output || 'No calendars found.') };

@@ -122,3 +122,31 @@ test('a reminder without structured timing falls back to the text parser', async
 
   assert.equal(requests.filter((r) => r.url === ANTHROPIC).length, 2);
 });
+
+test('a structured calendar event is created without a second model call', async (t) => {
+  withKeys(t, { ANTHROPIC_API_KEY: 'test', OPENAI_API_KEY: undefined });
+  const requests = stubFetch(t, {
+    [ANTHROPIC]: { content: [{ type: 'tool_use', id: 't1', name: 'calendar', input: {
+      action: 'create', text: 'dentist on the 1st of March at 10', summary: 'Dentist', date: '2030-03-01', time: '10:00', acknowledge: 'Booked, Sir.',
+    } }] },
+  });
+
+  const out = await askCore('dentist on the 1st of March at 10', { sessionKey: 'api:cal-1', chatId: '42' });
+
+  assert.equal(requests.filter((r) => r.url === ANTHROPIC).length, 1);
+  assert.equal(out.results[0].res.ok, true);
+  assert.match(out.results[0].res.output, /"Dentist" — 1 Mar 2030, 10:00/);
+});
+
+test('a calendar listing with structured dates skips the range parser', async (t) => {
+  withKeys(t, { ANTHROPIC_API_KEY: 'test', OPENAI_API_KEY: undefined });
+  const requests = stubFetch(t, {
+    [ANTHROPIC]: { content: [{ type: 'tool_use', id: 't1', name: 'calendar', input: {
+      action: 'list', text: 'what do I have on Friday', start_date: '2030-03-01', end_date: '2030-03-01', acknowledge: 'Checking, Sir.',
+    } }] },
+  });
+
+  await askCore('what do I have on Friday', { sessionKey: 'api:cal-2', chatId: '42' });
+
+  assert.equal(requests.filter((r) => r.url === ANTHROPIC).length, 1);
+});

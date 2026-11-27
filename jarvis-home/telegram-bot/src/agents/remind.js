@@ -2,7 +2,7 @@ import pg from 'pg';
 import { createCalendarEvent } from '../services/calendar-sync.js';
 import { haikuModel, quickCallOptions } from '../models.js';
 import { responseText } from './shared.js';
-import { buildReminder } from './reminder-spec.js';
+import { buildReminder } from './schedule-spec.js';
 const { Pool } = pg;
 
 const TZ = 'Asia/Jerusalem';
@@ -189,7 +189,7 @@ function formatRecurrence(rec) {
 
 /**
  * Create a reminder from the remind tool's structured fields (message,
- * in_minutes, date, time, repeat, …). See reminder-spec.js.
+ * in_minutes, date, time, repeat, …). See schedule-spec.js.
  */
 export async function createReminder(chatId, spec) {
   const built = buildReminder(spec);

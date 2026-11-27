@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildReminder, hasTiming } from './reminder-spec.js';
+import { buildReminder, buildEvent, resolveDateRange, hasTiming } from './schedule-spec.js';
 import { jerusalemTime, jerusalemParts } from '../time.js';
 
 // Thursday 26 Nov 2026, 12:00 in Jerusalem (winter, UTC+2).
@@ -90,4 +90,43 @@ test('hasTiming tells structured specs from bare text', () => {
   assert.equal(hasTiming({ repeat: 'none' }), false);
   assert.equal(hasTiming({ in_minutes: 5 }), true);
   assert.equal(hasTiming({ repeat: 'daily' }), true);
+});
+
+const event = (spec) => buildEvent({ summary: 'Meeting', ...spec }, NOW);
+
+test('events default to 09:00 and 60 minutes', () => {
+  const e = event({ date: '2026-11-27' });
+  assert.equal(e.start.toISOString(), '2026-11-27T07:00:00.000Z');
+  assert.equal(e.durationMin, 60);
+  assert.equal(e.recurrence, null);
+  assert.equal(e.location, null);
+});
+
+test('event length from duration or end time, including past midnight', () => {
+  assert.equal(event({ date: '2026-11-27', time: '15:00', duration_min: 30 }).durationMin, 30);
+  assert.equal(event({ date: '2026-11-27', time: '14:00', end_time: '15:30' }).durationMin, 90);
+  assert.equal(event({ date: '2026-11-27', time: '23:00', end_time: '01:00' }).durationMin, 120);
+});
+
+test('repeating events and their limits', () => {
+  const e = event({ repeat: 'weekly', weekday: 1, time: '09:00', location: ' Office ' });
+  assert.equal(e.recurrence, 'weekly:1:09:00');
+  assert.equal(e.start.toISOString(), '2026-11-30T07:00:00.000Z');
+  assert.equal(e.location, 'Office');
+  assert.equal(event({ repeat: 'minutes', every: 5 }).ok, false);
+  assert.equal(buildEvent({ date: '2026-11-27' }, NOW).ok, false);
+  assert.equal(event({}).ok, false);
+});
+
+test('date ranges are inclusive local days', () => {
+  const week = resolveDateRange('2026-11-26', '2026-11-29');
+  assert.equal(week.startISO, '2026-11-25T22:00:00.000Z');
+  assert.equal(week.endISO, '2026-11-29T22:00:00.000Z');
+  assert.equal(week.label, 'Thu 26 Nov – Sun 29 Nov');
+  const day = resolveDateRange('2026-11-27');
+  assert.equal(day.endISO, '2026-11-27T22:00:00.000Z');
+  assert.equal(day.label, 'Fri 27 Nov');
+  assert.equal(resolveDateRange('2026-11-29', '2026-11-26').ok, false);
+  assert.equal(resolveDateRange('2026-01-01', '2026-12-31').ok, false);
+  assert.equal(resolveDateRange('Friday').ok, false);
 });

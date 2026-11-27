@@ -73,10 +73,25 @@ const BASE_TOOLS = [
     { question: str("The user's weather question") },
     ['question']),
   tool('calendar',
-    'Calendar events: schedule/add a meeting, appointment or event, or list what is on the calendar for a day or range.',
+    'Calendar events: schedule/add a meeting, appointment or event, or list what is on the calendar for a day or range. '
+      + 'Times are Israel local time and the code does all date maths. '
+      + 'create: summary plus date and/or time (time alone means the next time that clock time comes round; a day without a time starts at 09:00), duration_min or end_time if given (default 60 min), location if given; repeating events use repeat daily + time, weekly + weekday + time, or monthly + day_of_month + time. '
+      + 'list: start_date and end_date, both inclusive, resolved from CURRENT TIME ("today", "Friday", "this week" = today through Sunday, "next week" = the following Monday through Sunday).',
     {
       action: { type: 'string', enum: ['create', 'list'] },
       text: str("The user's full message"),
+      summary: str('create: concise event title, without date/time words ("Meeting with Dana")'),
+      date: str('create: local date YYYY-MM-DD'),
+      time: str('create: local 24h start time HH:MM'),
+      duration_min: { type: 'integer', description: 'create: length in minutes, when the user gives one ("for an hour" → 60)' },
+      end_time: str('create: local 24h end time HH:MM, when the user gives a range ("2-3pm" → time 14:00, end_time 15:00)'),
+      location: str('create: where, if the user says'),
+      description: str('create: extra notes, if any'),
+      repeat: { type: 'string', enum: ['none', 'daily', 'weekly', 'monthly'], description: 'create: how the event repeats; none for one-off' },
+      weekday: { type: 'integer', description: 'create: 1=Monday … 7=Sunday for repeat weekly' },
+      day_of_month: { type: 'integer', description: 'create: 1-31 for repeat monthly' },
+      start_date: str('list: first day to show, YYYY-MM-DD'),
+      end_date: str('list: last day to show (inclusive), YYYY-MM-DD'),
     },
     ['action', 'text']),
   tool('research',
