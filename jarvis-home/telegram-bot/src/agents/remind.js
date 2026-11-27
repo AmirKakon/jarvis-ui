@@ -2,6 +2,7 @@ import pg from 'pg';
 import { createCalendarEvent } from '../services/calendar-sync.js';
 import { haikuModel, quickCallOptions } from '../models.js';
 import { responseText } from './shared.js';
+import { buildReminder } from './reminder-spec.js';
 const { Pool } = pg;
 
 const TZ = 'Asia/Jerusalem';
@@ -186,9 +187,19 @@ function formatRecurrence(rec) {
   return rec;
 }
 
-export async function parseAndCreate(chatId, userMessage) {
-  await ensureTable();
+/**
+ * Create a reminder from the remind tool's structured fields (message,
+ * in_minutes, date, time, repeat, …). See reminder-spec.js.
+ */
+export async function createReminder(chatId, spec) {
+  const built = buildReminder(spec);
+  if (!built.ok) return { ok: false, output: built.error };
+  console.log(`[remind] structured: fire_at=${built.fireAt.toISOString()} recurrence=${built.recurrence} msg="${built.message}"`);
+  return saveReminder(chatId, built.message, built.fireAt, built.recurrence);
+}
 
+/** Legacy path: free text parsed by a separate Haiku call. */
+export async function parseAndCreate(chatId, userMessage) {
   const parsed = await parseWithHaiku(userMessage);
   if (!parsed || !parsed.message || !parsed.fire_at) {
     return { ok: false, output: 'Could not understand the reminder request.' };
@@ -204,12 +215,16 @@ export async function parseAndCreate(chatId, userMessage) {
     return { ok: false, output: 'That time is in the past, Sir.' };
   }
 
-  const recurrence = parsed.recurrence || null;
+  return saveReminder(chatId, parsed.message, fireAt, parsed.recurrence || null);
+}
+
+async function saveReminder(chatId, message, fireAt, recurrence) {
+  await ensureTable();
   const kind = classifyKind(fireAt, recurrence);
 
   const { rows } = await query(
     'INSERT INTO reminders (chat_id, message, fire_at, recurrence, kind) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-    [chatId, parsed.message, fireAt.toISOString(), recurrence, kind]
+    [chatId, message, fireAt.toISOString(), recurrence, kind]
   );
 
   const id = rows[0]?.id;
@@ -223,7 +238,7 @@ export async function parseAndCreate(chatId, userMessage) {
   // delivers it via Telegram — a reminder is never silently lost.
   let calendarNote = '';
   if (kind === 'scheduled') {
-    const cal = await createCalendarEvent({ summary: parsed.message, fireAt, recurrence });
+    const cal = await createCalendarEvent({ summary: message, fireAt, recurrence });
     if (cal.ok) {
       await query(
         'UPDATE reminders SET calendar_event_id = $1, fired = TRUE WHERE id = $2',
@@ -239,7 +254,7 @@ export async function parseAndCreate(chatId, userMessage) {
 
   return {
     ok: true,
-    output: `Reminder set: "${parsed.message}" — ${timeStr}${recLabel}${calendarNote}`,
+    output: `Reminder set: "${message}" — ${timeStr}${recLabel}${calendarNote}`,
     id,
     fireAt: fireAt.toISOString(),
     recurrence,

@@ -96,3 +96,29 @@ test('askCore falls back to OpenAI function calling when Anthropic fails', async
   assert.equal(out.kind, 'actions');
   assert.equal(out.results[0].key, 'remind');
 });
+
+test('a structured reminder is created without a second model call', async (t) => {
+  withKeys(t, { ANTHROPIC_API_KEY: 'test', OPENAI_API_KEY: undefined });
+  const requests = stubFetch(t, {
+    [ANTHROPIC]: { content: [{ type: 'tool_use', id: 't1', name: 'remind', input: {
+      action: 'set', text: 'remind me to check the laundry in 30 minutes', message: 'check the laundry', in_minutes: 30, acknowledge: 'Noted, Sir.',
+    } }] },
+  });
+
+  const out = await askCore('remind me to check the laundry in 30 minutes', { sessionKey: 'api:remind-1', chatId: '42' });
+
+  assert.equal(requests.filter((r) => r.url === ANTHROPIC).length, 1);
+  assert.equal(out.results[0].res.ok, true);
+  assert.match(out.results[0].res.output, /Reminder set: "check the laundry"/);
+});
+
+test('a reminder without structured timing falls back to the text parser', async (t) => {
+  withKeys(t, { ANTHROPIC_API_KEY: 'test', OPENAI_API_KEY: undefined });
+  const requests = stubFetch(t, {
+    [ANTHROPIC]: { content: [{ type: 'tool_use', id: 't1', name: 'remind', input: { action: 'set', text: 'remind me later', acknowledge: 'Noted, Sir.' } }] },
+  });
+
+  await askCore('remind me later', { sessionKey: 'api:remind-2', chatId: '42' });
+
+  assert.equal(requests.filter((r) => r.url === ANTHROPIC).length, 2);
+});

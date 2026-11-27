@@ -48,10 +48,24 @@ const BASE_TOOLS = [
     { command: str('The full natural-language command or question') },
     ['command']),
   tool('remind',
-    'Set, list, cancel or extend reminders: one-shot, recurring daily/weekly/monthly, and interval-based ("every N minutes/hours"). Never refuse a reminder request; always use this.',
+    'Set, list, cancel or extend reminders: one-shot, recurring daily/weekly/monthly, and interval-based ("every N minutes/hours"). Never refuse a reminder request; always use this. '
+      + 'For "set", fill the timing fields from the user\'s words; times are Israel local time and the code does all date maths. '
+      + 'Relative ("in 30 minutes", "in 2 hours") → in_minutes. A day and/or clock time → date and/or time (time alone means the next time that clock time comes round; a day without a time defaults to 08:00). '
+      + 'Repeating → repeat plus its fields: minutes/hours + every; hourly + minute; daily + time; weekly + weekday + time; monthly + day_of_month + time.',
     {
       action: { type: 'string', enum: ['set', 'list', 'cancel', 'extend'] },
       text: str("The user's full message"),
+      message: str('set: what to remind about, without the timing words'),
+      in_minutes: { type: 'integer', description: 'set: minutes from now for a relative time (also the first fire of a minutes/hours repeat when the user gives one)' },
+      date: str('set: local date YYYY-MM-DD, resolved from CURRENT TIME ("tomorrow", "on Friday", "the 15th")'),
+      time: str('set: local 24h clock time HH:MM ("9am" → 09:00, "8:30pm" → 20:30)'),
+      repeat: { type: 'string', enum: ['none', 'minutes', 'hours', 'hourly', 'daily', 'weekly', 'monthly'], description: 'set: how it repeats; none for one-shot' },
+      every: { type: 'integer', description: 'set: N for repeat minutes/hours ("every 5 minutes" → 5)' },
+      minute: { type: 'integer', description: 'set: minute past the hour for repeat hourly ("every hour at :30" → 30)' },
+      weekday: { type: 'integer', description: 'set: 1=Monday … 7=Sunday for repeat weekly' },
+      day_of_month: { type: 'integer', description: 'set: 1-31 for repeat monthly' },
+      reminder_id: { type: 'integer', description: 'cancel/extend: the reminder number, when the user gives one' },
+      minutes: { type: 'integer', description: 'extend: how many minutes to push it back' },
     },
     ['action', 'text']),
   tool('weather',

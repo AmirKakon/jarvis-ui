@@ -24,7 +24,8 @@ import { runSelfDev } from './agents/selfdev.js';
 import { startClaudeJob, startAsyncJob } from './agents/jobs.js';
 import { frontModel, haikuModel, sonnetModel, opusModel, openaiSmallModel, quickCallOptions } from './models.js';
 import { FRONT_TOOL_NAMES, frontTools, openaiTools, fromAnthropic, fromOpenAI } from './front-tools.js';
-import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
+import { createReminder, parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
+import { hasTiming } from './agents/reminder-spec.js';
 import { createEvent, listEvents } from './agents/calendar.js';
 import { clockContext } from './utils.js';
 import { resolveIdentity } from './identity.js';
@@ -143,11 +144,15 @@ EXAMPLES (user message → tool call):
 - "how's the server doing" → delegate(task: "Run a full system health check (CPU, memory, disk, containers, failed services)", agent: "diagnostics", acknowledge: "Running a health check, Sir.")
 - "turn off the heater plug" → ha(command: "turn off the heater plug", acknowledge: "Switching it off now, Sir.")
 - "what's the state history of the bedroom light today" → ha(command: "what's the state history of the bedroom light today", acknowledge: "Checking the bedroom light's history, Sir.")
-- "remind me to check the laundry in 30 minutes" → remind(action: "set", text: "remind me to check the laundry in 30 minutes", acknowledge: "Setting that reminder, Sir.")
-- "reminder for every 5 minutes to stretch" → remind(action: "set", text: "reminder for every 5 minutes to stretch", acknowledge: "Setting that recurring reminder, Sir.")
+- "remind me to check the laundry in 30 minutes" → remind(action: "set", text: "remind me to check the laundry in 30 minutes", message: "check the laundry", in_minutes: 30, acknowledge: "Setting that reminder, Sir.")
+- (today is Thursday 2026-11-26) "remind me to call mum tomorrow at 9am" → remind(action: "set", text: "remind me to call mum tomorrow at 9am", message: "call mum", date: "2026-11-27", time: "09:00", acknowledge: "Noted for tomorrow morning, Sir.")
+- "remind me at 6pm to water the plants" → remind(action: "set", text: "remind me at 6pm to water the plants", message: "water the plants", time: "18:00", acknowledge: "Setting that reminder, Sir.")
+- "reminder for every 5 minutes to stretch" → remind(action: "set", text: "reminder for every 5 minutes to stretch", message: "stretch", repeat: "minutes", every: 5, acknowledge: "Setting that recurring reminder, Sir.")
+- "remind me every Sunday to take out the bins" → remind(action: "set", text: "remind me every Sunday to take out the bins", message: "take out the bins", repeat: "weekly", weekday: 7, acknowledge: "Every Sunday it is, Sir.")
+- "take vitamins every day at 8:30" → remind(action: "set", text: "take vitamins every day at 8:30", message: "take vitamins", repeat: "daily", time: "08:30", acknowledge: "Daily at 08:30, Sir.")
 - "what reminders do I have" → remind(action: "list", text: "list reminders", acknowledge: "Let me check, Sir.")
-- "cancel reminder 3" → remind(action: "cancel", text: "cancel reminder 3", acknowledge: "Cancelling that reminder, Sir.")
-- "extend reminder 2 by 20 minutes" → remind(action: "extend", text: "extend reminder 2 by 20 minutes", acknowledge: "Extending that reminder, Sir.")
+- "cancel reminder 3" → remind(action: "cancel", text: "cancel reminder 3", reminder_id: 3, acknowledge: "Cancelling that reminder, Sir.")
+- "extend reminder 2 by 20 minutes" → remind(action: "extend", text: "extend reminder 2 by 20 minutes", reminder_id: 2, minutes: 20, acknowledge: "Extending that reminder, Sir.")
 - "schedule a meeting with Dana tomorrow 3pm for an hour" → calendar(action: "create", text: "schedule a meeting with Dana tomorrow 3pm for an hour", acknowledge: "Adding that to your calendar, Sir.")
 - "what do I have this week" → calendar(action: "list", text: "what do I have this week", acknowledge: "Let me check your schedule, Sir.")
 - "what should I watch tonight" → jellyfin(query: "What should I watch tonight?", acknowledge: "Let me see what's on, Sir.")
@@ -335,20 +340,22 @@ async function runReminder(action, chatId, prompt) {
       return listReminders(chatId);
     case 'cancel': {
       const idMatch = action.text?.match(/(?:reminder\s*#?\s*)?(\d+)/i);
-      const remId = idMatch ? parseInt(idMatch[1]) : null;
+      const remId = action.reminder_id || (idMatch ? parseInt(idMatch[1]) : null);
       return remId
         ? cancelReminder(chatId, remId)
         : cancelByText(chatId, action.text || prompt);
     }
     case 'extend': {
       const nums = action.text?.match(/\d+/g) || [];
-      const remId = nums[0] ? parseInt(nums[0]) : null;
-      const mins = nums[1] ? parseInt(nums[1]) : null;
+      const remId = action.reminder_id || (nums[0] ? parseInt(nums[0]) : null);
+      const mins = action.minutes || (nums[1] ? parseInt(nums[1]) : null);
       return (remId && mins)
         ? extendReminder(chatId, remId, mins)
         : { ok: false, output: 'Please specify the reminder number and minutes (e.g. "extend reminder 3 by 15 minutes").' };
     }
     default:
+      if (hasTiming(action)) return createReminder(chatId, { ...action, message: action.message || action.text || prompt });
+      console.log('[remind] no structured timing from the router — falling back to the text parser');
       return parseAndCreate(chatId, action.text || prompt);
   }
 }
