@@ -67,6 +67,12 @@ async function resolveCalendarEntities(states) {
 
 const isWorkoutCalendar = (entity) => entity.includes('workout');
 
+// Telegram picks each line's direction from its first strong character, so a
+// line like "• 06:18 הנץ החמה" (bullet and digits are neutral) right-aligns.
+// A leading left-to-right mark keeps event lines left-aligned; the Hebrew text
+// itself still reads right to left.
+const LTR = '‎';
+
 const eventTag = (entity) => {
   if (entity.includes('birthday')) return '🎂 ';
   if (entity.includes('holiday')) return '🇮🇱 ';
@@ -134,7 +140,7 @@ export async function getTodayCalendar(states = null) {
       .slice(0, 8)
       .map((e) => {
         const when = e.allDay ? 'all-day' : e.time;
-        return `   • <b>${when}</b> ${eventTag(e.entity)}${escapeHtml(e.summary)}`;
+        return `   ${LTR}• <b>${when}</b> ${eventTag(e.entity)}${escapeHtml(e.summary)}`;
       })
       .join('\n');
   };
@@ -431,7 +437,7 @@ async function listRange({ startISO, endISO, label }) {
       lastKey = key;
     }
     const when = e.allDay ? 'all-day' : (e.time || '');
-    lines.push(`   • **${when}** ${eventTag(e.entity)}${e.summary}`);
+    lines.push(`   ${LTR}• **${when}** ${eventTag(e.entity)}${e.summary}`);
   }
 
   return { ok: true, output: lines.join('\n') };
