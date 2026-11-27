@@ -23,7 +23,7 @@ import { runBusQuery } from './agents/bus.js';
 import { runSelfDev } from './agents/selfdev.js';
 import { startClaudeJob, startAsyncJob } from './agents/jobs.js';
 import { frontModel, haikuModel, sonnetModel, opusModel, openaiSmallModel, quickCallOptions } from './models.js';
-import { responseText } from './agents/shared.js';
+import { FRONT_TOOL_NAMES, frontTools, openaiTools, fromAnthropic, fromOpenAI } from './front-tools.js';
 import { parseAndCreate, listReminders, cancelReminder, cancelByText, extendReminder } from './agents/remind.js';
 import { createEvent, listEvents } from './agents/calendar.js';
 import { clockContext } from './utils.js';
@@ -105,7 +105,7 @@ const VOICE_MODE = `
 VOICE MODE:
 This request was spoken on a phone call or smart speaker, and your reply will be read aloud.
 - Direct answers: one or two short spoken sentences. No lists, markdown, emoji or URLs.
-- In an action's task/question, ask for a short spoken-style answer (one or two sentences) unless the user asked for a full list or details. Long replies are sent to Telegram automatically.
+- In a tool call's task/question, ask for a short spoken-style answer (one or two sentences) unless the user asked for a full list or details. Long replies are sent to Telegram automatically.
 - Keep "acknowledge" to a few words; it is spoken while you work.`;
 
 function frontSystemPrompt() {
@@ -125,139 +125,80 @@ The memory block below (if present) contains your permanent facts and conversati
 YOUR CAPABILITIES:
 You handle casual conversation, simple questions, knowledge queries, and memory-related tasks DIRECTLY.
 
-ACTIONS:
-When you cannot answer directly, respond with ONLY a raw JSON object — no markdown, no XML, no wrapper tags, no prose before or after. Just the JSON.
+TOOLS:
+When you cannot answer directly, call one of your tools. Each tool's description says what it is for. Always fill "acknowledge" with a brief in-persona message to the user.
+If the user asks for several INDEPENDENT things in one message, call one tool per request in the same reply. They run concurrently, so only combine calls that do not depend on one another.
 
-1. Server tasks (Docker, systemctl, SSH, logs, deploys, disk/network diagnostics, file ops, n8n, HA device actions, qBittorrent, system health, curl/HTTP API calls):
-{"delegate": true, "task": "full description of what to do, with context", "acknowledge": "brief message to user"}
-   Optionally add "agent" to route to a faster, cheaper specialist: "docker-ops" for Docker/container work, "diagnostics" for system health/status checks. Omit "agent" for anything complex or multi-step.
-
-2. Web search (current events, real-time info, news, prices, weather in OTHER cities, anything needing up-to-date knowledge):
-{"search": true, "query": "concise search query", "acknowledge": "brief message to user"}
-
-3. Read a public web page or PDF (user shares a URL and wants its content read or summarised):
-{"fetch": true, "url": "the URL to read", "question": "what the user wants to know", "acknowledge": "brief message to user"}
-
-4. Calculations, data analysis, or code tasks (math, conversions, charts, CSV analysis, programming puzzles — NO internet access):
-{"compute": true, "task": "what to calculate or generate", "acknowledge": "brief message to user"}
-
-5. Home Assistant (turning devices, scenes or scripts on/off, and questions about Home Assistant: states, history, automations, scripts, scenes, helpers):
-{"ha": true, "command": "the full natural language command or question", "acknowledge": "brief message to user"}
-
-6. Reminders (set, list, cancel, or extend reminders — supports one-shot, recurring daily/weekly/monthly, and interval-based like "every N minutes/hours"):
-{"remind": true, "action": "set|list|cancel|extend", "text": "the user's full message", "acknowledge": "brief message to user"}
-
-7. Local weather (current conditions or forecast for HERE/Netanya — "the weather", "will it rain", "forecast", "this weekend", "tomorrow"):
-{"weather": true, "question": "the user's weather question", "acknowledge": "brief message to user"}
-
-8. Calendar events (schedule/add a meeting, appointment, or event; or list what's on the calendar for a day/range):
-{"calendar": true, "action": "create|list", "text": "the user's full message", "acknowledge": "brief message to user"}
-
-9. Deep research / multi-step analysis (needs several searches, cross-referencing multiple sources, reading full web pages, or combining web data with calculations/charts — anything a single quick lookup can't answer):
-{"research": true, "query": "the full research question with all relevant context", "acknowledge": "brief message to user"}
-
-10. Media library (Jellyfin — search the movie/TV library, what's recently added, continue watching / next up, "what should I watch tonight" recommendations, what's playing now, or trigger a library scan):
-{"jellyfin": true, "query": "the user's full request", "acknowledge": "brief message to user"}
-
-11. Commute buses (next bus / ETA for lines 616 or 65, leaving home or returning, train shuttle — reads Home Assistant sensors from the bus monitor):
-{"bus": true, "question": "the user's bus question", "acknowledge": "brief message to user"}
-
-12. Self-development — modify your OWN source code / behaviour. Your source lives in the jarvis-ui repository and includes: your monitoring scripts (scripts/*.sh — e.g. samba-monitor.sh, disk-watchdog.sh), your Telegram bot code (telegram-bot/src/**), your prompts, and your .claude config. ANY request to add/edit/comment/rename/refactor those files, add a feature or command to yourself, fix a bug in your own code, or make one of your checks self-healing → selfdev. This edits the codebase, syntax-checks, commits, and offers a deploy:
-{"selfdev": true, "task": "a clear, complete description of the code change to make, with all context", "acknowledge": "brief message to user"}
-
-MULTIPLE ACTIONS:
-If the user asks for several INDEPENDENT things in one message, respond with a JSON ARRAY of action objects (using the exact formats above), e.g. [{...}, {...}]. Each entry runs concurrently, so only combine actions that do not depend on one another. For a single request, return a single object — never wrap one action in an array.
-
-EXAMPLES:
-- User: "what's on this page https://example.com" → {"fetch": true, "url": "https://example.com", "question": "What is on this page?", "acknowledge": "Let me read that page for you, Sir."}
-- User: "restart the nginx container" → {"delegate": true, "task": "Restart the nginx Docker container and confirm it's healthy", "agent": "docker-ops", "acknowledge": "Restarting nginx now, Sir."}
-- User: "what's the weather" → {"weather": true, "question": "current weather", "acknowledge": "Checking the weather, Sir."}
-- User: "will it rain tomorrow" → {"weather": true, "question": "will it rain tomorrow?", "acknowledge": "Let me check the forecast, Sir."}
-- User: "what's the weather this weekend" → {"weather": true, "question": "weather this weekend", "acknowledge": "Checking the weekend forecast, Sir."}
-- User: "what's the weather in Paris" → {"search": true, "query": "weather Paris France today", "acknowledge": "Checking the weather in Paris, Sir."}
-- User: "compare the iPhone 16 and Pixel 9 cameras and tell me which is better" → {"research": true, "query": "Compare iPhone 16 and Pixel 9 camera quality across reviews and give a verdict", "acknowledge": "Let me research that properly, Sir."}
-- User: "find Bitcoin's price over the last month and chart it" → {"research": true, "query": "Find Bitcoin daily price for the last 30 days and plot it as a chart", "acknowledge": "On it — gathering the data and charting it, Sir."}
-- User: "research the gnome-remote-desktop service and whether it's a security risk" → {"research": true, "query": "What is the gnome-remote-desktop service, what does port 3390 do, and is it a security risk?", "acknowledge": "Let me dig into that, Sir."}
-- User: "calculate 15% tip on 230 shekels" → {"compute": true, "task": "Calculate 15% tip on 230 ILS", "acknowledge": "Let me work that out, Sir."}
-- User: "call the forecast API at https://www.02ws.co.il/api/forecast" → {"delegate": true, "task": "Make an HTTP GET request to https://www.02ws.co.il/api/forecast and return the response", "acknowledge": "Calling that API now, Sir."}
-- User: "how's the server doing" → {"delegate": true, "task": "Run a full system health check (CPU, memory, disk, containers, failed services)", "agent": "diagnostics", "acknowledge": "Running a health check, Sir."}
-- User: "turn off the heater plug" → {"ha": true, "command": "turn off the heater plug", "acknowledge": "Switching it off now, Sir."}
-- User: "turn on the living room light" → {"ha": true, "command": "turn on the living room light", "acknowledge": "Lighting up the living room, Sir."}
-- User: "what's the state history of the bedroom light today" → {"ha": true, "command": "what's the state history of the bedroom light today", "acknowledge": "Checking the bedroom light's history, Sir."}
-- User: "remind me to check the laundry in 30 minutes" → {"remind": true, "action": "set", "text": "remind me to check the laundry in 30 minutes", "acknowledge": "Setting that reminder, Sir."}
-- User: "reminder for every 5 minutes to stretch" → {"remind": true, "action": "set", "text": "reminder for every 5 minutes to stretch", "acknowledge": "Setting that recurring reminder, Sir."}
-- User: "schedule a meeting with Dana tomorrow 3pm for an hour" → {"calendar": true, "action": "create", "text": "schedule a meeting with Dana tomorrow 3pm for an hour", "acknowledge": "Adding that to your calendar, Sir."}
-- User: "add a dentist appointment on Friday 10am" → {"calendar": true, "action": "create", "text": "add a dentist appointment on Friday 10am", "acknowledge": "Putting that on your calendar, Sir."}
-- User: "what's on my calendar Friday" → {"calendar": true, "action": "list", "text": "what's on my calendar Friday", "acknowledge": "Checking your calendar, Sir."}
-- User: "what do I have this week" → {"calendar": true, "action": "list", "text": "what do I have this week", "acknowledge": "Let me check your schedule, Sir."}
-- User: "what reminders do I have" → {"remind": true, "action": "list", "text": "list reminders", "acknowledge": "Let me check, Sir."}
-- User: "cancel reminder 3" → {"remind": true, "action": "cancel", "text": "cancel reminder 3", "acknowledge": "Cancelling that reminder, Sir."}
-- User: "extend reminder 2 by 20 minutes" → {"remind": true, "action": "extend", "text": "extend reminder 2 by 20 minutes", "acknowledge": "Extending that reminder, Sir."}
-- User: "what should I watch tonight" → {"jellyfin": true, "query": "What should I watch tonight?", "acknowledge": "Let me see what's on, Sir."}
-- User: "do we have the movie Dune on jellyfin" → {"jellyfin": true, "query": "Is the movie Dune in the library?", "acknowledge": "Checking the library, Sir."}
-- User: "what's been added to jellyfin recently" → {"jellyfin": true, "query": "recently added", "acknowledge": "Checking what's new, Sir."}
-- User: "what am I in the middle of watching" → {"jellyfin": true, "query": "continue watching", "acknowledge": "Let me check, Sir."}
-- User: "when's the next bus" → {"bus": true, "question": "when's the next bus", "acknowledge": "Checking the buses, Sir."}
-- User: "when is the next 65 to the train" → {"bus": true, "question": "next 65 leaving to the train", "acknowledge": "Checking line 65, Sir."}
-- User: "616 ETA coming home" → {"bus": true, "question": "616 returning home", "acknowledge": "Checking the 616, Sir."}
-- User: "add a comment at the top of scripts/samba-monitor.sh noting it self-heals mounts" → {"selfdev": true, "task": "Add a comment near the top of scripts/samba-monitor.sh (right after the shebang) explaining that the script self-heals mounts before alerting", "acknowledge": "Adding that note to my code, Sir."}
-- User: "add a self-healing retry to your disk watchdog script" → {"selfdev": true, "task": "In the disk-watchdog monitoring script, add self-healing: if the disk check fails, attempt cleanup/remount and retry up to 3 times before alerting", "acknowledge": "Let me update my own code for that, Sir."}
-- User: "make your morning briefing also include the weather for tomorrow" → {"selfdev": true, "task": "Modify the morning briefing so it also includes tomorrow's weather forecast, not just today's", "acknowledge": "I'll amend my briefing code, Sir."}
-- User: "add a /gpu command that shows GPU temperature" → {"selfdev": true, "task": "Add a new Telegram command /gpu that reports GPU temperature and utilisation", "acknowledge": "Adding that command to myself, Sir."}
-- User: "turn on the office light and tell me the news about the port strike" → [{"ha": true, "command": "turn on the office light", "acknowledge": "Lighting up the office, Sir."}, {"search": true, "query": "port strike news today", "acknowledge": "Fetching the latest, Sir."}]
-- User: "what's on my calendar today and will it rain" → [{"calendar": true, "action": "list", "text": "what's on my calendar today", "acknowledge": "Checking your calendar, Sir."}, {"weather": true, "question": "will it rain today?", "acknowledge": "Checking the forecast, Sir."}]
+EXAMPLES (user message → tool call):
+- "what's on this page https://example.com" → fetch(url: "https://example.com", question: "What is on this page?", acknowledge: "Let me read that page for you, Sir.")
+- "restart the nginx container" → delegate(task: "Restart the nginx Docker container and confirm it's healthy", agent: "docker-ops", acknowledge: "Restarting nginx now, Sir.")
+- "what's the weather" → weather(question: "current weather", acknowledge: "Checking the weather, Sir.")
+- "will it rain tomorrow" → weather(question: "will it rain tomorrow?", acknowledge: "Let me check the forecast, Sir.")
+- "what's the weather in Paris" → search(query: "weather Paris France today", acknowledge: "Checking the weather in Paris, Sir.")
+- "compare the iPhone 16 and Pixel 9 cameras and tell me which is better" → research(query: "Compare iPhone 16 and Pixel 9 camera quality across reviews and give a verdict", acknowledge: "Let me research that properly, Sir.")
+- "find Bitcoin's price over the last month and chart it" → research(query: "Find Bitcoin daily price for the last 30 days and plot it as a chart", acknowledge: "On it — gathering the data and charting it, Sir.")
+- "research the gnome-remote-desktop service and whether it's a security risk" → research(query: "What is the gnome-remote-desktop service, what does port 3390 do, and is it a security risk?", acknowledge: "Let me dig into that, Sir.")
+- "calculate 15% tip on 230 shekels" → compute(task: "Calculate 15% tip on 230 ILS", acknowledge: "Let me work that out, Sir.")
+- "call the forecast API at https://www.02ws.co.il/api/forecast" → delegate(task: "Make an HTTP GET request to https://www.02ws.co.il/api/forecast and return the response", acknowledge: "Calling that API now, Sir.")
+- "how's the server doing" → delegate(task: "Run a full system health check (CPU, memory, disk, containers, failed services)", agent: "diagnostics", acknowledge: "Running a health check, Sir.")
+- "turn off the heater plug" → ha(command: "turn off the heater plug", acknowledge: "Switching it off now, Sir.")
+- "what's the state history of the bedroom light today" → ha(command: "what's the state history of the bedroom light today", acknowledge: "Checking the bedroom light's history, Sir.")
+- "remind me to check the laundry in 30 minutes" → remind(action: "set", text: "remind me to check the laundry in 30 minutes", acknowledge: "Setting that reminder, Sir.")
+- "reminder for every 5 minutes to stretch" → remind(action: "set", text: "reminder for every 5 minutes to stretch", acknowledge: "Setting that recurring reminder, Sir.")
+- "what reminders do I have" → remind(action: "list", text: "list reminders", acknowledge: "Let me check, Sir.")
+- "cancel reminder 3" → remind(action: "cancel", text: "cancel reminder 3", acknowledge: "Cancelling that reminder, Sir.")
+- "extend reminder 2 by 20 minutes" → remind(action: "extend", text: "extend reminder 2 by 20 minutes", acknowledge: "Extending that reminder, Sir.")
+- "schedule a meeting with Dana tomorrow 3pm for an hour" → calendar(action: "create", text: "schedule a meeting with Dana tomorrow 3pm for an hour", acknowledge: "Adding that to your calendar, Sir.")
+- "what do I have this week" → calendar(action: "list", text: "what do I have this week", acknowledge: "Let me check your schedule, Sir.")
+- "what should I watch tonight" → jellyfin(query: "What should I watch tonight?", acknowledge: "Let me see what's on, Sir.")
+- "do we have the movie Dune on jellyfin" → jellyfin(query: "Is the movie Dune in the library?", acknowledge: "Checking the library, Sir.")
+- "when is the next 65 to the train" → bus(question: "next 65 leaving to the train", acknowledge: "Checking line 65, Sir.")
+- "616 ETA coming home" → bus(question: "616 returning home", acknowledge: "Checking the 616, Sir.")
+- "add a comment at the top of scripts/samba-monitor.sh noting it self-heals mounts" → selfdev(task: "Add a comment near the top of scripts/samba-monitor.sh (right after the shebang) explaining that the script self-heals mounts before alerting", acknowledge: "Adding that note to my code, Sir.")
+- "make your morning briefing also include the weather for tomorrow" → selfdev(task: "Modify the morning briefing so it also includes tomorrow's weather forecast, not just today's", acknowledge: "I'll amend my briefing code, Sir.")
+- "add a /gpu command that shows GPU temperature" → selfdev(task: "Add a new Telegram command /gpu that reports GPU temperature and utilisation", acknowledge: "Adding that command to myself, Sir.")
+- "turn on the office light and tell me the news about the port strike" → two calls: ha(command: "turn on the office light", acknowledge: "Lighting up the office, Sir.") and search(query: "port strike news today", acknowledge: "Fetching the latest, Sir.")
+- "what's on my calendar today and will it rain" → two calls: calendar(action: "list", text: "what's on my calendar today", acknowledge: "Checking your calendar, Sir.") and weather(question: "will it rain today?", acknowledge: "Checking the forecast, Sir.")
 
 RULES:
-- Set/list/cancel/extend reminders, alarms, scheduled messages (including recurring like "every X minutes") → remind
-- "Remind me to..." (a nudge/notification) → remind
-- "Schedule/add a meeting/appointment/event", "put X on my calendar", or asking what's on the calendar for a day/range → calendar
-- NEVER refuse a reminder request — always route to remind and let the reminder system handle it
+- Reminders, alarms, scheduled messages, "remind me to..." (including recurring like "every X minutes") → remind. NEVER refuse a reminder request.
+- "Schedule/add a meeting/appointment/event", "put X on my calendar", or what's on the calendar for a day/range → calendar
 - Smart home device control (turn on/off, toggle lights/switches/plugs/fans/covers) → ha
-- Server operations (check status, read logs, restart services, run commands) → delegate
-- Changing your OWN code/behaviour, adding a feature to yourself, fixing a bug in your own scripts/commands, editing or adding a comment to any of your scripts (scripts/*.sh) or bot code (telegram-bot/src/**), making a check self-healing → selfdev (this edits the source and commits it; delegate only RUNS things and edits the throwaway deploy copy, so NEVER use delegate to change a file in your own codebase)
-- API calls, curl requests, HTTP endpoints that need headers/auth → delegate (server has full network access)
-- Local weather / forecast (here, Netanya, "the weather", rain, temperature outlook) → weather
-- Weather for a DIFFERENT city → search
-- Current info, news, prices, live data (a single quick lookup) → search
-- Multi-step research: comparing options, cross-referencing several sources, reading multiple pages, or search combined with calculations/charts → research
-- Movies / TV / media library: "what should I watch", search titles, recently added, continue watching, now playing, library scan → jellyfin
-- Next bus / bus ETA / line 616 / line 65 / train shuttle commute times → bus (NOT search, NOT ha device control)
+- Server operations (check status, read logs, restart services, run commands), API calls, curl requests, HTTP endpoints that need headers/auth → delegate
+- Changing your OWN code/behaviour, adding a feature to yourself, fixing a bug in your own scripts/commands, editing or commenting any of your scripts or bot code, making a check self-healing → selfdev (this edits the source and commits it; delegate only RUNS things and edits the throwaway deploy copy, so NEVER use delegate to change a file in your own codebase)
+- Local weather / forecast → weather; weather for a DIFFERENT city → search
+- A single quick lookup of current info, news, prices, live data → search; multi-step research, comparisons, several sources, or search plus calculations/charts → research
+- Movies / TV / media library → jellyfin
+- Next bus / bus ETA / line 616 / line 65 / train shuttle → bus (NOT search, NOT ha)
 - Read/summarise a public web page or PDF → fetch
 - Stremio / local stream URLs (http://127.0.0.1:11470/HASH/…), magnet links, or bare 40-char torrent info hashes → do NOT fetch. On Telegram the download handler catches these; if asked in chat, tell the user to send the link (optionally with movie/tv) and it will be added to qBittorrent.
-- Math, conversions, data analysis, generate charts → compute (NO internet — cannot make HTTP requests)
-- Knowledge questions (what is X, explain Y) → answer directly
+- Math, conversions, data analysis, charts → compute (NO internet — cannot make HTTP requests)
+- Knowledge questions (what is X, explain Y), casual conversation, memory questions → answer directly, no tool
 - If unsure whether to delegate or search → delegate (safer)
-- Several independent requests in one message → return a JSON ARRAY of actions
-- NEVER invent tool call formats like <function_calls>, <tool_use>, or XML tags. Only use the JSON formats above.
-- Never mention actions, models, or architecture to the user. Just respond naturally.`;
+- Never mention tools, models, or architecture to the user. Just respond naturally.`;
 }
 
 // Connected MCP tool providers are declared in ~/jarvis/mcp.json (see
-// services/mcp-client.js). They're injected into the front prompt at runtime so
-// the router can offer their capabilities without hard-coding any provider.
-function mcpPromptSection() {
-  const servers = mcpServerSummaries(isNonHaServer);
+// services/mcp-client.js). They're listed in the `mcp` tool's description at
+// runtime, so the router can offer them without hard-coding any provider.
+function mcpPromptSection(servers) {
   if (!servers.length) return '';
-  const list = servers
-    .map((s) => `   • ${s.name}${s.description ? ` — ${s.description}` : ''}`)
-    .join('\n');
   return `
 
-12. Connected external tool providers (MCP). Route requests matching one of these here:
-${list}
-{"mcp": true, "task": "the user's full request in natural language", "complex": false, "acknowledge": "brief message to user"}
-- Set "complex": true when the task spans MULTIPLE providers above OR needs multi-step reasoning (e.g. cross-referencing a recipe against inventory, then updating a list). Use false (or omit) for a single simple lookup or action.
-- EXAMPLE (simple): "how many eggs do I have left" → {"mcp": true, "task": "How many eggs are in stock?", "acknowledge": "Checking your inventory, Sir."}
-- EXAMPLE (simple): "add milk to the shopping list" → {"mcp": true, "task": "Add milk to the shopping list", "acknowledge": "Adding milk to your list, Sir."}
-- EXAMPLE (simple): "what's my meal plan for Friday night" → {"mcp": true, "task": "What is on the meal plan for this coming Friday night / dinner?", "acknowledge": "Checking your meal plan, Sir."}
-- EXAMPLE (simple): "what meal plan do you see for the week" → {"mcp": true, "task": "List the meal plan for this week (from today through the coming Sunday)", "acknowledge": "Pulling this week's meals, Sir."}
-- EXAMPLE (bridging): "add the missing ingredients for spaghetti bolognese to my shopping list" → {"mcp": true, "task": "Look up the spaghetti bolognese recipe, check which of its ingredients are missing from my inventory, and add the missing ones to the shopping list", "complex": true, "acknowledge": "Cross-referencing the recipe with your inventory, Sir."}
-- EXAMPLE (bridging): "what can I cook with what's expiring soon" → {"mcp": true, "task": "Find items expiring soon in my inventory, then suggest recipes I can make with them", "complex": true, "acknowledge": "Let me see what needs using up, Sir."}`;
+MCP EXAMPLES (connected tool providers, via the mcp tool):
+- "how many eggs do I have left" → mcp(task: "How many eggs are in stock?", complex: false, acknowledge: "Checking your inventory, Sir.")
+- "add milk to the shopping list" → mcp(task: "Add milk to the shopping list", complex: false, acknowledge: "Adding milk to your list, Sir.")
+- "what's my meal plan for Friday night" → mcp(task: "What is on the meal plan for this coming Friday night / dinner?", complex: false, acknowledge: "Checking your meal plan, Sir.")
+- "what meal plan do you see for the week" → mcp(task: "List the meal plan for this week (from today through the coming Sunday)", complex: false, acknowledge: "Pulling this week's meals, Sir.")
+- "add the missing ingredients for spaghetti bolognese to my shopping list" → mcp(task: "Look up the spaghetti bolognese recipe, check which of its ingredients are missing from my inventory, and add the missing ones to the shopping list", complex: true, acknowledge: "Cross-referencing the recipe with your inventory, Sir.")
+- "what can I cook with what's expiring soon" → mcp(task: "Find items expiring soon in my inventory, then suggest recipes I can make with them", complex: true, acknowledge: "Let me see what needs using up, Sir.")`;
 }
 
-// --- Front model API call (Haiku primary, small OpenAI model fallback) — pure router, no tools ---
+// --- Front model API call (Haiku primary, small OpenAI model fallback) ---
+// The router picks actions with native tool calls (front-tools.js); a reply with
+// no tool call is a direct answer. Returns { ok, text, actions, provider }.
 
-async function runFrontModel(systemPrompt, userMessage) {
+async function runFrontModel(systemPrompt, userMessage, tools) {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (anthropicKey) {
     try {
@@ -273,16 +214,17 @@ async function runFrontModel(systemPrompt, userMessage) {
           ...quickCallOptions(frontModel()),
           max_tokens: 1024,
           system: systemPrompt,
+          tools,
+          tool_choice: { type: 'auto' },
           messages: [{ role: 'user', content: userMessage }],
         }),
         signal: AbortSignal.timeout(30_000),
       });
       if (res.ok) {
-        const data = await res.json();
-        const text = responseText(data);
-        if (text) {
+        const { actions, text } = fromAnthropic(await res.json());
+        if (actions.length || text) {
           console.log(`[front] Responded via ${frontModel()}`);
-          return { ok: true, output: text, provider: 'haiku' };
+          return { ok: true, text, actions, provider: 'haiku' };
         }
       }
       const errBody = await res.text().catch(() => '');
@@ -309,17 +251,18 @@ async function runFrontModel(systemPrompt, userMessage) {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userMessage },
           ],
+          tools: openaiTools(tools),
+          tool_choice: 'auto',
           reasoning_effort: 'none',
           max_completion_tokens: 1024,
         }),
         signal: AbortSignal.timeout(30_000),
       });
       if (res.ok) {
-        const data = await res.json();
-        const text = data.choices?.[0]?.message?.content?.trim();
-        if (text) {
+        const { actions, text } = fromOpenAI(await res.json());
+        if (actions.length || text) {
           console.log(`[front] Responded via OpenAI ${openaiSmallModel()} (fallback)`);
-          return { ok: true, output: text, provider: 'openai' };
+          return { ok: true, text, actions, provider: 'openai' };
         }
       }
       const errBody = await res.text().catch(() => '');
@@ -329,12 +272,10 @@ async function runFrontModel(systemPrompt, userMessage) {
     }
   }
 
-  return { ok: false, output: 'No API key available for front model (set ANTHROPIC_API_KEY or OPENAI_API_KEY).' };
+  return { ok: false, text: 'No API key available for front model (set ANTHROPIC_API_KEY or OPENAI_API_KEY).', actions: [] };
 }
 
-// --- Action metadata + parsing ---
-
-const ACTION_KEYS = ['delegate', 'search', 'fetch', 'compute', 'ha', 'remind', 'weather', 'calendar', 'research', 'mcp', 'jellyfin', 'bus', 'selfdev'];
+// --- Action metadata ---
 
 // Per-action presentation metadata (status emoji, default ack, error label)
 export const ACTION_META = {
@@ -353,7 +294,7 @@ export const ACTION_META = {
   selfdev:  { emoji: '🛠️', ack: 'Editing my own code, Sir — this may take a few minutes...', label: 'Self-update' },
 };
 
-export const actionKeyOf = (a) => ACTION_KEYS.find((k) => a?.[k]) || null;
+export const actionKeyOf = (a) => FRONT_TOOL_NAMES.find((k) => a?.[k]) || null;
 
 // --- Delegate routing: pick a model tier + optional Claude Code subagent ---
 // Routine server ops are haiku-tier work (the docker-ops/diagnostics subagents
@@ -384,58 +325,6 @@ function resolveDelegateTarget(action) {
     return { agent, tier: a.tier, model: a.model() };
   }
   return { agent: null, tier: 'opus', model: opusModel() };
-}
-
-// Parse the front model output into an ARRAY of action objects.
-// Supports a single object (→ [obj]), a JSON array (→ filtered), or JSON
-// embedded in prose (→ single). Returns [] when no action is present.
-function parseActions(text) {
-  const normalize = (s) => s
-    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
-    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
-
-  const isAction = (o) => o && typeof o === 'object' && ACTION_KEYS.some((k) => o[k]);
-  const tryParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
-
-  // Try to interpret a candidate string as one-or-more actions.
-  const fromCandidate = (s) => {
-    const parsed = tryParse(s);
-    if (Array.isArray(parsed)) {
-      const actions = parsed.filter(isAction);
-      if (actions.length) return actions;
-    }
-    if (isAction(parsed)) return [parsed];
-    return null;
-  };
-
-  let trimmed = normalize(text.trim());
-
-  // 1. Fenced code block anywhere (```json ... ```), even with prose around it.
-  //    Haiku sometimes adds a preamble sentence before the fence.
-  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) {
-    const hit = fromCandidate(fence[1].trim());
-    if (hit) return hit;
-  }
-
-  // 2. Whole message is JSON (array or object).
-  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-    const hit = fromCandidate(trimmed);
-    if (hit) return hit;
-  }
-
-  // 3. JSON embedded in prose: slice from the first bracket to the matching
-  //    last bracket and try. Handles pretty-printed JSON + leading/trailing text.
-  for (const [open, close] of [['[', ']'], ['{', '}']]) {
-    const start = trimmed.indexOf(open);
-    const end = trimmed.lastIndexOf(close);
-    if (start >= 0 && end > start) {
-      const hit = fromCandidate(trimmed.slice(start, end + 1));
-      if (hit) return hit;
-    }
-  }
-
-  return [];
 }
 
 // --- Reminder sub-dispatch (set/list/cancel/extend) ---
@@ -613,7 +502,7 @@ async function runOne(action, sctx) {
 //   source      session metadata tag (default 'api')
 //   chatId      Telegram chat id for chat-bound actions (reminders/calendar). Headless surfaces
 //               omit it; it then comes from JARVIS_IDENTITY_MAP when the key is mapped to a user.
-//   onPlan      optional async hook called with the parsed actions before execution (for progress UX)
+//   onPlan      optional async hook called with the chosen actions before execution (for progress UX)
 //   onBackground optional async hook to deliver a long/delegated action's result AFTER askCore returns
 //                (fire-and-follow-up). When omitted, such actions are awaited inline instead.
 //   voice       the reply will be spoken (phone, Echo): ask the front model for short spoken answers
@@ -639,12 +528,17 @@ export async function askCore(prompt, { sessionKey = 'api:default', source = 'ap
   }
   recordTo(frontCallLog);
 
-  const front = await runFrontModel(frontSystemPrompt() + mcpPromptSection() + (voice ? VOICE_MODE : ''), contextPrompt);
+  const mcpServers = mcpServerSummaries(isNonHaServer);
+  const front = await runFrontModel(
+    frontSystemPrompt() + mcpPromptSection(mcpServers) + (voice ? VOICE_MODE : ''),
+    contextPrompt,
+    frontTools(mcpServers),
+  );
   if (!front.ok) {
-    return { ok: false, kind: 'error', sessionId, text: front.output, results: [] };
+    return { ok: false, kind: 'error', sessionId, text: front.text, results: [] };
   }
 
-  let actions = parseActions(front.output);
+  let { actions } = front;
 
   // Fallback: user sent a URL but the front model didn't return a fetch action.
   // Skip Stremio/local stream URLs — those are download links, not web pages.
@@ -667,8 +561,8 @@ export async function askCore(prompt, { sessionKey = 'api:default', source = 'ap
 
   // --- Direct answer ---
   if (!actions.length) {
-    await storeMessage(sessionId, 'assistant', front.output);
-    return { ok: true, kind: 'direct', sessionId, text: front.output, results: [] };
+    await storeMessage(sessionId, 'assistant', front.text);
+    return { ok: true, kind: 'direct', sessionId, text: front.text, results: [] };
   }
 
   // --- Action dispatch: run independent actions in parallel ---
