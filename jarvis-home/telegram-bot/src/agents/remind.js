@@ -2,7 +2,7 @@ import pg from 'pg';
 import { createCalendarEvent } from '../services/calendar-sync.js';
 import { haikuModel, quickCallOptions } from '../models.js';
 import { responseText } from './shared.js';
-import { buildReminder } from './schedule-spec.js';
+import { buildReminder, nextOccurrence } from './schedule-spec.js';
 const { Pool } = pg;
 
 const TZ = 'Asia/Jerusalem';
@@ -422,49 +422,11 @@ export async function extendReminder(chatId, id, minutes) {
   return { ok: true, output: `Reminder extended by ${minutes}m — now at ${timeStr}` };
 }
 
-export function computeNextFire(recurrence, lastFire) {
+// Next fire time for a recurring reminder, in Jerusalem time (never the
+// server TZ), skipping any occurrences missed while the bot was down.
+export function computeNextFire(recurrence, lastFire, now = new Date()) {
   if (!recurrence) return null;
-
-  const [type, ...parts] = recurrence.split(':');
-  const base = new Date(lastFire);
-
-  if (type === 'interval') {
-    const n = parseInt(parts[0]);
-    const unit = parts[1];
-    const ms = unit === 'hour' ? n * 3600_000 : n * 60_000;
-    return new Date(base.getTime() + ms);
-  }
-
-  if (type === 'hourly') {
-    const mm = parseInt(parts[0]);
-    base.setHours(base.getHours() + 1);
-    base.setMinutes(mm, 0, 0);
-    return base;
-  }
-
-  if (type === 'daily') {
-    const [hh, mm] = parts;
-    base.setDate(base.getDate() + 1);
-    base.setHours(parseInt(hh), parseInt(mm), 0, 0);
-    return base;
-  }
-
-  if (type === 'weekly') {
-    const [, hh, mm] = parts;
-    base.setDate(base.getDate() + 7);
-    base.setHours(parseInt(hh), parseInt(mm), 0, 0);
-    return base;
-  }
-
-  if (type === 'monthly') {
-    const [dayOfMonth, hh, mm] = parts;
-    base.setMonth(base.getMonth() + 1);
-    base.setDate(parseInt(dayOfMonth));
-    base.setHours(parseInt(hh), parseInt(mm), 0, 0);
-    return base;
-  }
-
-  return null;
+  return nextOccurrence(recurrence, lastFire, now);
 }
 
 export async function getDueReminders() {

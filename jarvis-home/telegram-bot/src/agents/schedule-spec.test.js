@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildReminder, buildEvent, resolveDateRange, hasTiming } from './schedule-spec.js';
+import { buildReminder, buildEvent, resolveDateRange, hasTiming, nextOccurrence } from './schedule-spec.js';
 import { jerusalemTime, jerusalemParts } from '../time.js';
 
 // Thursday 26 Nov 2026, 12:00 in Jerusalem (winter, UTC+2).
@@ -129,4 +129,44 @@ test('date ranges are inclusive local days', () => {
   assert.equal(resolveDateRange('2026-11-29', '2026-11-26').ok, false);
   assert.equal(resolveDateRange('2026-01-01', '2026-12-31').ok, false);
   assert.equal(resolveDateRange('Friday').ok, false);
+});
+
+const at = (s) => new Date(s);
+const next = (rec, last, now = new Date(new Date(last).getTime() + 30_000)) => nextOccurrence(rec, at(last), now)?.toISOString();
+
+test('repeat times follow Jerusalem time whatever the server TZ is', (t) => {
+  const saved = process.env.TZ;
+  t.after(() => { if (saved === undefined) delete process.env.TZ; else process.env.TZ = saved; });
+  for (const tz of ['UTC', 'America/New_York', 'Asia/Jerusalem']) {
+    process.env.TZ = tz;
+    assert.equal(next('daily:08:30', '2026-11-26T06:30:00Z'), '2026-11-27T06:30:00.000Z', tz);
+    assert.equal(next('weekly:7:08:00', '2026-11-29T06:00:00Z'), '2026-12-06T06:00:00.000Z', tz);
+    assert.equal(next('hourly:30', '2026-11-26T10:30:00Z'), '2026-11-26T11:30:00.000Z', tz);
+  }
+});
+
+test('daily repeats keep local time across the DST change', () => {
+  assert.equal(next('daily:08:00', '2026-03-26T06:00:00Z'), '2026-03-27T05:00:00.000Z');
+});
+
+test('intervals step from the last fire', () => {
+  assert.equal(next('interval:5:min', '2026-11-26T10:00:00Z'), '2026-11-26T10:05:00.000Z');
+  assert.equal(next('interval:2:hour', '2026-11-26T10:00:00Z'), '2026-11-26T12:00:00.000Z');
+});
+
+test('occurrences missed while the bot was down are skipped, not replayed', () => {
+  const now = at('2026-11-26T12:02:00Z');
+  assert.equal(nextOccurrence('interval:5:min', at('2026-11-26T10:00:00Z'), now).toISOString(), '2026-11-26T12:05:00.000Z');
+  assert.equal(nextOccurrence('daily:08:30', at('2026-11-23T06:30:00Z'), now).toISOString(), '2026-11-27T06:30:00.000Z');
+});
+
+test('monthly repeats skip months without that day', () => {
+  assert.equal(next('monthly:31:10:00', '2026-12-31T08:00:00Z'), '2027-01-31T08:00:00.000Z');
+  assert.equal(next('monthly:31:10:00', '2027-01-31T08:00:00Z'), '2027-03-31T07:00:00.000Z');
+});
+
+test('unknown or broken patterns give null', () => {
+  assert.equal(nextOccurrence('yearly:1', at('2026-11-26T10:00:00Z')), null);
+  assert.equal(nextOccurrence('daily:xx:yy', at('2026-11-26T10:00:00Z')), null);
+  assert.equal(nextOccurrence('interval:0:min', at('2026-11-26T10:00:00Z')), null);
 });

@@ -45,6 +45,44 @@ function nextLocal(now, { hour, minute }, accept = () => true, maxDays = 400) {
   return null;
 }
 
+/**
+ * Next time a recurrence pattern fires after `lastFire`, in Jerusalem local
+ * time. Occurrences missed while the bot was down are skipped: the result is
+ * always after `now` too. Returns null for an unknown pattern.
+ */
+export function nextOccurrence(recurrence, lastFire, now = new Date()) {
+  const [type, ...parts] = String(recurrence || '').split(':');
+  const nums = (type === 'interval' ? parts.slice(0, 1) : parts).map(Number);
+  const last = new Date(lastFire);
+  if (isNaN(last.getTime()) || nums.some(isNaN)) return null;
+  const after = new Date(Math.max(last.getTime(), now.getTime()));
+
+  switch (type) {
+    case 'interval': {
+      const [n] = nums;
+      if (!(n > 0)) return null;
+      const ms = n * (parts[1] === 'hour' ? 60 : 1) * MINUTE;
+      return new Date(last.getTime() + (Math.floor((after - last) / ms) + 1) * ms);
+    }
+    case 'hourly': {
+      const [minute] = nums;
+      if (!(minute >= 0 && minute <= 59)) return null;
+      const next = new Date(after.getTime() + MINUTE);
+      next.setUTCSeconds(0, 0);
+      while (jerusalemParts(next).minute !== minute) next.setTime(next.getTime() + MINUTE);
+      return next;
+    }
+    case 'daily':
+      return nextLocal(after, { hour: nums[0], minute: nums[1] });
+    case 'weekly':
+      return nextLocal(after, { hour: nums[1], minute: nums[2] }, (p) => p.weekday === nums[0]);
+    case 'monthly':
+      return nextLocal(after, { hour: nums[1], minute: nums[2] }, (p) => p.day === nums[0]);
+    default:
+      return null;
+  }
+}
+
 /** True when the spec carries timing the structured path can use. */
 export function hasTiming(spec) {
   return !!spec && ((spec.repeat && spec.repeat !== 'none') || spec.in_minutes != null || !!spec.date || !!spec.time);
